@@ -92,6 +92,32 @@ Cómo cargarlas:
 - Vercel: Project → Settings → Environment Variables (Production y Preview) → redeploy.
 - Hermes completa la columna Estado. Nunca pegar claves en este archivo.
 
+## Cómo seguimos (handoff desde claude.ai, 18-nov-2026)
+
+El proyecto se armó en una conversación de claude.ai y se continúa acá, en Claude Code.
+Repo: `hermesdesapablo/macro-dashboard` (privado). Cuenta GitHub a usar: **hermesdesapablo**
+(no `Hermeslatin` ni la org `Latin-Securities`).
+
+### Conexiones que faltan
+
+| Conexión | Para qué | Quién | Estado |
+|---|---|---|---|
+| GitHub `hermesdesapablo` ↔ Claude Code | Trabajar y pushear desde Claude Code | Hermes | ☐ |
+| Vercel ↔ repo `hermesdesapablo/macro-dashboard` | Deploy automático en cada push a `main` | Hermes | ☐ |
+| `FRED_API_KEY` en `.env` y en Vercel | EE.UU. + IPC Colombia de respaldo | Hermes | ☐ |
+| `BANXICO_TOKEN` en `.env` y en Vercel | México | Hermes | ☐ |
+| (opcional) Conector LSEG en Claude | DI futuro, OIS, swaps, TES/Mbono | Hermes | ☐ |
+| (opcional) Base de datos chica en Vercel (KV/Postgres) + cron | Fotos diarias para historia de expectativas | Claude Code, con OK de Hermes | ☐ |
+
+### Próximos pasos, en orden
+
+1. `npm install` y `npm test` (debe dar OK sin red).
+2. Con `.env` completo: `node --env-file=.env scripts/smoke.mjs` y arreglar todo lo ⚠ de la tabla de abajo.
+   Registrar en `CHANGELOG.md` qué códigos se confirmaron o cambiaron.
+3. Completar los calendarios faltantes (Banxico 2027, BanRep dic-2026 y 2027).
+4. Deploy en Vercel y revisar los 7 paneles con datos reales.
+5. Decidir con Hermes sobre las fotos diarias (pendiente 6) y sobre LSEG (pendiente 7).
+
 ## Estado por país
 
 Leyenda: ✅ implementado y testeado offline · ⚠ implementado, código/ID **sin verificar contra la API real** · ❌ pendiente
