@@ -95,15 +95,15 @@ Cómo cargarlas:
 ## Cómo seguimos (handoff desde claude.ai, 18-nov-2026)
 
 El proyecto se armó en una conversación de claude.ai y se continúa acá, en Claude Code.
-Repo: `hermesdesapablo/macro-dashboard` (privado). Cuenta GitHub a usar: **hermesdesapablo**
+Repo: `hermesdesanpablo-sys/Panel-macro` (**público**: nunca commitear `.env` ni claves). Cuenta GitHub a usar: **hermesdesanpablo-sys**
 (no `Hermeslatin` ni la org `Latin-Securities`).
 
 ### Conexiones que faltan
 
 | Conexión | Para qué | Quién | Estado |
 |---|---|---|---|
-| GitHub `hermesdesapablo` ↔ Claude Code | Trabajar y pushear desde Claude Code | Hermes | ☐ |
-| Vercel ↔ repo `hermesdesapablo/macro-dashboard` | Deploy automático en cada push a `main` | Hermes | ☐ |
+| GitHub `hermesdesanpablo-sys` ↔ Claude Code | Trabajar y pushear desde Claude Code | Hermes | ☐ |
+| Vercel ↔ repo `hermesdesanpablo-sys/Panel-macro` | Deploy automático en cada push a `main` | Hermes | ☐ |
 | `FRED_API_KEY` en `.env` y en Vercel | EE.UU. + IPC Colombia de respaldo | Hermes | ☐ |
 | `BANXICO_TOKEN` en `.env` y en Vercel | México | Hermes | ☐ |
 | (opcional) Conector LSEG en Claude | DI futuro, OIS, swaps, TES/Mbono | Hermes | ☐ |
