@@ -1,18 +1,20 @@
 import { useEffect, useState, useCallback } from 'react';
 import { CountryPanel, WorldPanel, AgendaList } from './components/Panels.jsx';
 import { fmtDate } from './format.js';
+import { Flag } from './components/Flag.jsx';
 
 const TABS = [
-  { id: 'world', label: 'Mundo', flag: '🌐' },
-  { id: 'br', label: 'Brasil', flag: '🇧🇷' },
-  { id: 'us', label: 'EE.UU.', flag: '🇺🇸' },
-  { id: 'eu', label: 'Eurozona', flag: '🇪🇺' },
-  { id: 'mx', label: 'México', flag: '🇲🇽' },
-  { id: 'ca', label: 'Canadá', flag: '🇨🇦' },
-  { id: 'co', label: 'Colombia', flag: '🇨🇴' },
-  { id: 'agenda', label: 'Agenda', flag: '📅' },
+  { id: 'world', label: 'Mundo' },
+  { id: 'br', label: 'Brasil' },
+  { id: 'us', label: 'EE.UU.' },
+  { id: 'eu', label: 'Eurozona' },
+  { id: 'mx', label: 'México' },
+  { id: 'ca', label: 'Canadá' },
+  { id: 'co', label: 'Colombia' },
+  { id: 'jp', label: 'Japón' },
+  { id: 'agenda', label: 'Agenda' },
 ];
-const COUNTRIES = ['br', 'us', 'eu', 'mx', 'ca', 'co'];
+const COUNTRIES = ['br', 'us', 'eu', 'mx', 'ca', 'co', 'jp'];
 const MOCK = new URLSearchParams(location.search).has('mock');
 
 async function load(id) {
@@ -57,7 +59,7 @@ export default function App() {
 
   const countries = COUNTRIES.map((c) => data[c]).filter(Boolean);
   const agenda = countries
-    .flatMap((p) => (p.calendar || []).map((e) => ({ ...e, flag: p.flag })))
+    .flatMap((p) => (p.calendar || []).map((e) => ({ ...e, cid: p.id })))
     .sort((a, b) => (a.date < b.date ? -1 : 1));
   const current = data[tab];
   const st = state[tab];
@@ -73,7 +75,7 @@ export default function App() {
         <nav className="tabs" role="tablist">
           {TABS.map((t) => (
             <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'on' : ''} onClick={() => go(t.id)}>
-              <span className="flag">{t.flag}</span> {t.label}
+              <Flag id={t.id} /> {t.label}
               {state[t.id] === 'loading' && <span className="dot" />}
             </button>
           ))}
@@ -87,13 +89,13 @@ export default function App() {
       <main>
         {tab !== 'agenda' && current && (
           <h2 className="title">
-            {current.flag} {current.name}
+            <Flag id={current.id} /> {current.name}
             {current.currency && <span className="muted"> · {current.currency}</span>}
           </h2>
         )}
         {tab === 'agenda' ? (
           <section className="card" id="agenda-all">
-            <h2 className="title">📅 Agenda consolidada</h2>
+            <h2 className="title"><Flag id="agenda" /> Agenda consolidada</h2>
             <AgendaList events={agenda} showFlag />
           </section>
         ) : !current ? (

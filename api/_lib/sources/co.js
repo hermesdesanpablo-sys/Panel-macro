@@ -1,9 +1,9 @@
 // Colombia: Banco de la República (SDMX, sin clave) + datos.gov.co (TRM) + FRED (IPC fallback) + Yahoo.
 //
 // BanRep expone SDMX 2.1 en totoro.banrep.gov.co, SOLO en XML (JSON/CSV devuelven 406).
-// Flujos confirmados: DF_TRM_DAILY_HIST, DF_IBR_DAILY_HIST, DF_DTF_DAILY_HIST.
-// La tasa de política y el IPC NO tienen ID confirmado: se descubren buscando en el catálogo
-// de dataflows por nombre. Se pueden fijar con env BANREP_FLOW_POLICY / BANREP_FLOW_CPI.
+// Flujos verificados contra la API (18-nov-2026): DF_CBR_DAILY_HIST (tasa de política), DF_IBR_DAILY_HIST,
+// DF_TRM_DAILY_HIST, DF_UVR_DAILY_HIST, DF_TES_MONTHLY_HIST. El catálogo NO tiene IPC: se deriva de la UVR
+// (ver ipcFromUvr). La tasa de política se puede fijar con env BANREP_FLOW_POLICY.
 import { getText, getJson, clean, iso, daysAgo, settle, kpi, merge, thin, last, upcoming, yoyFromIndex, spreadSeries } from '../util.js';
 import { equityBlock } from '../yahoo.js';
 import { meetingEvents } from '../calendar.js';
@@ -17,16 +17,42 @@ const BANREP_URL = 'https://suameca.banrep.gov.co/estadisticas-economicas/';
 export const BANREP_FLOWS = {
   trm: 'DF_TRM_DAILY_HIST',
   ibr: 'DF_IBR_DAILY_HIST',
-  policy: process.env.BANREP_FLOW_POLICY || null, // se descubre si es null
-  cpi: process.env.BANREP_FLOW_CPI || null, // se descubre si es null
+  uvr: 'DF_UVR_DAILY_HIST',
+  tes: 'DF_TES_MONTHLY_HIST',
+  policy: process.env.BANREP_FLOW_POLICY || 'DF_CBR_DAILY_HIST',
 };
 
 // Cómo elegir la serie dentro de un flujo que trae varias (la clave SDMX concatenada con '.').
-// Ajustar tras el primer `smoke`: el error lista las claves disponibles.
+// Claves reales: CO.IRIBRM{00,01,03,06}._Z._Z._Z.{ER,NR}.D (plazo en meses; ER = efectiva anual, NR = nominal).
+// Se usa ER porque la tasa de política de BanRep se expresa en efectiva anual (IBR ON ER ≈ tasa de política).
 export const SERIES_PICK = {
-  ibrOvernight: process.env.BANREP_IBR_ON || /(^|\.)(ON|O_N|OVERNIGHT|1D|D1)(\.|$)/i,
-  ibr6m: process.env.BANREP_IBR_6M || /(^|\.)(6M|M6|180D?)(\.|$)/i,
+  ibrOvernight: process.env.BANREP_IBR_ON || /(^|\.)IRIBRM00\..*\.ER(\.|$)/,
+  ibr6m: process.env.BANREP_IBR_6M || /(^|\.)IRIBRM06\..*\.ER(\.|$)/,
+  tes10: /(^|\.)IRGBRY10\./, // TES tasa fija 10 años, promedio mensual (viene en decimal)
+  tes1: /(^|\.)IRGBRY01\./,
+  tes5: /(^|\.)IRGBRY05\./,
+  uvr: /\.CRVU\./, // nivel de la UVR (la otra serie, APC, es su variación)
 };
+
+/**
+ * IPC a/a desde la UVR. Por fórmula (Ley 546/1999), la UVR entre el día 16 del mes t y el 15 del mes t+1
+ * crece a la variación mensual del IPC del mes t-1. Entonces el IPC a/a del mes M es
+ * UVR(15 de M+2) / UVR(15 de M-10) − 1. Contrastado con el DANE para ene–oct 2025: coincide al centésimo.
+ */
+export function ipcFromUvr(uvr) {
+  const m = new Map(uvr.map((p) => [p.d, p.v]));
+  const at = (y, mo) => m.get(iso(new Date(Date.UTC(y, mo, 15))));
+  const first = uvr[0]?.d, lastD = uvr[uvr.length - 1]?.d;
+  if (!first) return [];
+  const out = [];
+  for (let y = +first.slice(0, 4), mo = 0; ; mo++) {
+    const dm = new Date(Date.UTC(y, mo, 1));
+    if (iso(dm) > lastD) break;
+    const a = at(dm.getUTCFullYear(), dm.getUTCMonth() + 2), b = at(dm.getUTCFullYear(), dm.getUTCMonth() - 10);
+    if (a && b) out.push({ d: iso(dm), v: Math.round((a / b - 1) * 10000) / 100 });
+  }
+  return clean(out);
+}
 
 // ---------- parser SDMX genericdata (XML) sin dependencias ----------
 const attr = (tag, name) => tag.match(new RegExp(`\\b${name}="([^"]*)"`))?.[1];
@@ -70,17 +96,6 @@ export function parseDataflows(xml) {
   return out;
 }
 
-let flowCache = null;
-async function dataflows() {
-  if (!flowCache) flowCache = parseDataflows(await getText(`${SDMX}/dataflow/ESTAT/all/latest`, { headers: { Accept: XML_STRUCT } }));
-  return flowCache;
-}
-async function findFlow(re, preferHist = true) {
-  const flows = (await dataflows()).filter((f) => re.test(f.name) || re.test(f.id));
-  if (!flows.length) throw new Error(`No hay dataflow BanRep que coincida con ${re}`);
-  return (preferHist && flows.find((f) => /HIST/i.test(f.id))) || flows[0];
-}
-
 export async function banrep(flow, fromYear) {
   const xml = await getText(`${SDMX}/data/ESTAT,${flow},1.0/all/ALL/?startPeriod=${fromYear}`, { headers: { Accept: XML_DATA }, timeout: 25000 });
   const all = parseSdmxGeneric(xml);
@@ -113,20 +128,18 @@ export default async function colombia() {
       'datos.gov.co TRM': () => trmSocrata(from),
       'BanRep IBR': () => banrep(BANREP_FLOWS.ibr, year - 1),
       'BanRep tasa de política': async () => {
-        const flow = BANREP_FLOWS.policy || (await findFlow(/pol[ií]tica monetaria|intervenci[oó]n|policy rate|CBR/i)).id;
+        const flow = BANREP_FLOWS.policy;
         const all = await banrep(flow, year - 3);
         return { flow, s: all.sort((a, b) => b.series.length - a.series.length)[0].series };
       },
-      'BanRep IPC': async () => {
-        const flow = BANREP_FLOWS.cpi || (await findFlow(/precios al consumidor|IPC|inflaci[oó]n|CPI/i)).id;
-        const all = await banrep(flow, year - 4);
-        // Preferir la serie de variación anual si se identifica por la clave; si no, la más larga.
-        const anual = all.find((x) => /ANU|ANNUAL|YOY|VAR_?A/i.test(x.key));
-        const s = (anual || all.sort((a, b) => b.series.length - a.series.length)[0]).series;
-        // Un índice (≈100+) se convierte a variación a/a; una tasa (<50) se usa tal cual.
-        return { flow, s: last(s)?.v > 50 ? yoyFromIndex(s) : s };
+      'BanRep IPC (vía UVR)': async () => ipcFromUvr(pick(await banrep(BANREP_FLOWS.uvr, year - 4), SERIES_PICK.uvr, 'UVR').series),
+      'BanRep TES': async () => {
+        const all = await banrep(BANREP_FLOWS.tes, year - 2);
+        const pct = (re, label) => pick(all, re, label).series.map((p) => ({ d: p.d, v: p.v < 1 ? p.v * 100 : p.v })); // decimal → %
+        return { y1: pct(SERIES_PICK.tes1, 'TES 1Y'), y5: pct(SERIES_PICK.tes5, 'TES 5Y'), y10: pct(SERIES_PICK.tes10, 'TES 10Y') };
       },
-      'Yahoo GXG/COLCAP': () => equityBlock('GXG', 'Global X MSCI Colombia (GXG, USD)', 'ICOLCAP.CL', 'iShares MSCI COLCAP (ICOLCAP)'),
+      // GXG pasó a llamarse COLO. ICOLCAP.CL es la cotización en la BVC (Yahoo usa el sufijo .CL para Colombia).
+      'Yahoo COLO/COLCAP': () => equityBlock('COLO', 'Global X MSCI Colombia (COLO, USD)', 'ICOLCAP.CL', 'iShares MSCI COLCAP (ICOLCAP)'),
     },
     errors
   );
@@ -145,19 +158,19 @@ export default async function colombia() {
 
   const pol = d['BanRep tasa de política'];
   const policy = pol?.s || [];
-  const cpiB = d['BanRep IPC'];
+  const cpiB = d['BanRep IPC (vía UVR)'] || [];
   let cpiF = [];
-  if (!cpiB?.s?.length) {
+  if (!cpiB.length) {
     try {
       cpiF = yoyFromIndex(await fred('COLCPIALLMINMEI', daysAgo(1500)));
     } catch (e) {
       errors.push({ source: 'FRED IPC Colombia (fallback)', message: e.message });
     }
   }
-  // BanRep es la fuente preferida; FRED/OCDE sólo si BanRep no trae IPC (suele venir con rezago).
-  const cpi = cpiB?.s?.length ? cpiB.s : cpiF;
-  const cpiSrc = cpiB?.s?.length
-    ? { source: `BanRep SDMX ${cpiB.flow}`, url: BANREP_URL }
+  // UVR (BanRep) es la fuente preferida; FRED/OCDE sólo si falla (viene con más rezago).
+  const cpi = cpiB.length ? cpiB : cpiF;
+  const cpiSrc = cpiB.length
+    ? { source: `Cálculo propio (BanRep ${BANREP_FLOWS.uvr})`, url: BANREP_URL, note: 'IPC a/a derivado de la UVR (coincide con DANE)' }
     : { source: 'FRED COLCPIALLMINMEI (OCDE, calc. a/a)', url: 'https://fred.stlouisfed.org/series/COLCPIALLMINMEI' };
 
   let ibrOn = [], ibr6 = [];
@@ -174,6 +187,12 @@ export default async function colombia() {
     }
   }
   const slope = spreadSeries(ibr6, policy);
+  // TES 2Y: interpolación lineal entre el 1Y y el 5Y (BanRep no publica el nodo de 2 años).
+  const tes = d['BanRep TES'] || { y1: [], y5: [], y10: [] };
+  const tes2 = tes.y1.map((p) => {
+    const q = tes.y5.find((x) => x.d === p.d);
+    return q ? { d: p.d, v: p.v + (q.v - p.v) / 4 } : null;
+  }).filter(Boolean);
   const bsrc = (flow) => ({ source: `BanRep SDMX ${flow}`, url: BANREP_URL });
 
   return {
@@ -186,12 +205,13 @@ export default async function colombia() {
       kpi({ key: 'ibr_on', group: 'policy', label: 'IBR overnight', series: ibrOn, decimals: 3, ...bsrc(BANREP_FLOWS.ibr) }),
       kpi({ key: 'cpi', group: 'inflation', label: 'IPC a/a', series: cpi, changeDays: 365, ...cpiSrc }),
       kpi({ key: 'exp_rate', group: 'expectations', label: 'IBR 6M − tasa de política', series: slope, note: 'Proxy de mercado: >0 descuenta subas; <0, bajas', source: 'Cálculo propio (BanRep IBR)', url: BANREP_URL }),
-      { key: 'exp_cpi', group: 'expectations', label: 'Inflación esperada (Encuesta BanRep)', value: null, note: 'Encuesta mensual de analistas: solo Excel. Ver CLAUDE.md.', source: 'Pendiente' },
+      // Encuesta mensual de BanRep (EME): sin fuente automatizable (la página tiene captcha). Ver CLAUDE.md.
       kpi({ key: 'ibr6', group: 'market', label: 'IBR 6M', series: ibr6, decimals: 3, ...bsrc(BANREP_FLOWS.ibr) }),
-      { key: 'tes', group: 'market', label: 'TES 10Y (mercado)', value: null, note: 'Sin API gratuita confirmada. Ver CLAUDE.md.', source: 'Pendiente' },
+      kpi({ key: 'y2', group: 'market', label: 'TES 2Y (prom. mensual)', series: tes2, changeDays: 365, note: 'Interpolado entre TES 1Y y 5Y', source: `Cálculo propio (BanRep ${BANREP_FLOWS.tes})`, url: BANREP_URL }),
+      kpi({ key: 'y10', group: 'market', label: 'TES 10Y (prom. mensual)', series: tes.y10, changeDays: 365, ...bsrc(BANREP_FLOWS.tes) }),
       kpi({ key: 'fx', group: 'fx', label: 'USD/COP (TRM)', series: trm, unit: '', decimals: 2, changeDays: 365, ...trmSrc }),
     ],
-    equity: d['Yahoo GXG/COLCAP'],
+    equity: d['Yahoo COLO/COLCAP'],
     charts: [
       {
         id: 'policy-vs-cpi',

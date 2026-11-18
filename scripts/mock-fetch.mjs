@@ -81,7 +81,11 @@ const SIE = {
   SF43936: () => walk(6.3, 1100, 0.004),
   SF43783: () => walk(6.5, 1100, 0.003),
   SP30578: () => walk(3.8, 36, 0.04, 'M'),
+  SF43883: () => walk(8.0, 30, 0.02, 'M'),
+  SF44071: () => walk(9.2, 30, 0.02, 'M'),
 };
+// Encuesta Banxico (mensual): cualquier SR… devuelve una serie mensual plausible.
+const SIE_SURVEY_LEVEL = (id) => (['SR14770', 'SR14777'].includes(id) ? 18.5 : ['SR14448', 'SR14455'].includes(id) ? 1.5 : /^SR14(6|7)/.test(id) ? 6.5 : 3.8);
 const VALET = {
   V39079: () => steps([2.75, 2.5, 2.25], 1100),
   'AVG.INTWO': () => walk(2.24, 120, 0.001),
@@ -91,8 +95,10 @@ const VALET = {
   V41690973: () => index(160, 50, 2.2),
   CPI_TRIM: () => walk(2.8, 36, 0.03, 'M'),
   CPI_MEDIAN: () => walk(2.9, 36, 0.03, 'M'),
+  'BD.CDN.LONG.DQ.YLD': () => walk(3.9, 400, 0.006),
+  'BD.CDN.RRB.DQ.YLD': () => walk(1.8, 400, 0.008),
 };
-const YLEVEL = { EWZ: 30, '^BVSP': 150000, EUSA: 110, '^GSPC': 6700, EZU: 58, '^STOXX50E': 5600, EWW: 64, '^MXX': 62000, EWC: 48, '^GSPTSE': 30000, ACWI: 140, URTH: 180, EEM: 52, ILF: 30, '^N225': 48000, '^VIX': 17, '^TNX': 4.2, '^IRX': 3.6, 'DX-Y.NYB': 99, 'EURUSD=X': 1.15, 'BRL=X': 5.4, 'MXN=X': 18.4, 'CAD=X': 1.39, 'BZ=F': 64, 'GC=F': 4000, 'HG=F': 5, 'ZS=F': 1100, GXG: 27, 'ICOLCAP.CL': 15000, 'COP=X': 3900 };
+const YLEVEL = { EWZ: 30, '^BVSP': 150000, EUSA: 110, '^GSPC': 6700, EZU: 58, '^STOXX50E': 5600, EWW: 64, '^MXX': 62000, EWC: 48, '^GSPTSE': 30000, ACWI: 140, URTH: 180, EEM: 52, ILF: 30, '^N225': 48000, '^VIX': 17, '^TNX': 4.2, '^IRX': 3.6, 'DX-Y.NYB': 99, 'EURUSD=X': 1.15, 'BRL=X': 5.4, 'MXN=X': 18.4, 'CAD=X': 1.39, 'BZ=F': 64, 'GC=F': 4000, 'HG=F': 5, 'ZS=F': 1100, COLO: 27, 'ICOLCAP.CL': 15000, 'COP=X': 3900, EWJ: 80, 'JPY=X': 150 };
 
 export async function mockFetch(input) {
   const url = new URL(typeof input === 'string' ? input : input.url);
@@ -128,13 +134,11 @@ export async function mockFetch(input) {
     return json({ items: [{ nome_produto: 'IPCA-15', data_divulgacao: dmy(iso(Date.now() + 8 * DAY)) + ' 09:00:00' }, { nome_produto: 'Sistema de Contas Nacionais Trimestrais (PIB)', data_divulgacao: dmy(iso(Date.now() + 15 * DAY)) + ' 09:00:00' }] });
   }
   if (url.host === 'api.stlouisfed.org') {
-    if (u.includes('/releases/dates')) {
-      return json({ release_dates: [
-        { release_id: 10, release_name: 'Consumer Price Index', date: iso(Date.now() + 20 * DAY) },
-        { release_id: 50, release_name: 'Employment Situation', date: iso(Date.now() + 16 * DAY) },
-        { release_id: 54, release_name: 'Personal Income and Outlays', date: iso(Date.now() + 9 * DAY) },
-        { release_id: 999, release_name: 'Something Irrelevant', date: iso(Date.now() + 3 * DAY) },
-      ] });
+    if (u.includes('/release/dates')) {
+      // Formato real: una fecha por release consultado (sin release_name).
+      const rid = Number(url.searchParams.get('release_id'));
+      const off = { 10: 20, 50: 16, 54: 9 }[rid];
+      return json({ release_dates: off ? [{ release_id: rid, date: iso(Date.now() + off * DAY) }] : [] });
     }
     const id = url.searchParams.get('series_id');
     return json({ observations: (FRED[id] || (() => []))().map((p) => ({ date: p.d, value: p.v.toFixed(3) })) });
@@ -155,7 +159,8 @@ export async function mockFetch(input) {
   }
   if (url.host === 'www.banxico.org.mx') {
     const ids = u.match(/series\/([^/]+)\/datos/)[1].split(',');
-    return json({ bmx: { series: ids.map((id) => ({ idSerie: id, titulo: id, datos: (SIE[id] || (() => []))().map((p) => ({ fecha: dmy(p.d), dato: p.v.toFixed(4) })) })) } });
+    const gen = (id) => SIE[id] || (id.startsWith('SR') ? () => walk(SIE_SURVEY_LEVEL(id), 26, 0.01, 'M') : () => []);
+    return json({ bmx: { series: ids.map((id) => ({ idSerie: id, titulo: id, datos: gen(id)().map((p) => ({ fecha: dmy(p.d), dato: p.v.toFixed(4) })) })) } });
   }
   if (url.host === 'www.bankofcanada.ca') {
     const id = decodeURIComponent(u.match(/observations\/([^/]+)\/json/)[1]);
@@ -170,7 +175,8 @@ export async function mockFetch(input) {
       const target = 100 - (3.64 - Math.min(months, 8) * 0.04);
       s = u.includes('range=1y') ? walk(target, 370, 0.0004).map((p, i, a) => ({ d: p.d, v: p.v + (a.length - i) * 0.0012 })) : [{ d: iso(Date.now() - DAY), v: target }];
     } else if (YLEVEL[t]) s = walk(YLEVEL[t], 370, 0.01);
-    else return new Response('{"chart":{"result":null}}', { status: 404 });
+    else if (t === 'NOEXISTE') return new Response('{"chart":{"result":null}}', { status: 404 });
+    else s = walk(100, 370, 0.01); // resto de los tickers de Mundo: nivel genérico
     return json({ chart: { result: [{ meta: { regularMarketPrice: s[s.length - 1].v, regularMarketTime: Date.parse(s[s.length - 1].d) / 1000 }, timestamp: s.map((p) => Date.parse(p.d) / 1000), indicators: { quote: [{ close: s.map((p) => p.v) }] } }] } });
   }
   if (url.host === 'www.datos.gov.co') {
@@ -181,18 +187,52 @@ export async function mockFetch(input) {
       return text(`<mes:Structure><mes:Structures><str:Dataflows>
         <str:Dataflow id="DF_TRM_DAILY_HIST" agencyID="ESTAT" version="1.0"><com:Name xml:lang="es">Tasa Representativa del Mercado (TRM) histórico</com:Name></str:Dataflow>
         <str:Dataflow id="DF_CBR_DAILY_HIST" agencyID="ESTAT" version="1.0"><com:Name xml:lang="es">Tasa de política monetaria histórico</com:Name></str:Dataflow>
-        <str:Dataflow id="DF_CPI_MONTHLY_HIST" agencyID="ESTAT" version="1.0"><com:Name xml:lang="es">Índice de precios al consumidor histórico</com:Name></str:Dataflow>
       </str:Dataflows></mes:Structures></mes:Structure>`);
     }
     const ser = (key, rows, fmt = (d) => d.replace(/-/g, '')) =>
       `<generic:Series><generic:SeriesKey>${key.split('.').map((v, i) => `<generic:Value id="D${i}" value="${v}"/>`).join('')}</generic:SeriesKey>` +
       rows.map((p) => `<generic:Obs><generic:ObsDimension value="${fmt(p.d)}"/><generic:ObsValue value="${p.v.toFixed(4)}"/></generic:Obs>`).join('') + '</generic:Series>';
     let body = '';
-    if (u.includes('DF_IBR')) body = ser('IBR.ON.N', walk(12.1, 400, 0.002)) + ser('IBR.1M.N', walk(12.2, 400, 0.002)) + ser('IBR.6M.N', walk(12.5, 400, 0.003));
-    else if (u.includes('DF_CBR')) body = ser('TPM', steps([9.25, 10.25, 11.25, 12.0, 12.25], 1100));
-    else if (u.includes('DF_CPI')) body = ser('IPC.VAR_ANUAL', walk(5.5, 40, 0.03, 'M'), (d) => d.slice(0, 7));
+    // Claves con el formato real de BanRep: CO.<SUBJECT>._Z._Z._Z.<UNIDAD>.<FREQ>
+    const k = (subj, unit, f = 'D') => `CO.${subj}._Z._Z._Z.${unit}.${f}`;
+    if (u.includes('DF_IBR')) {
+      body = ['00', '01', '03', '06'].map((m, i) => ser(k(`IRIBRM${m}`, 'ER'), walk(12.2 + i * 0.05, 400, 0.002)) + ser(k(`IRIBRM${m}`, 'NR'), walk(11.4 + i * 0.05, 400, 0.002))).join('');
+    } else if (u.includes('DF_CBR')) body = ser(k('IRCBRM01', 'PA'), steps([9.25, 10.25, 11.25, 12.0, 12.25], 1100));
+    else if (u.includes('DF_UVR')) {
+      // UVR diaria (incluye fechas futuras, como la real) creciendo ~0,45% mensual.
+      const uvr = [];
+      for (let t = Date.now() - 1500 * DAY, v = 350; t < Date.now() + 40 * DAY; t += DAY) uvr.push({ d: iso(t), v: (v *= 1 + 0.00015 * (1 + rnd() * 0.2)) });
+      body = ser(k('RVU', 'APC'), uvr.map((p) => ({ d: p.d, v: 5.5 }))) + ser(k('RVU', 'CRVU'), uvr);
+    } else if (u.includes('DF_TES')) {
+      body = ['10', '01', '05'].map((y) => ser(k(`IRGBRY${y}`, 'PT', 'M'), walk(0.12 + Number(y) / 1000, 24, 0.02, 'M'), (d) => d.replace(/-/g, ''))).join('');
+    }
     else if (u.includes('DF_TRM')) body = ser('TRM', walk(3900, 400, 0.005));
     return text(`<message:GenericData><message:DataSet>${body}</message:DataSet></message:GenericData>`);
+  }
+  if (url.host === 'www.tesourotransparente.gov.br') {
+    // CSV del Tesouro Direto: fechas de la más nueva a la más vieja (como el real), separador ';' y coma decimal.
+    const y0 = new Date().getUTCFullYear();
+    const bonds = [
+      ['Tesouro Prefixado', `01/01/${y0 + 1}`, 13.6], ['Tesouro Prefixado', `01/01/${y0 + 2}`, 14.4], ['Tesouro Prefixado', `01/01/${y0 + 3}`, 14.9],
+      ['Tesouro Prefixado com Juros Semestrais', `01/01/${y0 + 7}`, 15.3], ['Tesouro Prefixado com Juros Semestrais', `01/01/${y0 + 11}`, 15.2],
+      ['Tesouro IPCA+ com Juros Semestrais', `15/05/${y0 + 9}`, 7.7], ['Tesouro IPCA+', `15/08/${y0 + 12}`, 7.6],
+    ];
+    const lines = ['Tipo Titulo;Data Vencimento;Data Base;Taxa Compra Manha;Taxa Venda Manha;PU Compra Manha;PU Venda Manha;PU Base Manha'];
+    for (const p of walk(1, 500, 0.002).reverse()) for (const [t, v, r] of bonds) lines.push(`${t};${v};${dmy(p.d)};${(r * p.v).toFixed(2).replace('.', ',')};0;0;0;0`);
+    return text(lines.join('\r\n'));
+  }
+  if (url.host === 'www.stat-search.boj.or.jp') {
+    const code = url.searchParams.get('code');
+    const s = code.startsWith('TK') ? walk(2.5, 12, 0.02, 'M').filter((_, i) => i % 3 === 0) : steps([0.25, 0.5, 0.75, 1.0], 1100);
+    const fmt = code.startsWith('TK') ? (d) => Number(d.slice(0, 4) + '0' + (Math.floor((+d.slice(5, 7) - 1) / 3) + 1)) : (d) => Number(d.replace(/-/g, ''));
+    return json({ STATUS: 200, RESULTSET: [{ SERIES_CODE: code, FREQUENCY: code.startsWith('TK') ? 'QUARTERLY' : 'DAILY', VALUES: { SURVEY_DATES: s.map((p) => fmt(p.d)), VALUES: s.map((p) => +p.v.toFixed(3)) } }] });
+  }
+  if (url.host === 'www.mof.go.jp') {
+    const rows = walk(1, 420, 0.004).map((p) => `${p.d.replace(/-0?/g, '/')},${[1.6, 1.85, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.8, 3.3, 3.6, 3.9, 4.0, 4.0].map((r) => (r * p.v).toFixed(3)).join(',')}`);
+    return text(`Interest Rate,,,,,,,,,,,,,,,(Unit : %)\nDate,1Y,2Y,3Y,4Y,5Y,6Y,7Y,8Y,9Y,10Y,15Y,20Y,25Y,30Y,40Y\n${rows.join('\n')}\n`);
+  }
+  if (url.host === 'stats.bis.org') {
+    return text('FREQ,REF_AREA,UNIT_MEASURE,TIME_PERIOD,OBS_VALUE\n' + walk(2.5, 40, 0.03, 'M').map((p) => `M,JP,771,${p.d.slice(0, 7)},${p.v.toFixed(3)}`).join('\n') + '\n');
   }
   return new Response('not mocked: ' + u, { status: 404 });
 }

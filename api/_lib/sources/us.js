@@ -16,21 +16,32 @@ export async function fred(id, from) {
   return clean((j.observations || []).map((o) => ({ d: o.date, v: o.value === '.' ? NaN : parseFloat(o.value) })));
 }
 
-/** Próximas publicaciones relevantes según el calendario de releases de FRED. */
+// Releases de FRED que entran en la agenda (IDs verificados contra /fred/release).
+export const FRED_RELEASES = {
+  10: 'Consumer Price Index',
+  50: 'Employment Situation',
+  53: 'Gross Domestic Product',
+  54: 'Personal Income and Outlays',
+  46: 'Producer Price Index',
+  9: 'Advance Monthly Sales for Retail and Food Services',
+  192: 'Job Openings and Labor Turnover Survey',
+};
+
+/**
+ * Próximas publicaciones (60 días). Se consulta release por release: /releases/dates (todas juntas) tarda
+ * ~17 s en frío y se corta en 1000 filas. Si falla un release, se omite y sigue el resto.
+ */
 async function fredCalendar() {
-  const url = `https://api.stlouisfed.org/fred/releases/dates?api_key=${KEY()}&file_type=json&realtime_start=${today()}&realtime_end=${iso(daysAhead(60))}&include_release_dates_with_no_data=true&sort_order=asc&limit=1000`;
-  const j = await getJson(url);
-  const re = /^(Consumer Price Index|Employment Situation|Gross Domestic Product|Personal Income and Outlays|Producer Price Index|Advance Monthly Sales for Retail|Job Openings and Labor Turnover)/i;
-  const seen = new Set();
-  return (j.release_dates || [])
-    .filter((r) => re.test(r.release_name))
-    .filter((r) => {
-      const k = r.release_name + r.date;
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
+  const qs = `api_key=${KEY()}&file_type=json&realtime_start=${today()}&realtime_end=${iso(daysAhead(60))}&include_release_dates_with_no_data=true`;
+  const res = await Promise.allSettled(
+    Object.entries(FRED_RELEASES).map(async ([id, name]) => {
+      const j = await getJson(`https://api.stlouisfed.org/fred/release/dates?release_id=${id}&${qs}`);
+      return (j.release_dates || []).map((r) => ({ date: r.date, event: name, kind: 'data', url: `https://fred.stlouisfed.org/releases/calendar?rid=${id}` }));
     })
-    .map((r) => ({ date: r.date, event: r.release_name, kind: 'data', url: `https://fred.stlouisfed.org/releases/calendar` }));
+  );
+  const ok = res.filter((r) => r.status === 'fulfilled');
+  if (!ok.length) throw new Error(res[0]?.reason?.message || 'FRED calendario sin datos');
+  return ok.flatMap((r) => r.value).sort((a, b) => (a.date < b.date ? -1 : 1));
 }
 
 export default async function unitedStates() {

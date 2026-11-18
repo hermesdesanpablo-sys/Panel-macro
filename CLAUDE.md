@@ -4,7 +4,7 @@ Contexto para Claude Code. Leer entero antes de tocar código.
 
 ## Qué es
 
-Dashboard macro con un panel por país (Brasil, EE.UU., Eurozona, México, Canadá, Colombia), una vista
+Dashboard macro con un panel por país (Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Japón), una vista
 **Mundo** (tendencias y comparativo entre países + mercados globales) y una **Agenda** consolidada.
 Dueño: Hermes (renta fija / mercado de capitales, Argentina). Idioma de la UI y de los comentarios: español.
 
@@ -18,7 +18,7 @@ Objetivo de cada panel:
 ## Arquitectura
 
 ```
-api/country.js              GET /api/country?c=br|us|eu|mx|ca|co|world  (función serverless Vercel, cache edge 30 min)
+api/country.js              GET /api/country?c=br|us|eu|mx|ca|co|jp|world  (función serverless Vercel, cache edge 30 min)
 api/_lib/util.js            HTTP, fechas, series, kpi(), trend(), spreadSeries(), settle()
 api/_lib/yahoo.js           Yahoo Finance: precios, perf, futuros Fed funds (ZQ)
 api/_lib/calendar.js        Fechas de reuniones de bancos centrales (estático, revisar 1 vez/año)
@@ -26,6 +26,7 @@ api/_lib/sources/<pais>.js  Un adaptador por país. Devuelve el "contrato de pay
 src/App.jsx                 Tabs, carga en paralelo de todos los países, modo ?mock=1
 src/components/Panels.jsx   Kpi, Dynamics, CountryPanel, TrendsTable, WorldPanel, AgendaList
 src/components/Charts.jsx   TimeChart, PathChart, Spark (Recharts)
+src/components/Flag.jsx     Banderas SVG (flagcdn; los emoji de bandera no se ven en Windows)
 scripts/smoke.mjs           Prueba contra las APIs REALES (requiere .env)
 scripts/test-parsers.mjs    Test offline con fetch simulado + genera src/mock-data.json
 scripts/mock-fetch.mjs      fetch falso: imita el FORMATO de cada API con datos sintéticos
@@ -122,37 +123,57 @@ Repo: `hermesdesanpablo-sys/Panel-macro` (**público**: nunca commitear `.env` n
 
 Leyenda: ✅ implementado y testeado offline · ⚠ implementado, código/ID **sin verificar contra la API real** · ❌ pendiente
 
-**Nada se probó todavía contra las APIs reales** (el entorno donde se escribió no tenía salida a internet).
-Primera tarea en Claude Code: correr `smoke` y arreglar lo que falle. Las filas ⚠ son las más probables de fallar.
+Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con `smoke` BR, EZ, CA, CO y Mundo
+(fuentes sin clave) y los tickers ZQ de Yahoo. EE.UU. (FRED) y México (Banxico) verificados con claves el mismo día.
 
 | País | Tasa política | Inflación | Expectativas | Tasas mercado | FX | Índice | Agenda |
 |---|---|---|---|---|---|---|---|
-| 🇧🇷 | ✅ SGS 432 | ✅ SGS 13522/433 | ✅ Focus anual, Selic por reunión; ⚠ Focus IPCA 12m (`ExpectativasMercadoInflacao12Meses`), historia anual | ❌ DI futuro | ✅ SGS 1 | ✅ EWZ/^BVSP | ✅ Copom; ⚠ IBGE API calendario |
-| 🇺🇸 | ✅ FRED | ✅ FRED (a/a calculado) | ⚠ ZQ en Yahoo (strip + historia +12m); ✅ breakeven 5Y | ✅ DGS2/10 | ✅ DXY | ✅ EUSA/^GSPC | ✅ FOMC + FRED releases |
-| 🇪🇺 | ✅ DFR | ✅ HICP | ⚠ forwards AAA `IF_*`; ⚠ SPF LT | ✅ AAA 2Y/10Y | ✅ | ✅ EZU/^STOXX50E | ✅ BCE |
-| 🇲🇽 | ✅ SF61745 | ⚠ SP30578 | ❌ Encuesta Banxico (IDs) | ✅ Cetes/TIIE; ❌ Mbono 10Y | ✅ FIX | ✅ EWW/^MXX | ⚠ solo dic-2026; ❌ 2027 |
-| 🇨🇦 | ✅ V39079 | ⚠ V41690973; ✅ CPI-trim/median | proxy 2Y − overnight | ✅ GoC 2Y/10Y | ✅ | ✅ EWC/^GSPTSE | ✅ BoC |
-| 🇨🇴 | ⚠ flujo descubierto en catálogo | ⚠ flujo descubierto; fallback FRED OCDE | proxy IBR 6M − política; ❌ Encuesta BanRep | ⚠ IBR (elección de serie); ❌ TES | ⚠ datos.gov.co 32sa-8pi3; fallback BanRep | ⚠ GXG / ICOLCAP.CL | ❌ fechas JDBR |
+| 🇧🇷 | ✔ SGS 432 (cortada en hoy) | ✔ SGS 13522/433 | ✔ Focus anual, Selic por reunión, Focus IPCA 12m; ✔ breakeven 10Y (NTN-F/NTN-B) | ✔ Prefijado 2Y/10Y y real 10Y (Tesouro Direto, interpolado); ❌ DI futuro | ✔ SGS 1 | ✔ EWZ/^BVSP | ✔ Copom + IBGE |
+| 🇺🇸 | ✔ FRED | ✔ FRED (a/a calculado) | ✔ ZQ en Yahoo; ✔ breakeven 5Y | ✔ DGS2/10 | ✔ DXY | ✔ EUSA/^GSPC | ✔ FOMC + FRED releases (por ID) |
+| 🇪🇺 | ✔ DFR | ✔ HICP (dataset `HICP`, proveedor `4D0`) | ✔ forwards AAA `IF_*`; ✔ SPF LT | ✔ AAA 2Y/10Y | ✔ | ✔ EZU/^STOXX50E | ✅ BCE |
+| 🇲🇽 | ✔ SF61745 | ✔ SP30578 | ✔ Encuesta Banxico (trayectoria de tasa, infl. 12m, tabla) | ✔ Cetes/TIIE; ✔ Bono M 3Y/10Y (subasta) | ✔ FIX | ✔ EWW/^MXX | ✔ dic-2026; ❌ 2027 (no publicado) |
+| 🇨🇦 | ✔ V39079 | ✔ V41690973; ✔ CPI-trim/median | proxy 2Y − overnight; ✔ breakeven LP (LONG − RRB) | ✔ GoC 2Y/10Y | ✔ | ✔ EWC/^GSPTSE | ✅ BoC |
+| 🇨🇴 | ✔ DF_CBR_DAILY_HIST | ✔ IPC derivado de la UVR (DF_UVR_DAILY_HIST); fallback FRED OCDE | proxy IBR 6M − política; ❌ Encuesta BanRep (captcha) | ✔ IBR ON/6M (efectiva); ✔ TES 2Y (interp. 1Y–5Y) y 10Y, mensual | ✔ datos.gov.co 32sa-8pi3; fallback BanRep | ✔ COLO / ICOLCAP.CL | ✔ dic-2026; ❌ 2027 (no publicado) |
+
+| 🇯🇵 | ✔ BoJ call O/N (STRDCLUCON) | ✔ BIS WS_LONG_CPI M.JP.771 | ✔ Tankan infl. 1a; proxy JGB 2Y − call | ✔ MOF JGB 2Y/10Y/30Y | ✔ Yahoo JPY=X | ✔ EWJ/^N225 | ✔ BoJ 2026–2027 |
+
+### Notas de Japón
+- BoJ API (sin clave): `https://www.stat-search.boj.or.jp/api/v1/getDataCode?format=json&lang=en&db=<DB>&code=<CODE>&startDate=<AAAAMM | AAAA0T>`.
+  Trimestral (Tankan, db `CO`) usa `AAAA0T` (T = trimestre); fechas de respuesta `202603` = 3er trimestre.
+- El IPC de Japón ya no está en OCDE/FRED (cortado en 2022): se toma del BIS. El BoJ no publica la meta como serie: se usa la call O/N.
+- Curva JGB: CSV del MOF (`historical/jgbcme_all.csv` + `jgbcme.csv` del mes en curso).
+
+### Notas de México (Banxico SIE)
+- Límite de consultas: probar IDs de a muchos dispara "Límite de consultas superado" por varios minutos (afecta también a la página).
+- Encuesta a especialistas: IDs en los cuadros del SIE CR154 (inflación anual), CR155 (12 meses), CR163 (PIB), CR168 (tasa de
+  fondeo por trimestre), CR171 (tipo de cambio). En cada horizonte el orden es Media, Mediana, Q1, Q3, Mín, Máx, Desvío, N.
+- Bonos M: solo rendimientos de subasta primaria (SF43883 3Y, SF44071 10Y); el vector de precios diario no expone rendimientos de Bonos M.
+
+### Notas de Brasil (Tesouro Direto)
+- CSV público del Tesouro Transparente (~15 MB), ordenado de la fecha más nueva a la más vieja: se lee en streaming y se corta en 13 meses.
+- 2Y: LTN interpolada; 10Y: NTN-F interpolada; real 10Y: NTN-B (con y sin cupón). No se extrapola fuera de los vencimientos.
 
 ### Notas de Colombia (BanRep SDMX)
 
 - Endpoint: `https://totoro.banrep.gov.co/nsi-jax-ws/rest/data/ESTAT,<FLOW>,1.0/all/ALL/?startPeriod=<AAAA>`
   con `Accept: application/vnd.sdmx.genericdata+xml;version=2.1`. **Solo XML** (JSON/CSV → 406, según reportes de terceros).
-- Flujos confirmados por documentación: `DF_TRM_DAILY_HIST`, `DF_IBR_DAILY_HIST`, `DF_DTF_DAILY_HIST`.
-- La tasa de política y el IPC se **descubren** buscando por nombre en `/dataflow/ESTAT/all/latest`.
-  Cuando `smoke` muestre el ID correcto, fijarlo en `.env` (`BANREP_FLOW_POLICY`, `BANREP_FLOW_CPI`) o en `BANREP_FLOWS`.
-- IBR trae varias series (plazos × nominal/efectiva). Si la regex de `SERIES_PICK` no encuentra el plazo,
-  el error lista las claves disponibles: copiar la clave correcta a `BANREP_IBR_ON` / `BANREP_IBR_6M`.
+- Catálogo (`/dataflow/ESTAT/all/latest`, 33 flujos): CBR (tasa de política), IBR, IR, DTF, TRM, UVR, TES, COLCAP,
+  FTD (CDT), MONAGG. **No hay IPC**: se deriva de la UVR (`ipcFromUvr` en `co.js`; IPC a/a de M = UVR(15/M+2)/UVR(15/M−10) − 1,
+  coincide con el DANE). La UVR se publica con ~1 mes de adelanto, así que el IPC sale apenas lo publica el DANE.
+- Claves: `CO.<SUBJECT>._Z._Z._Z.<UNIDAD>.<FREQ>`. IBR: `IRIBRM{00,01,03,06}` × `ER` (efectiva anual) / `NR` (nominal).
+  Se usa ER porque la tasa de política está en efectiva anual. TES: `IRGBRY{01,05,10}`, mensual, en decimal.
+- Variables opcionales para sobreescribir: `BANREP_FLOW_POLICY`, `BANREP_IBR_ON`, `BANREP_IBR_6M`.
 - `startPeriod` solo respeta el año; el filtro fino de fechas se hace del lado del cliente.
 
 ## Pendientes priorizados
 
-1. **Correr `smoke` y arreglar los ⚠** (códigos de serie, flujos BanRep, tickers Yahoo `ZQ…CBT` y `ICOLCAP.CL`).
-2. Calendarios: fechas 2027 de Banxico y JDBR (dic-2026 y 2027) en `api/_lib/calendar.js`. Fuentes:
+1. Deploy en Vercel (cargar `FRED_API_KEY` y `BANXICO_TOKEN` en Settings → Environment Variables).
+2. Calendarios: fechas 2027 de Banxico y JDBR (ninguno publicado al 18-nov-2026) en `api/_lib/calendar.js`. Fuentes:
    https://www.banxico.org.mx/publicaciones-y-prensa/calendario-de-publicaciones.html ·
    https://www.banrep.gov.co/es/calendario-junta-directiva (la JDBR decide al final de ene, mar, abr, jun, jul, sep, oct y dic).
-3. México: IDs SIE de la Encuesta de Expectativas (`SIE_EXPECTATIONS` en `mx.js`) y del Mbono 10Y.
-4. Colombia: Encuesta mensual de expectativas de BanRep (Excel → parser o carga manual), TES 10Y.
+3. México: Bono M de mercado secundario diario (hoy: subasta primaria).
+4. Colombia: Encuesta mensual de expectativas de BanRep (la página tiene captcha → carga manual o LSEG). TES diario (hoy: promedio mensual).
+   Argentina: Merval sin historia en Yahoo/Stooq (solo ARGT en Mundo).
 5. Agenda de datos para MX (INEGI), CA (StatCan), CO (DANE), EZ (Eurostat): hoy solo hay BR (IBGE) y EE.UU. (FRED).
 6. Persistir snapshots diarios (p.ej. Vercel KV / Postgres + cron) para tener historia propia de variables
    que la fuente no guarda (strip de futuros completo, forwards por plazo, encuestas).

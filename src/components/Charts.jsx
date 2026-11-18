@@ -28,7 +28,7 @@ export function TimeChart({ chart, height = 220 }) {
   const decimals = unit === '%' ? 2 : data.at(-1)?.[lines[0].key] > 100 ? 0 : 4;
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} aria-label={title}>
+      <LineChart data={data} margin={{ top: 8, right: 20, bottom: 0, left: 0 }} aria-label={title}>
         <CartesianGrid stroke="var(--grid)" vertical={false} />
         <XAxis dataKey="d" tickFormatter={fmtMonth} minTickGap={40} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--grid)' }} tickLine={false} />
         <YAxis domain={['auto', 'auto']} width={48} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false}
@@ -50,7 +50,7 @@ export function PathChart({ path, current, height = 220 }) {
   const ref = path.current ?? current;
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} aria-label={path.title}>
+      <LineChart data={data} margin={{ top: 8, right: 20, bottom: 0, left: 0 }} aria-label={path.title}>
         <CartesianGrid stroke="var(--grid)" vertical={false} />
         <XAxis dataKey="d" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--grid)' }} tickLine={false} interval="preserveStartEnd"
           minTickGap={8} tickFormatter={(v) => (/^\d{4}-\d{2}$/.test(v) ? fmtMonth(v + '-01') : String(v).replace(/^R(\d)\/20(\d\d)$/, 'R$1·$2'))} />

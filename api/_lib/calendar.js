@@ -46,14 +46,24 @@ export const POLICY_MEETINGS = {
   mx: {
     label: 'Banxico – anuncio de política monetaria',
     src: 'https://www.banxico.org.mx/publicaciones-y-prensa/calendario-de-publicaciones.html',
-    dates: ['2026-12-17'], // 2026 verificado (calendario Banxico 2026). 2027: PENDIENTE.
+    dates: ['2026-12-17'], // 2026 verificado. 2027: Banxico todavía no lo publicó (al 18-nov-2026).
   },
   co: {
     label: 'BanRep – decisión tasa de política',
     src: 'https://www.banrep.gov.co/es/calendario-junta-directiva',
     // La JDBR decide tasa al final de ene, mar, abr, jun, jul, sep, oct y dic.
-    // PENDIENTE: no pude verificar los días exactos de dic-2026 y 2027; copiarlos del link de arriba.
-    dates: [],
+    // dic-2026 verificado en banrep.gov.co (18-nov-2026). 2027: BanRep todavía no lo publicó.
+    dates: ['2026-12-18'],
+  },
+  jp: {
+    label: 'BoJ – decisión de política monetaria',
+    src: 'https://www.boj.or.jp/en/mopo/mpmsche_minu/index.htm',
+    // Segundo día de cada reunión (día del anuncio). 2026 y 2027 verificados en boj.or.jp el 18-nov-2026.
+    dates: [
+      '2026-12-18',
+      '2027-01-22', '2027-03-18', '2027-04-28', '2027-06-11',
+      '2027-07-22', '2027-09-22', '2027-10-29', '2027-12-17',
+    ],
   },
 };
 
