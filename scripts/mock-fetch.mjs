@@ -92,7 +92,7 @@ const VALET = {
   CPI_TRIM: () => walk(2.8, 36, 0.03, 'M'),
   CPI_MEDIAN: () => walk(2.9, 36, 0.03, 'M'),
 };
-const YLEVEL = { EWZ: 30, '^BVSP': 150000, EUSA: 110, '^GSPC': 6700, EZU: 58, '^STOXX50E': 5600, EWW: 64, '^MXX': 62000, EWC: 48, '^GSPTSE': 30000, ACWI: 140, URTH: 180, EEM: 52, ILF: 30, '^N225': 48000, '^VIX': 17, '^TNX': 4.2, '^IRX': 3.6, 'DX-Y.NYB': 99, 'EURUSD=X': 1.15, 'BRL=X': 5.4, 'MXN=X': 18.4, 'CAD=X': 1.39, 'BZ=F': 64, 'GC=F': 4000, 'HG=F': 5, 'ZS=F': 1100, GXG: 27, 'ICOLCAP.CL': 15000, 'COP=X': 3900 };
+const YLEVEL = { EWZ: 30, '^BVSP': 150000, EUSA: 110, '^GSPC': 6700, EZU: 58, '^STOXX50E': 5600, EWW: 64, '^MXX': 62000, EWC: 48, '^GSPTSE': 30000, ACWI: 140, URTH: 180, EEM: 52, ILF: 30, '^N225': 48000, '^VIX': 17, '^TNX': 4.2, '^IRX': 3.6, 'DX-Y.NYB': 99, 'EURUSD=X': 1.15, 'BRL=X': 5.4, 'MXN=X': 18.4, 'CAD=X': 1.39, 'BZ=F': 64, 'GC=F': 4000, 'HG=F': 5, 'ZS=F': 1100, COLO: 27, 'ICOLCAP.CL': 15000, 'COP=X': 3900 };
 
 export async function mockFetch(input) {
   const url = new URL(typeof input === 'string' ? input : input.url);
@@ -181,16 +181,25 @@ export async function mockFetch(input) {
       return text(`<mes:Structure><mes:Structures><str:Dataflows>
         <str:Dataflow id="DF_TRM_DAILY_HIST" agencyID="ESTAT" version="1.0"><com:Name xml:lang="es">Tasa Representativa del Mercado (TRM) histórico</com:Name></str:Dataflow>
         <str:Dataflow id="DF_CBR_DAILY_HIST" agencyID="ESTAT" version="1.0"><com:Name xml:lang="es">Tasa de política monetaria histórico</com:Name></str:Dataflow>
-        <str:Dataflow id="DF_CPI_MONTHLY_HIST" agencyID="ESTAT" version="1.0"><com:Name xml:lang="es">Índice de precios al consumidor histórico</com:Name></str:Dataflow>
       </str:Dataflows></mes:Structures></mes:Structure>`);
     }
     const ser = (key, rows, fmt = (d) => d.replace(/-/g, '')) =>
       `<generic:Series><generic:SeriesKey>${key.split('.').map((v, i) => `<generic:Value id="D${i}" value="${v}"/>`).join('')}</generic:SeriesKey>` +
       rows.map((p) => `<generic:Obs><generic:ObsDimension value="${fmt(p.d)}"/><generic:ObsValue value="${p.v.toFixed(4)}"/></generic:Obs>`).join('') + '</generic:Series>';
     let body = '';
-    if (u.includes('DF_IBR')) body = ser('IBR.ON.N', walk(12.1, 400, 0.002)) + ser('IBR.1M.N', walk(12.2, 400, 0.002)) + ser('IBR.6M.N', walk(12.5, 400, 0.003));
-    else if (u.includes('DF_CBR')) body = ser('TPM', steps([9.25, 10.25, 11.25, 12.0, 12.25], 1100));
-    else if (u.includes('DF_CPI')) body = ser('IPC.VAR_ANUAL', walk(5.5, 40, 0.03, 'M'), (d) => d.slice(0, 7));
+    // Claves con el formato real de BanRep: CO.<SUBJECT>._Z._Z._Z.<UNIDAD>.<FREQ>
+    const k = (subj, unit, f = 'D') => `CO.${subj}._Z._Z._Z.${unit}.${f}`;
+    if (u.includes('DF_IBR')) {
+      body = ['00', '01', '03', '06'].map((m, i) => ser(k(`IRIBRM${m}`, 'ER'), walk(12.2 + i * 0.05, 400, 0.002)) + ser(k(`IRIBRM${m}`, 'NR'), walk(11.4 + i * 0.05, 400, 0.002))).join('');
+    } else if (u.includes('DF_CBR')) body = ser(k('IRCBRM01', 'PA'), steps([9.25, 10.25, 11.25, 12.0, 12.25], 1100));
+    else if (u.includes('DF_UVR')) {
+      // UVR diaria (incluye fechas futuras, como la real) creciendo ~0,45% mensual.
+      const uvr = [];
+      for (let t = Date.now() - 1500 * DAY, v = 350; t < Date.now() + 40 * DAY; t += DAY) uvr.push({ d: iso(t), v: (v *= 1 + 0.00015 * (1 + rnd() * 0.2)) });
+      body = ser(k('RVU', 'APC'), uvr.map((p) => ({ d: p.d, v: 5.5 }))) + ser(k('RVU', 'CRVU'), uvr);
+    } else if (u.includes('DF_TES')) {
+      body = ['10', '01', '05'].map((y) => ser(k(`IRGBRY${y}`, 'PT', 'M'), walk(0.12 + Number(y) / 1000, 24, 0.02, 'M'), (d) => d.replace(/-/g, ''))).join('');
+    }
     else if (u.includes('DF_TRM')) body = ser('TRM', walk(3900, 400, 0.005));
     return text(`<message:GenericData><message:DataSet>${body}</message:DataSet></message:GenericData>`);
   }

@@ -7,7 +7,7 @@ export const WORLD = [
   { group: 'Acciones (MSCI)', ticker: 'URTH', label: 'MSCI World (URTH)' },
   { group: 'Acciones (MSCI)', ticker: 'EEM', label: 'MSCI Emerging Markets (EEM)' },
   { group: 'Acciones (MSCI)', ticker: 'ILF', label: 'S&P Latin America 40 (ILF)' },
-  { group: 'Acciones (MSCI)', ticker: 'GXG', label: 'MSCI Colombia (GXG)' },
+  { group: 'Acciones (MSCI)', ticker: 'COLO', label: 'MSCI Colombia (COLO)' },
   { group: 'Acciones (local)', ticker: '^GSPC', label: 'S&P 500' },
   { group: 'Acciones (local)', ticker: '^STOXX50E', label: 'Euro Stoxx 50' },
   { group: 'Acciones (local)', ticker: '^N225', label: 'Nikkei 225' },

@@ -23,12 +23,29 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   const problems = [...p.errors.map((e) => `${e.source}: ${e.message}`), ...missing.map((m) => `KPI vacío: ${m}`)];
   if (id !== 'world') {
     if (!p.equity?.msci?.perf) problems.push('sin bloque MSCI');
-    if (!p.calendar.length && !['mx', 'co'].includes(id)) problems.push('agenda vacía');
+    if (!p.calendar.length && !['mx'].includes(id)) problems.push('agenda vacía');
     p.charts.forEach((c) => c.data.length || problems.push(`gráfico vacío: ${c.id}`));
   } else if (p.markets.some((m) => !m.perf)) problems.push('mercados sin datos');
   console.log(`${problems.length ? '✗' : '✓'} ${id}: ${(p.kpis || p.markets).length} items${p.path ? `, trayectoria ${p.path.path.length}` : ''}, agenda ${p.calendar?.length ?? '-'}`);
   problems.forEach((x) => console.log('    ' + x));
   fails += problems.length;
+}
+// IPC Colombia desde la UVR: con IPC mensual constante de 0,5% el a/a debe dar 1,005^12 − 1 = 6,17%.
+{
+  const { ipcFromUvr } = await import('../api/_lib/sources/co.js');
+  const uvr = [];
+  let v = 300;
+  for (let t = Date.UTC(2023, 0, 16); t < Date.UTC(2026, 0, 16); t += 864e5) {
+    const d = new Date(t);
+    // Del 16 de t al 15 de t+1 la UVR acumula la variación mensual del IPC (interés compuesto diario).
+    const diasPeriodo = Math.round((Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + (d.getUTCDate() >= 16 ? 1 : 0), 15) - Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - (d.getUTCDate() >= 16 ? 0 : 1), 15)) / 864e5);
+    v *= 1.005 ** (1 / diasPeriodo);
+    uvr.push({ d: d.toISOString().slice(0, 10), v });
+  }
+  const ipc = ipcFromUvr(uvr);
+  assert.ok(ipc.length >= 20, 'ipcFromUvr: pocos meses');
+  for (const p of ipc) assert.ok(Math.abs(p.v - 6.17) < 0.02, `ipcFromUvr ${p.d}: ${p.v}`);
+  console.log(`✓ ipcFromUvr: ${ipc.length} meses, ${ipc[0].v}%`);
 }
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);

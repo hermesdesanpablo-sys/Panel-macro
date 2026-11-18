@@ -8,8 +8,10 @@ const ecbUrl = (flowKey) => `https://data.ecb.europa.eu/data/datasets/${flowKey.
 
 export const ECB_SERIES = {
   dfr: 'FM/D.U2.EUR.4F.KR.DFR.LEV', // Deposit facility rate
-  hicp: 'ICP/M.U2.N.000000.4.ANR', // HICP general, a/a
-  core: 'ICP/M.U2.N.XEF000.4.ANR', // HICP sin energía, alimentos, alcohol y tabaco, a/a
+  // El dataset ICP quedó congelado en dic-2025 (ingreso de Bulgaria, EA21). Desde 2026 el BCE publica en HICP,
+  // con DATA_PROVIDER 4D0. Verificado contra la API el 18-nov-2026.
+  hicp: 'HICP/M.U2.N.000000.4D0.ANR', // HICP general, a/a
+  core: 'HICP/M.U2.N.XEF000.4D0.ANR', // HICP sin energía, alimentos, alcohol y tabaco, a/a
   eurusd: 'EXR/D.USD.EUR.SP00.A', // Tipo de referencia BCE (USD por EUR)
   estr: 'EST/B.EU000A2X2A25.WT', // €STR
   y2: 'YC/B.U2.EUR.4F.G_N_A.SV_C_YM.SR_2Y', // Curva AAA, spot 2Y

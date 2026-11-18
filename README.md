@@ -45,7 +45,7 @@ scripts/test-parsers.mjs  → test offline con formatos simulados (+ genera dato
 | 🇺🇸 | Tasa implícita en futuros | Yahoo | ZQ{mes}{aa}.CBT |
 | 🇺🇸 | Calendario de publicaciones | FRED | /releases/dates |
 | 🇪🇺 | DFR, €STR | BCE | FM.D.U2.EUR.4F.KR.DFR.LEV, EST.B.EU000A2X2A25.WT |
-| 🇪🇺 | HICP y core a/a | BCE | ICP.M.U2.N.000000.4.ANR, ICP.M.U2.N.XEF000.4.ANR |
+| 🇪🇺 | HICP y core a/a | BCE | HICP.M.U2.N.000000.4D0.ANR, HICP.M.U2.N.XEF000.4D0.ANR |
 | 🇪🇺 | Curva AAA 2Y/10Y y forwards | BCE | YC.B.U2.EUR.4F.G_N_A.SV_C_YM.{SR_2Y,SR_10Y,IF_*} |
 | 🇪🇺 | EUR/USD referencia | BCE | EXR.D.USD.EUR.SP00.A |
 | 🇪🇺 | Desempleo, SPF largo plazo | BCE | LFSI.M.I9.S.UNEHRT.TOTAL0.15_74.T, SPF.Q.U2.HICP.POINT.LT.Q.AVG |
@@ -54,14 +54,16 @@ scripts/test-parsers.mjs  → test offline con formatos simulados (+ genera dato
 | 🇨🇦 | Overnight target, CORRA, USD/CAD | BoC Valet | V39079, AVG.INTWO, FXUSDCAD |
 | 🇨🇦 | GoC 2Y/10Y | BoC Valet | BD.CDN.2YR.DQ.YLD, BD.CDN.10YR.DQ.YLD |
 | 🇨🇦 | CPI (a/a calculado), CPI-trim, CPI-median | BoC Valet | V41690973, CPI_TRIM, CPI_MEDIAN |
-| 🇨🇴 | Tasa de política, IPC | BanRep SDMX | flujo descubierto por nombre (ver CLAUDE.md) |
-| 🇨🇴 | IBR overnight / 6M | BanRep SDMX | DF_IBR_DAILY_HIST |
+| 🇨🇴 | Tasa de política | BanRep SDMX | DF_CBR_DAILY_HIST |
+| 🇨🇴 | IPC a/a (derivado de la UVR) | BanRep SDMX | DF_UVR_DAILY_HIST |
+| 🇨🇴 | IBR overnight / 6M (efectiva) | BanRep SDMX | DF_IBR_DAILY_HIST (IRIBRM00 / IRIBRM06, ER) |
+| 🇨🇴 | TES 10Y (prom. mensual) | BanRep SDMX | DF_TES_MONTHLY_HIST (IRGBRY10) |
 | 🇨🇴 | TRM | datos.gov.co (fallback BanRep) | 32sa-8pi3 / DF_TRM_DAILY_HIST |
 | 🇨🇴 | IPC (fallback) | FRED (OCDE) | COLCPIALLMINMEI |
 | 🇧🇷 | Focus IPCA 12m adelante (historia) | BCB Olinda | ExpectativasMercadoInflacao12Meses |
 | 🇺🇸 | Implícita futuros +12m (historia) | Yahoo | ZQ{mes}{aa}.CBT, 1 año |
 | 🇪🇺 | Forward 1Y (historia) | BCE | YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_1Y |
-| todos | Proxy MSCI país (USD) + índice local | Yahoo | EWZ/^BVSP, EUSA/^GSPC, EZU/^STOXX50E, EWW/^MXX, EWC/^GSPTSE, GXG/ICOLCAP.CL |
+| todos | Proxy MSCI país (USD) + índice local | Yahoo | EWZ/^BVSP, EUSA/^GSPC, EZU/^STOXX50E, EWW/^MXX, EWC/^GSPTSE, COLO/ICOLCAP.CL |
 | Mundo | ACWI, URTH, EEM, VIX, DXY, FX, Brent, oro, cobre, soja | Yahoo | ver `world.js` |
 
 ## Estado, pendientes y credenciales

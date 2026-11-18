@@ -1,5 +1,5 @@
 // Brasil: BCB SGS + BCB Olinda (Focus) + IBGE calendario + Yahoo.
-import { getJson, clean, dmyToIso, toDmy, iso, daysAgo, daysAhead, settle, kpi, merge, thin, last, upcoming, valueAt } from '../util.js';
+import { getJson, clean, dmyToIso, toDmy, iso, today, daysAgo, daysAhead, settle, kpi, merge, thin, last, upcoming, valueAt } from '../util.js';
 import { equityBlock } from '../yahoo.js';
 import { meetingEvents } from '../calendar.js';
 
@@ -20,7 +20,9 @@ export async function sgs(code, from) {
   const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${code}/dados?formato=json&dataInicial=${toDmy(from)}`;
   const j = await getJson(url);
   if (!Array.isArray(j)) throw new Error(`SGS ${code}: respuesta inesperada`);
-  return clean(j.map((r) => ({ d: dmyToIso(r.data), v: parseFloat(String(r.valor).replace(',', '.')) })));
+  // Algunas series diarias (p.ej. 432, Selic meta) vienen cargadas hasta la próxima reunión del Copom: se corta en hoy.
+  const t = today();
+  return clean(j.map((r) => ({ d: dmyToIso(r.data), v: parseFloat(String(r.valor).replace(',', '.')) }))).filter((p) => p.d <= t);
 }
 
 const OLINDA = 'https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata';

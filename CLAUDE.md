@@ -122,37 +122,38 @@ Repo: `hermesdesanpablo-sys/Panel-macro` (**público**: nunca commitear `.env` n
 
 Leyenda: ✅ implementado y testeado offline · ⚠ implementado, código/ID **sin verificar contra la API real** · ❌ pendiente
 
-**Nada se probó todavía contra las APIs reales** (el entorno donde se escribió no tenía salida a internet).
-Primera tarea en Claude Code: correr `smoke` y arreglar lo que falle. Las filas ⚠ son las más probables de fallar.
+Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con `smoke` BR, EZ, CA, CO y Mundo
+(fuentes sin clave) y los tickers ZQ de Yahoo. **Falta verificar EE.UU. (FRED) y México (Banxico)**: requieren claves.
 
 | País | Tasa política | Inflación | Expectativas | Tasas mercado | FX | Índice | Agenda |
 |---|---|---|---|---|---|---|---|
-| 🇧🇷 | ✅ SGS 432 | ✅ SGS 13522/433 | ✅ Focus anual, Selic por reunión; ⚠ Focus IPCA 12m (`ExpectativasMercadoInflacao12Meses`), historia anual | ❌ DI futuro | ✅ SGS 1 | ✅ EWZ/^BVSP | ✅ Copom; ⚠ IBGE API calendario |
-| 🇺🇸 | ✅ FRED | ✅ FRED (a/a calculado) | ⚠ ZQ en Yahoo (strip + historia +12m); ✅ breakeven 5Y | ✅ DGS2/10 | ✅ DXY | ✅ EUSA/^GSPC | ✅ FOMC + FRED releases |
-| 🇪🇺 | ✅ DFR | ✅ HICP | ⚠ forwards AAA `IF_*`; ⚠ SPF LT | ✅ AAA 2Y/10Y | ✅ | ✅ EZU/^STOXX50E | ✅ BCE |
+| 🇧🇷 | ✔ SGS 432 (cortada en hoy) | ✔ SGS 13522/433 | ✔ Focus anual, Selic por reunión, Focus IPCA 12m | ❌ DI futuro | ✔ SGS 1 | ✔ EWZ/^BVSP | ✔ Copom + IBGE |
+| 🇺🇸 | ⚠ FRED | ⚠ FRED (a/a calculado) | ✔ ZQ en Yahoo; ⚠ breakeven 5Y | ⚠ DGS2/10 | ✔ DXY | ✔ EUSA/^GSPC | ✅ FOMC; ⚠ FRED releases |
+| 🇪🇺 | ✔ DFR | ✔ HICP (dataset `HICP`, proveedor `4D0`) | ✔ forwards AAA `IF_*`; ✔ SPF LT | ✔ AAA 2Y/10Y | ✔ | ✔ EZU/^STOXX50E | ✅ BCE |
 | 🇲🇽 | ✅ SF61745 | ⚠ SP30578 | ❌ Encuesta Banxico (IDs) | ✅ Cetes/TIIE; ❌ Mbono 10Y | ✅ FIX | ✅ EWW/^MXX | ⚠ solo dic-2026; ❌ 2027 |
-| 🇨🇦 | ✅ V39079 | ⚠ V41690973; ✅ CPI-trim/median | proxy 2Y − overnight | ✅ GoC 2Y/10Y | ✅ | ✅ EWC/^GSPTSE | ✅ BoC |
-| 🇨🇴 | ⚠ flujo descubierto en catálogo | ⚠ flujo descubierto; fallback FRED OCDE | proxy IBR 6M − política; ❌ Encuesta BanRep | ⚠ IBR (elección de serie); ❌ TES | ⚠ datos.gov.co 32sa-8pi3; fallback BanRep | ⚠ GXG / ICOLCAP.CL | ❌ fechas JDBR |
+| 🇨🇦 | ✔ V39079 | ✔ V41690973; ✔ CPI-trim/median | proxy 2Y − overnight | ✔ GoC 2Y/10Y | ✔ | ✔ EWC/^GSPTSE | ✅ BoC |
+| 🇨🇴 | ✔ DF_CBR_DAILY_HIST | ✔ IPC derivado de la UVR (DF_UVR_DAILY_HIST); fallback FRED OCDE | proxy IBR 6M − política; ❌ Encuesta BanRep | ✔ IBR ON/6M (efectiva); ✔ TES 10Y mensual | ✔ datos.gov.co 32sa-8pi3; fallback BanRep | ✔ COLO / ICOLCAP.CL | ✔ dic-2026; ❌ 2027 (no publicado) |
 
 ### Notas de Colombia (BanRep SDMX)
 
 - Endpoint: `https://totoro.banrep.gov.co/nsi-jax-ws/rest/data/ESTAT,<FLOW>,1.0/all/ALL/?startPeriod=<AAAA>`
   con `Accept: application/vnd.sdmx.genericdata+xml;version=2.1`. **Solo XML** (JSON/CSV → 406, según reportes de terceros).
-- Flujos confirmados por documentación: `DF_TRM_DAILY_HIST`, `DF_IBR_DAILY_HIST`, `DF_DTF_DAILY_HIST`.
-- La tasa de política y el IPC se **descubren** buscando por nombre en `/dataflow/ESTAT/all/latest`.
-  Cuando `smoke` muestre el ID correcto, fijarlo en `.env` (`BANREP_FLOW_POLICY`, `BANREP_FLOW_CPI`) o en `BANREP_FLOWS`.
-- IBR trae varias series (plazos × nominal/efectiva). Si la regex de `SERIES_PICK` no encuentra el plazo,
-  el error lista las claves disponibles: copiar la clave correcta a `BANREP_IBR_ON` / `BANREP_IBR_6M`.
+- Catálogo (`/dataflow/ESTAT/all/latest`, 33 flujos): CBR (tasa de política), IBR, IR, DTF, TRM, UVR, TES, COLCAP,
+  FTD (CDT), MONAGG. **No hay IPC**: se deriva de la UVR (`ipcFromUvr` en `co.js`; IPC a/a de M = UVR(15/M+2)/UVR(15/M−10) − 1,
+  coincide con el DANE). La UVR se publica con ~1 mes de adelanto, así que el IPC sale apenas lo publica el DANE.
+- Claves: `CO.<SUBJECT>._Z._Z._Z.<UNIDAD>.<FREQ>`. IBR: `IRIBRM{00,01,03,06}` × `ER` (efectiva anual) / `NR` (nominal).
+  Se usa ER porque la tasa de política está en efectiva anual. TES: `IRGBRY{01,05,10}`, mensual, en decimal.
+- Variables opcionales para sobreescribir: `BANREP_FLOW_POLICY`, `BANREP_IBR_ON`, `BANREP_IBR_6M`.
 - `startPeriod` solo respeta el año; el filtro fino de fechas se hace del lado del cliente.
 
 ## Pendientes priorizados
 
-1. **Correr `smoke` y arreglar los ⚠** (códigos de serie, flujos BanRep, tickers Yahoo `ZQ…CBT` y `ICOLCAP.CL`).
-2. Calendarios: fechas 2027 de Banxico y JDBR (dic-2026 y 2027) en `api/_lib/calendar.js`. Fuentes:
+1. **Con claves: `smoke us mx` y arreglar los ⚠** (FRED y Banxico SIE).
+2. Calendarios: fechas 2027 de Banxico y JDBR (ninguno publicado al 18-nov-2026) en `api/_lib/calendar.js`. Fuentes:
    https://www.banxico.org.mx/publicaciones-y-prensa/calendario-de-publicaciones.html ·
    https://www.banrep.gov.co/es/calendario-junta-directiva (la JDBR decide al final de ene, mar, abr, jun, jul, sep, oct y dic).
 3. México: IDs SIE de la Encuesta de Expectativas (`SIE_EXPECTATIONS` en `mx.js`) y del Mbono 10Y.
-4. Colombia: Encuesta mensual de expectativas de BanRep (Excel → parser o carga manual), TES 10Y.
+4. Colombia: Encuesta mensual de expectativas de BanRep (Excel → parser o carga manual). TES diario (hoy: promedio mensual).
 5. Agenda de datos para MX (INEGI), CA (StatCan), CO (DANE), EZ (Eurostat): hoy solo hay BR (IBGE) y EE.UU. (FRED).
 6. Persistir snapshots diarios (p.ej. Vercel KV / Postgres + cron) para tener historia propia de variables
    que la fuente no guarda (strip de futuros completo, forwards por plazo, encuestas).
