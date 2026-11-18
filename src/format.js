@@ -35,6 +35,16 @@ export function fmtChg(v, unit = 'pb') {
   return unit === 'pb' ? `${s}${fmtNum(v, 0)} pb` : `${s}${fmtNum(v, 1)}%`;
 }
 export const ARROW = { up: '▲', down: '▼', flat: '■' };
+
+/** Dirección de una variación con umbral de ruido: 1 pb para tasas, 0,05% para niveles. */
+export function chgDir(v, unit = 'pb') {
+  if (v == null || !Number.isFinite(v)) return null;
+  const th = unit === 'pb' ? 1 : 0.05;
+  return v > th ? 'up' : v < -th ? 'down' : 'flat';
+}
+
+// ISO-2 para las banderas SVG (los emoji de bandera no se ven en Windows).
+export const FLAG_ISO = { br: 'br', us: 'us', eu: 'eu', mx: 'mx', ca: 'ca', co: 'co', jp: 'jp' };
 export const DIR_WORD = { up: 'sube', down: 'baja', flat: 'estable' };
 
 export const GROUPS = [

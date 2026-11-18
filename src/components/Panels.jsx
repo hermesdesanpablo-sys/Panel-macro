@@ -1,34 +1,56 @@
 import { TimeChart, PathChart, Spark } from './Charts.jsx';
-import { fmtNum, fmtPct, fmtDate, daysUntil, kpiByKey, fmtChg, ARROW, DIR_WORD, GROUPS } from '../format.js';
+import { fmtNum, fmtDate, daysUntil, kpiByKey, fmtChg, ARROW, DIR_WORD, GROUPS, chgDir } from '../format.js';
+import { Flag } from './Flag.jsx';
 
 function Source({ source, url }) {
   if (!source) return null;
   return url ? <a className="src" href={url} target="_blank" rel="noreferrer">{source}</a> : <span className="src">{source}</span>;
 }
 
+/** Variación con flecha y fondo según dirección; el número queda en tinta primaria. */
+export function Chg({ v, unit = 'pb', title }) {
+  const dir = chgDir(v, unit);
+  if (!dir) return <span className="chg na">—</span>;
+  return (
+    <span className={`chg ${dir}`} title={title}>
+      <span className="arr" aria-hidden="true">{ARROW[dir]}</span>
+      {fmtChg(v, unit)}
+    </span>
+  );
+}
+
+/** Variación porcentual (precios) o en pb (tasas), con el mismo chip. */
+function PctChg({ v, unit }) {
+  if (v == null || !Number.isFinite(v)) return <span className="chg na">—</span>;
+  if (unit === 'pb') return <Chg v={v} unit="pb" />;
+  return <Chg v={v} unit="%" />;
+}
+
 export function Kpi({ k }) {
   const empty = k.value == null;
   return (
-    <div className={`kpi ${empty ? 'kpi-empty' : ''}`} id={`kpi-${k.key}`}>
+    <div className="kpi" id={`kpi-${k.key}`}>
       <div className="kpi-label">{k.label}</div>
-      <div className="kpi-row">
-        <div className="kpi-value">
-          {empty ? 'n/d' : fmtNum(k.value, k.decimals ?? 2)}
-          {!empty && k.unit ? <span className="kpi-unit">{k.unit}</span> : null}
-        </div>
-        {k.spark?.length > 2 && <div className="kpi-spark"><Spark data={k.spark} height={30} /></div>}
+      <div className="kpi-value">
+        {empty ? 'n/d' : fmtNum(k.value, k.decimals ?? 2)}
+        {!empty && k.unit ? <span className="kpi-unit">{k.unit}</span> : null}
       </div>
+      {k.spark?.length > 2 && <div className="kpi-spark"><Spark data={k.spark} height={40} /></div>}
       {k.trend && (
-        <div className="kpi-trend">
-          <span title="Variación 3 meses">3m {fmtChg(k.trend.m3, k.trendUnit)}</span>
-          <span title="Variación 12 meses">12m {fmtChg(k.trend.m12, k.trendUnit)}</span>
+        <div className="kpi-chgs">
+          {[['m1', '1 mes'], ['m3', '3 meses'], ['m12', '12 meses']].map(([h, l]) => (
+            <div className="kpi-chg" key={h}>
+              <span className="kpi-chg-h">{l}</span>
+              <Chg v={k.trend[h]} unit={k.trendUnit} />
+            </div>
+          ))}
         </div>
       )}
-      <div className="kpi-meta">
-        {k.date && <span className="kpi-date">Dato al {fmtDate(k.date)}</span>}
+      <div className="kpi-foot">
+        {k.date && <span>Dato al {fmtDate(k.date)}</span>}
+        {k.note && <span className="kpi-note">{k.note}</span>}
+        <Source source={k.source} url={k.url} />
       </div>
-      {k.note && <div className="kpi-note">{k.note}</div>}
-      <Source source={k.source} url={k.url} />
     </div>
   );
 }
@@ -44,17 +66,17 @@ export function Dynamics({ kpis }) {
       <div className="tbl-wrap">
         <table className="tbl dyn">
           <thead>
-            <tr><th>Variable</th><th>Último</th><th>1m</th><th>3m</th><th>6m</th><th>12m</th><th>Tendencia 3m</th><th className="spark-col">13 meses</th></tr>
+            <tr><th>Variable</th><th>Último</th><th>1 mes</th><th>3 meses</th><th>6 meses</th><th>12 meses</th><th>Tendencia 3m</th><th className="spark-col">13 meses</th></tr>
           </thead>
           <tbody>
             {groups.map((g) => [
               <tr key={`g-${g.id}`} className="grp"><td colSpan={8}>{g.label}</td></tr>,
               ...rows.filter((k) => k.group === g.id).map((k) => (
                 <tr key={`k-${k.key}`}>
-                  <td>{k.label}</td>
-                  <td className="num">{fmtNum(k.value, k.decimals ?? 2)}{k.unit}</td>
-                  {['m1', 'm3', 'm6', 'm12'].map((h) => <td key={h} className="num">{fmtChg(k.trend[h], k.trendUnit)}</td>)}
-                  <td className={`dir dir-${k.direction}`}>{k.direction ? `${ARROW[k.direction]} ${DIR_WORD[k.direction]}` : '—'}</td>
+                  <td className="name">{k.label}</td>
+                  <td className="num"><b>{fmtNum(k.value, k.decimals ?? 2)}{k.unit}</b></td>
+                  {['m1', 'm3', 'm6', 'm12'].map((h) => <td key={h} className="num"><Chg v={k.trend[h]} unit={k.trendUnit} /></td>)}
+                  <td className="num muted">{k.direction ? DIR_WORD[k.direction] : '—'}</td>
                   <td className="spark-col"><Spark data={k.spark} /></td>
                 </tr>
               )),
@@ -87,36 +109,36 @@ function Card({ id, title, children, source, url, note }) {
 function PerfTable({ equity }) {
   const rows = [equity?.msci, equity?.local].filter(Boolean);
   return (
-    <table className="tbl">
+    <div className="tbl-wrap"><table className="tbl">
       <thead>
-        <tr><th>Índice</th><th>Último</th><th>1d</th><th>MTD</th><th>YTD</th><th>1a</th></tr>
+        <tr><th>Índice</th><th>Último</th><th>1 día</th><th>Año</th><th>12 meses</th></tr>
       </thead>
       <tbody>
         {rows.map((r) => (
           <tr key={r.ticker}>
-            <td>{r.label}</td>
-            <td className="num">{fmtNum(r.perf?.last, r.perf?.last > 1000 ? 0 : 2)}</td>
-            {['d1', 'mtd', 'ytd', 'y1'].map((f) => <td key={f} className="num">{fmtPct(r.perf?.[f])}</td>)}
+            <td className="name">{r.label}</td>
+            <td className="num"><b>{fmtNum(r.perf?.last, r.perf?.last > 1000 ? 0 : 2)}</b></td>
+            {['d1', 'ytd', 'y1'].map((f) => <td key={f} className="num"><PctChg v={r.perf?.[f]} /></td>)}
           </tr>
         ))}
       </tbody>
-    </table>
+    </table></div>
   );
 }
 
 function ExpTable({ e }) {
   return (
     <Card id={`exp-${e.title}`} title={e.title} source={e.source} url={e.url} note={e.asOf ? `Encuesta del ${fmtDate(e.asOf)}` : null}>
-      <table className="tbl">
+      <div className="tbl-wrap"><table className="tbl">
         <thead><tr>{e.columns.map((c) => <th key={c}>{c}</th>)}</tr></thead>
         <tbody>
           {e.rows.map((r) => (
             <tr key={r[0]}>
-              {r.map((c, i) => <td key={i} className={i ? 'num' : ''}>{i ? fmtNum(c, r[0].includes('USD') ? 2 : 2) : c}</td>)}
+              {r.map((c, i) => <td key={i} className={i ? 'num' : 'name'}>{i ? (c == null ? '—' : fmtNum(c, 2)) : c}</td>)}
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
     </Card>
   );
 }
@@ -133,7 +155,7 @@ export function AgendaList({ events, showFlag = false }) {
             <span className="ev-in">{n <= 0 ? 'hoy' : `${n}d`}</span>
             <span className="ev-tag">{e.kind === 'cb' ? 'Decisión' : 'Dato'}</span>
             <span className="ev-name">
-              {showFlag && <span className="ev-flag">{e.flag} </span>}
+              {showFlag && <Flag id={e.cid} />}
               {e.url ? <a href={e.url} target="_blank" rel="noreferrer">{e.event}</a> : e.event}
             </span>
           </li>
@@ -221,13 +243,11 @@ function TrendsTable({ countries }) {
   const cell = (p, c) => {
     const k = kpiByKey(p, c.k);
     let v = k?.trend?.[c.h];
-    if (v == null) return <td key={c.label} className="num muted">—</td>;
+    if (v == null) return <td key={c.label} className="num"><span className="chg na">—</span></td>;
     // FX: expresar como apreciación (+) / depreciación (−) de la moneda local vs USD.
     if (c.fx && !['eu', 'us'].includes(p.id)) v = (1 / (1 + v / 100) - 1) * 100;
     const unit = c.fx ? '%' : k.trendUnit;
-    const th = unit === 'pb' ? 10 : 1;
-    const dir = v > th ? 'up' : v < -th ? 'down' : 'flat';
-    return <td key={c.label} className="num" title={k.label}>{ARROW[dir]} {fmtChg(v, unit)}</td>;
+    return <td key={c.label} className="num"><Chg v={v} unit={unit} title={k.label} /></td>;
   };
   return (
     <section className="card" id="trends">
@@ -237,13 +257,13 @@ function TrendsTable({ countries }) {
           <thead><tr><th>País</th>{cols.map((c) => <th key={c.label}>{c.label}</th>)}</tr></thead>
           <tbody>
             {countries.map((p) => (
-              <tr key={p.id}><td>{p.flag} {p.name}</td>{cols.map((c) => cell(p, c))}</tr>
+              <tr key={p.id}><td className="name"><span className="cell-flag"><Flag id={p.id} />{p.name}</span></td>{cols.map((c) => cell(p, c))}</tr>
             ))}
           </tbody>
         </table>
       </div>
       <div className="card-foot">
-        <span>Expectativa de tasa: Focus (BR), futuros Fed funds (EE.UU.), forward 1Y AAA (EZ), 2Y − overnight (CA), IBR 6M − política (CO). Pasá el mouse sobre una celda para ver la serie usada. * FX: + = la moneda local se apreció vs USD.</span>
+        <span>Expectativa de tasa: Focus (BR), futuros Fed funds (EE.UU.), forward 1Y AAA (EZ), Encuesta Banxico (MX), 2Y − overnight (CA), IBR 6M − política (CO), JGB 2Y − call (JP). Inflación esperada: Focus (BR), breakeven (EE.UU., CA), SPF (EZ), Encuesta Banxico (MX), Tankan (JP). Pasá el mouse sobre una celda para ver la serie usada. * FX: + = la moneda local se apreció vs USD.</span>
       </div>
     </section>
   );
@@ -276,6 +296,7 @@ export function WorldPanel({ world, countries }) {
       cpi,
       real: pol != null && cpi != null ? pol - cpi : null,
       y2,
+      y2Label: kpiByKey(p, 'y2')?.label,
       slope: pol != null && y2 != null ? (y2 - pol) * 100 : null,
       fx: fxChg,
       msci: p.equity?.msci?.perf?.ytd,
@@ -295,14 +316,14 @@ export function WorldPanel({ world, countries }) {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.p.id}>
-                  <td>{r.p.flag} {r.p.name}</td>
-                  <td className="num">{fmtNum(r.policy)}%</td>
+                  <td className="name"><span className="cell-flag"><Flag id={r.p.id} />{r.p.name}</span></td>
+                  <td className="num"><b>{fmtNum(r.policy)}%</b></td>
                   <td className="num">{fmtNum(r.cpi)}%</td>
                   <td className="num">{fmtNum(r.real)}%</td>
-                  <td className="num">{r.y2 == null ? 'n/d' : `${fmtNum(r.y2)}%`}</td>
-                  <td className="num">{r.slope == null ? 'n/d' : `${r.slope > 0 ? '+' : ''}${fmtNum(r.slope, 0)} pb`}</td>
-                  <td className="num">{fmtPct(r.fx)}</td>
-                  <td className="num">{fmtPct(r.msci)}</td>
+                  <td className="num" title={r.y2Label}>{r.y2 == null ? '—' : `${fmtNum(r.y2)}%`}{r.y2Label && <span className="sub">{r.y2Label}</span>}</td>
+                  <td className="num">{r.slope == null ? '—' : `${r.slope > 0 ? '+' : ''}${fmtNum(r.slope, 0)} pb`}</td>
+                  <td className="num"><Chg v={r.fx} unit="%" /></td>
+                  <td className="num"><Chg v={r.msci} unit="%" /></td>
                   <td className="num">{r.next ? fmtDate(r.next) : '—'}</td>
                 </tr>
               ))}
@@ -310,33 +331,35 @@ export function WorldPanel({ world, countries }) {
           </table>
         </div>
         <div className="card-foot">
-          <span>* Cálculos propios: real = tasa − inflación a/a (ex-post); 2Y − política &gt; 0 sugiere que el mercado descuenta subas, &lt; 0 bajas; FX positivo = moneda local se apreció vs USD (EE.UU.: DXY).</span>
+          <span>* Cálculos propios: real = tasa − inflación a/a (ex-post); 2Y − política &gt; 0 sugiere que el mercado descuenta subas, &lt; 0 bajas; FX positivo = moneda local se apreció vs USD (EE.UU.: DXY). Bono 2Y: nodo más cercano disponible en cada país (debajo, la serie usada).</span>
         </div>
       </section>
 
       <div className="grid">
         {world?.charts?.map((c) => (
           <Card key={c.id} id={`chart-${c.id}`} title={c.title} source="Yahoo Finance" url="https://finance.yahoo.com/quote/ACWI">
-            <TimeChart chart={c} />
+            <TimeChart chart={c} height={260} />
           </Card>
         ))}
+      </div>
+      <h2 className="section">Mercados</h2>
+      <div className="grid">
         {groups.map((g) => (
           <section className="card" key={g} id={`mk-${g}`}>
             <h3>{g}</h3>
-            <table className="tbl">
-              <thead><tr><th>Activo</th><th>Último</th><th>1d</th><th>YTD</th><th className="spark-col">1a</th></tr></thead>
+            <div className="tbl-wrap"><table className="tbl mk-tbl">
+              <thead><tr><th>Activo</th><th>Último</th><th>1 día</th><th>Año</th><th>12 meses</th><th className="spark-col">12 meses</th></tr></thead>
               <tbody>
                 {world.markets.filter((m) => m.group === g).map((m) => (
                   <tr key={m.ticker}>
-                    <td><a href={`https://finance.yahoo.com/quote/${encodeURIComponent(m.ticker)}`} target="_blank" rel="noreferrer">{m.label}</a></td>
-                    <td className="num">{fmtNum(m.perf?.last, m.perf?.last > 1000 ? 0 : m.perf?.last < 10 ? 4 : 2)}</td>
-                    <td className="num">{fmtPct(m.perf?.d1)}</td>
-                    <td className="num">{fmtPct(m.perf?.ytd)}</td>
-                    <td className="spark-col"><Spark data={m.spark} /></td>
+                    <td className="name"><a href={`https://finance.yahoo.com/quote/${encodeURIComponent(m.ticker)}`} target="_blank" rel="noreferrer">{m.label}</a></td>
+                    <td className="num"><b>{m.perf ? `${fmtNum(m.perf.last, m.unit === '%' ? 2 : m.perf.last > 1000 ? 0 : m.perf.last < 10 ? 4 : 2)}${m.unit === '%' ? '%' : ''}` : '—'}</b></td>
+                    {['d1', 'ytd', 'y1'].map((f) => <td key={f} className="num"><PctChg v={m.perf?.[f]} unit={m.perf?.chgUnit} /></td>)}
+                    <td className="spark-col"><Spark data={m.spark} height={30} /></td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </section>
         ))}
       </div>

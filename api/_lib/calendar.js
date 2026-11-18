@@ -55,6 +55,16 @@ export const POLICY_MEETINGS = {
     // dic-2026 verificado en banrep.gov.co (18-nov-2026). 2027: BanRep todavía no lo publicó.
     dates: ['2026-12-18'],
   },
+  jp: {
+    label: 'BoJ – decisión de política monetaria',
+    src: 'https://www.boj.or.jp/en/mopo/mpmsche_minu/index.htm',
+    // Segundo día de cada reunión (día del anuncio). 2026 y 2027 verificados en boj.or.jp el 18-nov-2026.
+    dates: [
+      '2026-12-18',
+      '2027-01-22', '2027-03-18', '2027-04-28', '2027-06-11',
+      '2027-07-22', '2027-09-22', '2027-10-29', '2027-12-17',
+    ],
+  },
 };
 
 export function meetingEvents(country) {

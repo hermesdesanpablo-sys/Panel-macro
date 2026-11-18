@@ -29,6 +29,8 @@ export const SERIES_PICK = {
   ibrOvernight: process.env.BANREP_IBR_ON || /(^|\.)IRIBRM00\..*\.ER(\.|$)/,
   ibr6m: process.env.BANREP_IBR_6M || /(^|\.)IRIBRM06\..*\.ER(\.|$)/,
   tes10: /(^|\.)IRGBRY10\./, // TES tasa fija 10 años, promedio mensual (viene en decimal)
+  tes1: /(^|\.)IRGBRY01\./,
+  tes5: /(^|\.)IRGBRY05\./,
   uvr: /\.CRVU\./, // nivel de la UVR (la otra serie, APC, es su variación)
 };
 
@@ -131,9 +133,10 @@ export default async function colombia() {
         return { flow, s: all.sort((a, b) => b.series.length - a.series.length)[0].series };
       },
       'BanRep IPC (vía UVR)': async () => ipcFromUvr(pick(await banrep(BANREP_FLOWS.uvr, year - 4), SERIES_PICK.uvr, 'UVR').series),
-      'BanRep TES 10Y': async () => {
-        const s = pick(await banrep(BANREP_FLOWS.tes, year - 2), SERIES_PICK.tes10, 'TES 10Y').series;
-        return s.map((p) => ({ d: p.d, v: p.v < 1 ? p.v * 100 : p.v })); // decimal → %
+      'BanRep TES': async () => {
+        const all = await banrep(BANREP_FLOWS.tes, year - 2);
+        const pct = (re, label) => pick(all, re, label).series.map((p) => ({ d: p.d, v: p.v < 1 ? p.v * 100 : p.v })); // decimal → %
+        return { y1: pct(SERIES_PICK.tes1, 'TES 1Y'), y5: pct(SERIES_PICK.tes5, 'TES 5Y'), y10: pct(SERIES_PICK.tes10, 'TES 10Y') };
       },
       // GXG pasó a llamarse COLO. ICOLCAP.CL es la cotización en la BVC (Yahoo usa el sufijo .CL para Colombia).
       'Yahoo COLO/COLCAP': () => equityBlock('COLO', 'Global X MSCI Colombia (COLO, USD)', 'ICOLCAP.CL', 'iShares MSCI COLCAP (ICOLCAP)'),
@@ -184,6 +187,12 @@ export default async function colombia() {
     }
   }
   const slope = spreadSeries(ibr6, policy);
+  // TES 2Y: interpolación lineal entre el 1Y y el 5Y (BanRep no publica el nodo de 2 años).
+  const tes = d['BanRep TES'] || { y1: [], y5: [], y10: [] };
+  const tes2 = tes.y1.map((p) => {
+    const q = tes.y5.find((x) => x.d === p.d);
+    return q ? { d: p.d, v: p.v + (q.v - p.v) / 4 } : null;
+  }).filter(Boolean);
   const bsrc = (flow) => ({ source: `BanRep SDMX ${flow}`, url: BANREP_URL });
 
   return {
@@ -196,9 +205,10 @@ export default async function colombia() {
       kpi({ key: 'ibr_on', group: 'policy', label: 'IBR overnight', series: ibrOn, decimals: 3, ...bsrc(BANREP_FLOWS.ibr) }),
       kpi({ key: 'cpi', group: 'inflation', label: 'IPC a/a', series: cpi, changeDays: 365, ...cpiSrc }),
       kpi({ key: 'exp_rate', group: 'expectations', label: 'IBR 6M − tasa de política', series: slope, note: 'Proxy de mercado: >0 descuenta subas; <0, bajas', source: 'Cálculo propio (BanRep IBR)', url: BANREP_URL }),
-      { key: 'exp_cpi', group: 'expectations', label: 'Inflación esperada (Encuesta BanRep)', value: null, note: 'Encuesta mensual de analistas: solo Excel. Ver CLAUDE.md.', source: 'Pendiente' },
+      // Encuesta mensual de BanRep (EME): sin fuente automatizable (la página tiene captcha). Ver CLAUDE.md.
       kpi({ key: 'ibr6', group: 'market', label: 'IBR 6M', series: ibr6, decimals: 3, ...bsrc(BANREP_FLOWS.ibr) }),
-      kpi({ key: 'y10', group: 'market', label: 'TES 10Y (prom. mensual)', series: d['BanRep TES 10Y'] || [], changeDays: 365, ...bsrc(BANREP_FLOWS.tes) }),
+      kpi({ key: 'y2', group: 'market', label: 'TES 2Y (prom. mensual)', series: tes2, changeDays: 365, note: 'Interpolado entre TES 1Y y 5Y', source: `Cálculo propio (BanRep ${BANREP_FLOWS.tes})`, url: BANREP_URL }),
+      kpi({ key: 'y10', group: 'market', label: 'TES 10Y (prom. mensual)', series: tes.y10, changeDays: 365, ...bsrc(BANREP_FLOWS.tes) }),
       kpi({ key: 'fx', group: 'fx', label: 'USD/COP (TRM)', series: trm, unit: '', decimals: 2, changeDays: 365, ...trmSrc }),
     ],
     equity: d['Yahoo COLO/COLCAP'],

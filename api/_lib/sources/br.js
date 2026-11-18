@@ -16,6 +16,64 @@ export const SGS = {
   desemprego: 24369, // Taxa de desocupação PNAD Contínua
 };
 
+// ---------- Tesouro Direto (Tesouro Transparente): tasas de mercado de bonos públicos ----------
+// CSV público (~15 MB) ordenado de la fecha más nueva a la más vieja: se lee en streaming y se corta
+// apenas aparece una fecha anterior a `from` (~2 MB para 13 meses). Columnas:
+// Tipo Titulo;Data Vencimento;Data Base;Taxa Compra Manha;Taxa Venda Manha;...
+export const TESOURO_CSV =
+  'https://www.tesourotransparente.gov.br/ckan/dataset/df56aa42-484a-4a59-8184-7676580c81e3/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1/download/PrecoTaxaTesouroDireto.csv';
+const TESOURO_PAGE = 'https://www.tesourotransparente.gov.br/ckan/dataset/taxas-dos-titulos-ofertados-pelo-tesouro-direto';
+
+export async function tesouroRows(from) {
+  const cutoff = iso(from);
+  const r = await fetch(TESOURO_CSV, { signal: AbortSignal.timeout(25000) });
+  if (!r.ok) throw new Error(`HTTP ${r.status} en Tesouro Transparente`);
+  const reader = r.body.getReader();
+  const dec = new TextDecoder('latin1');
+  const out = [];
+  let buf = '', header = true, done = false;
+  while (!done) {
+    const { value, done: end } = await reader.read();
+    if (end) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split(/\r?\n/);
+    buf = lines.pop();
+    for (const line of lines) {
+      if (header) { header = false; continue; }
+      const c = line.split(';');
+      if (c.length < 4) continue;
+      const d = dmyToIso(c[2]);
+      if (d < cutoff) { done = true; break; }
+      const v = parseFloat(c[3].replace(',', '.'));
+      if (Number.isFinite(v)) out.push({ tipo: c[0], venc: dmyToIso(c[1]), d, v });
+    }
+  }
+  reader.cancel().catch(() => {});
+  if (!out.length) throw new Error('Tesouro: CSV sin filas recientes');
+  return out;
+}
+
+/** Curva a plazo constante: interpola linealmente (en años) entre los títulos de `tipos` que rodean `years`. */
+export function constantMaturity(rows, tipos, years) {
+  const byDate = new Map();
+  for (const r of rows) {
+    if (!tipos.includes(r.tipo)) continue;
+    const t = (Date.parse(r.venc) - Date.parse(r.d)) / (365.25 * 864e5);
+    if (t <= 0.1) continue;
+    if (!byDate.has(r.d)) byDate.set(r.d, []);
+    byDate.get(r.d).push({ t, v: r.v });
+  }
+  const out = [];
+  for (const [d, pts] of byDate) {
+    pts.sort((a, b) => a.t - b.t);
+    const hi = pts.findIndex((p) => p.t >= years);
+    if (hi <= 0) continue; // sin títulos a ambos lados: no se extrapola
+    const a = pts[hi - 1], b = pts[hi];
+    out.push({ d, v: a.v + ((b.v - a.v) * (years - a.t)) / (b.t - a.t) });
+  }
+  return clean(out);
+}
+
 export async function sgs(code, from) {
   const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${code}/dados?formato=json&dataInicial=${toDmy(from)}`;
   const j = await getJson(url);
@@ -143,6 +201,7 @@ export default async function brazil() {
         }).then((j) => parseFocusSelic(j.value || [])),
       'Yahoo EWZ/^BVSP': () => equityBlock('EWZ', 'iShares MSCI Brazil (EWZ, USD)', '^BVSP', 'Ibovespa'),
       'IBGE calendario': ibgeCalendar,
+      'Tesouro Direto': () => tesouroRows(daysAgo(400)),
     },
     errors
   );
@@ -166,6 +225,18 @@ export default async function brazil() {
     if (s) real.push({ d: p.d, v: ((1 + s.v / 100) / (1 + p.v / 100) - 1) * 100 });
   }
 
+  // Tasas de mercado: prefijadas (LTN para 2Y; NTN-F para 10Y) y real (NTN-B) a plazo constante.
+  const td = d['Tesouro Direto'] || [];
+  const pre2 = constantMaturity(td, ['Tesouro Prefixado'], 2);
+  const pre10 = constantMaturity(td, ['Tesouro Prefixado com Juros Semestrais'], 10);
+  const real10 = constantMaturity(td, ['Tesouro IPCA+ com Juros Semestrais', 'Tesouro IPCA+'], 10);
+  const be10 = [];
+  for (const p of pre10) {
+    const r = valueAt(real10, p.d);
+    if (r && r.d === p.d) be10.push({ d: p.d, v: ((1 + p.v / 100) / (1 + r.v / 100) - 1) * 100 });
+  }
+  const tdSrc = (x) => ({ source: `Cálculo propio (Tesouro Direto ${x})`, url: TESOURO_PAGE });
+
   const kpis = [
     kpi({ key: 'policy', group: 'policy', label: 'Selic meta', series: selic, changeDays: 365, ...sgsSrc(432) }),
     kpi({ key: 'real', group: 'policy', label: 'Tasa real ex-ante', series: real, note: 'Selic / (1 + IPCA Focus 12m adelante)', source: 'Cálculo propio (SGS 432 + Focus)' }),
@@ -177,7 +248,10 @@ export default async function brazil() {
     kpi({ key: 'fx', group: 'fx', label: 'USD/BRL (PTAX)', series: ptax, unit: '', decimals: 4, changeDays: 365, ...sgsSrc(1) }),
     kpi({ key: 'reserves', group: 'fx', label: 'Reservas (US$ mn)', series: d['SGS 13621 Reservas'] || [], unit: '', decimals: 0, ...sgsSrc(13621) }),
     kpi({ key: 'unemp', group: 'activity', label: 'Desocupación', series: d['SGS 24369 Desocupação'] || [], ...sgsSrc(24369) }),
-    { key: 'mkt_rate', group: 'market', label: 'DI futuro (mercado)', value: null, note: 'Sin API pública gratuita (B3/ANBIMA). Ver CLAUDE.md.', source: 'Pendiente' },
+    kpi({ key: 'y2', group: 'market', label: 'Prefijado 2Y', series: pre2, changeDays: 30, note: 'LTN interpolada a 2 años (tasa de compra)', ...tdSrc('LTN') }),
+    kpi({ key: 'y10', group: 'market', label: 'Prefijado 10Y', series: pre10, changeDays: 30, note: 'NTN-F interpolada a 10 años', ...tdSrc('NTN-F') }),
+    kpi({ key: 'real10', group: 'market', label: 'Tasa real 10Y (IPCA+)', series: real10, changeDays: 30, note: 'NTN-B interpolada a 10 años', ...tdSrc('NTN-B') }),
+    kpi({ key: 'be10', group: 'expectations', label: 'Inflación implícita 10Y', series: be10, note: 'Breakeven: (1+prefijado)/(1+real) − 1', ...tdSrc('NTN-F/NTN-B') }),
   ];
 
   return {
@@ -199,6 +273,7 @@ export default async function brazil() {
         data: merge({ selic: thin(selic.filter((p) => p.d >= (ipca[0]?.d || ''))), ipca }),
       },
       { id: 'fx', title: 'USD/BRL – PTAX venta', unit: '', lines: [{ key: 'v', label: 'PTAX' }], data: merge({ v: ptax }) },
+      { id: 'curve', title: 'Curva prefijada (Tesouro Direto): 2Y y 10Y', unit: '%', lines: [{ key: 'y2', label: '2Y' }, { key: 'y10', label: '10Y' }], data: merge({ y2: pre2, y10: pre10 }) },
       {
         id: 'exp-rate',
         group: 'exp',

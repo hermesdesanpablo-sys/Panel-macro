@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0 — 2026-11-18 (rediseño + Japón + datos faltantes)
+- **UI**: tema negro, tipografía Inter (sin monoespaciada), KPIs con valor grande, sparkline y chips de variación a 1/3/12 meses
+  (flecha y fondo por dirección, par divergente azul↔rojo validado contra la superficie #111). Tablas con encabezados,
+  alineación y espaciado uniformes; banderas SVG (los emoji no se veían en Windows); pestañas con scroll en móvil.
+- **Japón** (nuevo): BoJ API (call O/N, Tankan), BIS (IPC), MOF (curva JGB), Yahoo (USD/JPY, EWJ/^N225), agenda BoJ 2026–27.
+- **Mundo**: de 21 a 56 activos (MSCI por país, Nasdaq/Dow/Russell, DAX/CAC/FTSE/Hang Seng/Shanghai/KOSPI/Nifty, Ibovespa/IPC/TSX/COLCAP,
+  Treasuries 5Y/30Y, GBP/JPY/CNY/CLP/ARS, WTI, plata). Tasas con variación en pb. Gráfico World vs EM vs LatAm (base 100).
+  Consultas a Yahoo limitadas a 8 en paralelo.
+- **Sin "n/d"**: Brasil prefijado 2Y/10Y, real 10Y y breakeven (Tesouro Direto); México encuesta Banxico (trayectoria de tasa,
+  inflación 12m, tabla) y Bonos M 3Y/10Y; Canadá breakeven LP; Colombia TES 2Y. Se quitaron las tarjetas sin fuente posible
+  (encuesta BanRep: captcha; Merval: sin historia).
+- Verificado: `smoke` de los 8 paneles sin errores ni KPIs vacíos; `npm test` OK; capturas en escritorio y móvil sin errores de consola.
+
 ## 0.3.0 — 2026-11-18 (primera sesión en Claude Code)
 Primera corrida de `smoke` contra las APIs reales (fuentes sin clave: BR, EZ, CA, CO, Mundo).
 - **Eurozona – HICP**: el dataset `ICP` del BCE quedó congelado en dic-2025 (el panel mostraba inflación de hace 11 meses).

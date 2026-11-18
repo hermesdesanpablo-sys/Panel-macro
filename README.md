@@ -1,6 +1,6 @@
 # Macro Monitor
 
-Panel por país (Brasil, EE.UU., Eurozona, México, Canadá, Colombia) + vista Mundo + agenda consolidada.
+Panel por país (Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Japón) + vista Mundo + agenda consolidada.
 Cada indicador muestra su nivel y cómo se movió a 1/3/6/12 meses. **Para trabajar en el proyecto, leer `CLAUDE.md`.**
 Todo sale de fuentes oficiales gratuitas; los mercados, de Yahoo Finance.
 
@@ -51,20 +51,27 @@ scripts/test-parsers.mjs  → test offline con formatos simulados (+ genera dato
 | 🇪🇺 | Desempleo, SPF largo plazo | BCE | LFSI.M.I9.S.UNEHRT.TOTAL0.15_74.T, SPF.Q.U2.HICP.POINT.LT.Q.AVG |
 | 🇲🇽 | Tasa objetivo, FIX, Cetes 28, TIIE 28 | Banxico SIE | SF61745, SF43718, SF43936, SF43783 |
 | 🇲🇽 | Inflación INPC a/a | Banxico SIE | SP30578 |
+| 🇲🇽 | Bono M 3Y / 10Y (subasta) | Banxico SIE | SF43883 / SF44071 |
+| 🇲🇽 | Encuesta a especialistas (medianas) | Banxico SIE | SR14659…SR14715 (tasa por trimestre), SR14195, SR14139, SR14146, SR14167, SR14770, SR14777, SR14448, SR14455 |
+| 🇧🇷 | Prefijado 2Y/10Y, real 10Y, breakeven 10Y | Tesouro Transparente | PrecoTaxaTesouroDireto.csv (LTN, NTN-F, NTN-B interpoladas) |
+| 🇨🇦 | Inflación implícita LP | BoC Valet | BD.CDN.LONG.DQ.YLD − BD.CDN.RRB.DQ.YLD |
+| 🇯🇵 | Call O/N, Tankan inflación esperada | BoJ API | FM01 STRDCLUCON, CO TK99F0000204HCQ00000 |
+| 🇯🇵 | IPC a/a | BIS | WS_LONG_CPI M.JP.771 |
+| 🇯🇵 | JGB 2Y/10Y/30Y | MOF | jgbcme_all.csv + jgbcme.csv |
 | 🇨🇦 | Overnight target, CORRA, USD/CAD | BoC Valet | V39079, AVG.INTWO, FXUSDCAD |
 | 🇨🇦 | GoC 2Y/10Y | BoC Valet | BD.CDN.2YR.DQ.YLD, BD.CDN.10YR.DQ.YLD |
 | 🇨🇦 | CPI (a/a calculado), CPI-trim, CPI-median | BoC Valet | V41690973, CPI_TRIM, CPI_MEDIAN |
 | 🇨🇴 | Tasa de política | BanRep SDMX | DF_CBR_DAILY_HIST |
 | 🇨🇴 | IPC a/a (derivado de la UVR) | BanRep SDMX | DF_UVR_DAILY_HIST |
 | 🇨🇴 | IBR overnight / 6M (efectiva) | BanRep SDMX | DF_IBR_DAILY_HIST (IRIBRM00 / IRIBRM06, ER) |
-| 🇨🇴 | TES 10Y (prom. mensual) | BanRep SDMX | DF_TES_MONTHLY_HIST (IRGBRY10) |
+| 🇨🇴 | TES 2Y (interp. 1Y–5Y) y 10Y (prom. mensual) | BanRep SDMX | DF_TES_MONTHLY_HIST (IRGBRY01/05/10) |
 | 🇨🇴 | TRM | datos.gov.co (fallback BanRep) | 32sa-8pi3 / DF_TRM_DAILY_HIST |
 | 🇨🇴 | IPC (fallback) | FRED (OCDE) | COLCPIALLMINMEI |
 | 🇧🇷 | Focus IPCA 12m adelante (historia) | BCB Olinda | ExpectativasMercadoInflacao12Meses |
 | 🇺🇸 | Implícita futuros +12m (historia) | Yahoo | ZQ{mes}{aa}.CBT, 1 año |
 | 🇪🇺 | Forward 1Y (historia) | BCE | YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_1Y |
-| todos | Proxy MSCI país (USD) + índice local | Yahoo | EWZ/^BVSP, EUSA/^GSPC, EZU/^STOXX50E, EWW/^MXX, EWC/^GSPTSE, COLO/ICOLCAP.CL |
-| Mundo | ACWI, URTH, EEM, VIX, DXY, FX, Brent, oro, cobre, soja | Yahoo | ver `world.js` |
+| todos | Proxy MSCI país (USD) + índice local | Yahoo | EWZ/^BVSP, EUSA/^GSPC, EZU/^STOXX50E, EWW/^MXX, EWC/^GSPTSE, COLO/ICOLCAP.CL, EWJ/^N225 |
+| Mundo | 56 activos: MSCI global y por país, índices de EE.UU., Europa, Asia y América, VIX, Treasuries, 11 monedas, commodities | Yahoo | ver `world.js` |
 
 ## Estado, pendientes y credenciales
 
