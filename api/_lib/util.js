@@ -163,6 +163,12 @@ export function kpi({ key, label, series, unit = '%', decimals = 2, source, url,
     out.trendUnit = cu;
     out.direction = direction(out.trend, cu);
     out.spark = sparkOf(series);
+    // Variación contra la observación anterior (1 día en series diarias; 1 período en mensuales).
+    const prev = series.length > 1 ? series[series.length - 2] : null;
+    if (prev) {
+      out.prevChange = cu === 'pb' ? (p.v - prev.v) * 100 : (p.v / prev.v - 1) * 100;
+      out.prevDate = prev.d;
+    }
   }
   if (p && changeDays) {
     const ref = valueAt(series, iso(new Date(new Date(p.d).getTime() - changeDays * 864e5)));

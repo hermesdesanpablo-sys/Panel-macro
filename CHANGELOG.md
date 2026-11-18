@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0 — 2026-11-18 (Mundo tipo terminal + Comparar)
+- **Mundo** reorganizado en cuadros: índices principales (bandera, código, último y variación del día; "ver los 12"),
+  MSCI ACWI e índice dólar con número grande y área de 12 meses, cuadros de bonos a 10 años de los 7 países + UST 30Y
+  (color según la tasa sube/baja), commodities y riesgo. **Panel lateral "Hoy"** fijo con los 56 activos (Último, Var, Var %).
+  Debajo: World vs EM vs LatAm, Tendencias, Comparativo y Desempeño por grupo (año y 12 meses).
+- **Comparar** (solapa nueva): elegir dos países (se recuerdan en el navegador), tabla lado a lado con variaciones a 3 y
+  12 meses y diferencia en pb, y 6 gráficos superpuestos (política, inflación, bono 2Y y 10Y, moneda y MSCI en base 100).
+- API: cada KPI trae `prevChange`/`prevDate` (variación contra la observación anterior); Mundo trae `cc`, `code`,
+  `featured` y `d1abs` por activo.
+- Verificado: `npm test`, build, capturas de escritorio y móvil sin errores ni scroll horizontal.
+
 ## 0.4.0 — 2026-11-18 (rediseño + Japón + datos faltantes)
 - **UI**: tema negro, tipografía Inter (sin monoespaciada), KPIs con valor grande, sparkline y chips de variación a 1/3/12 meses
   (flecha y fondo por dirección, par divergente azul↔rojo validado contra la superficie #111). Tablas con encabezados,

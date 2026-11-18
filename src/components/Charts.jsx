@@ -1,6 +1,7 @@
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
+  ResponsiveContainer, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
 } from 'recharts';
+import { useId } from 'react';
 import { COLORS, fmtNum, fmtDate, fmtMonth } from '../format.js';
 
 function TipBox({ active, payload, label, unit, decimals = 2, labelFmt = fmtDate }) {
@@ -76,6 +77,29 @@ export function Spark({ data, height = 36 }) {
         <YAxis hide domain={['auto', 'auto']} />
         <Line dataKey="v" stroke={COLORS[0]} strokeWidth={1.5} dot={false} isAnimationActive={false} />
       </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+/** Área con degradé para los cuadros de Mundo: verde si el período sube, rojo si baja. Tooltip con fecha y valor. */
+export function AreaSpark({ data, up = true, height = 100 }) {
+  const gid = useId().replace(/:/g, '');
+  if (!data?.length) return null;
+  const color = up ? 'var(--mk-pos)' : 'var(--mk-neg)';
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={data} margin={{ top: 6, right: 0, bottom: 0, left: 0 }}>
+        <defs>
+          <linearGradient id={`g${gid}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <YAxis hide domain={['auto', 'auto']} />
+        <XAxis dataKey="d" hide />
+        <Tooltip content={<TipBox unit="" decimals={2} />} cursor={{ stroke: 'var(--text-muted)', strokeDasharray: '3 3' }} />
+        <Area dataKey="v" name="Valor" stroke={color} strokeWidth={2} fill={`url(#g${gid})`} isAnimationActive={false} />
+      </AreaChart>
     </ResponsiveContainer>
   );
 }

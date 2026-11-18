@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { CountryPanel, WorldPanel, AgendaList } from './components/Panels.jsx';
+import { CountryPanel, WorldPanel, AgendaList, ComparePanel } from './components/Panels.jsx';
 import { fmtDate } from './format.js';
 import { Flag } from './components/Flag.jsx';
 
@@ -12,6 +12,7 @@ const TABS = [
   { id: 'ca', label: 'Canadá' },
   { id: 'co', label: 'Colombia' },
   { id: 'jp', label: 'Japón' },
+  { id: 'compare', label: 'Comparar' },
   { id: 'agenda', label: 'Agenda' },
 ];
 const COUNTRIES = ['br', 'us', 'eu', 'mx', 'ca', 'co', 'jp'];
@@ -31,6 +32,13 @@ async function load(id) {
 export default function App() {
   const [tab, setTab] = useState(() => (TABS.some((t) => t.id === location.hash.slice(1)) ? location.hash.slice(1) : 'world'));
   const [data, setData] = useState({});
+  // Países de la solapa Comparar (se recuerdan en el navegador; si no hay almacenamiento, BR vs MX).
+  const stored = (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } };
+  const [cmpA, setCmpAState] = useState(() => stored('cmpA', 'br'));
+  const [cmpB, setCmpBState] = useState(() => stored('cmpB', 'mx'));
+  const keep = (k, v) => { try { localStorage.setItem(k, v); } catch { /* sin almacenamiento */ } };
+  const setCmpA = (v) => { setCmpAState(v); keep('cmpA', v); };
+  const setCmpB = (v) => { setCmpBState(v); keep('cmpB', v); };
   const [state, setState] = useState({});
 
   const fetchOne = useCallback(async (id) => {
@@ -87,13 +95,16 @@ export default function App() {
       </header>
 
       <main>
+        {tab === 'compare' && <h2 className="title"><Flag id="compare" /> Comparar países</h2>}
         {tab !== 'agenda' && current && (
           <h2 className="title">
             <Flag id={current.id} /> {current.name}
             {current.currency && <span className="muted"> · {current.currency}</span>}
           </h2>
         )}
-        {tab === 'agenda' ? (
+        {tab === 'compare' ? (
+          <ComparePanel countries={countries} a={cmpA} b={cmpB} setA={setCmpA} setB={setCmpB} />
+        ) : tab === 'agenda' ? (
           <section className="card" id="agenda-all">
             <h2 className="title"><Flag id="agenda" /> Agenda consolidada</h2>
             <AgendaList events={agenda} showFlag />
