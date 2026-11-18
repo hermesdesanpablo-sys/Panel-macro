@@ -123,14 +123,14 @@ Repo: `hermesdesanpablo-sys/Panel-macro` (**público**: nunca commitear `.env` n
 Leyenda: ✅ implementado y testeado offline · ⚠ implementado, código/ID **sin verificar contra la API real** · ❌ pendiente
 
 Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con `smoke` BR, EZ, CA, CO y Mundo
-(fuentes sin clave) y los tickers ZQ de Yahoo. **Falta verificar EE.UU. (FRED) y México (Banxico)**: requieren claves.
+(fuentes sin clave) y los tickers ZQ de Yahoo. EE.UU. (FRED) y México (Banxico) verificados con claves el mismo día.
 
 | País | Tasa política | Inflación | Expectativas | Tasas mercado | FX | Índice | Agenda |
 |---|---|---|---|---|---|---|---|
 | 🇧🇷 | ✔ SGS 432 (cortada en hoy) | ✔ SGS 13522/433 | ✔ Focus anual, Selic por reunión, Focus IPCA 12m | ❌ DI futuro | ✔ SGS 1 | ✔ EWZ/^BVSP | ✔ Copom + IBGE |
-| 🇺🇸 | ⚠ FRED | ⚠ FRED (a/a calculado) | ✔ ZQ en Yahoo; ⚠ breakeven 5Y | ⚠ DGS2/10 | ✔ DXY | ✔ EUSA/^GSPC | ✅ FOMC; ⚠ FRED releases |
+| 🇺🇸 | ✔ FRED | ✔ FRED (a/a calculado) | ✔ ZQ en Yahoo; ✔ breakeven 5Y | ✔ DGS2/10 | ✔ DXY | ✔ EUSA/^GSPC | ✔ FOMC + FRED releases (por ID) |
 | 🇪🇺 | ✔ DFR | ✔ HICP (dataset `HICP`, proveedor `4D0`) | ✔ forwards AAA `IF_*`; ✔ SPF LT | ✔ AAA 2Y/10Y | ✔ | ✔ EZU/^STOXX50E | ✅ BCE |
-| 🇲🇽 | ✅ SF61745 | ⚠ SP30578 | ❌ Encuesta Banxico (IDs) | ✅ Cetes/TIIE; ❌ Mbono 10Y | ✅ FIX | ✅ EWW/^MXX | ⚠ solo dic-2026; ❌ 2027 |
+| 🇲🇽 | ✔ SF61745 | ✔ SP30578 | ❌ Encuesta Banxico (IDs) | ✅ Cetes/TIIE; ❌ Mbono 10Y | ✅ FIX | ✅ EWW/^MXX | ⚠ solo dic-2026; ❌ 2027 |
 | 🇨🇦 | ✔ V39079 | ✔ V41690973; ✔ CPI-trim/median | proxy 2Y − overnight | ✔ GoC 2Y/10Y | ✔ | ✔ EWC/^GSPTSE | ✅ BoC |
 | 🇨🇴 | ✔ DF_CBR_DAILY_HIST | ✔ IPC derivado de la UVR (DF_UVR_DAILY_HIST); fallback FRED OCDE | proxy IBR 6M − política; ❌ Encuesta BanRep | ✔ IBR ON/6M (efectiva); ✔ TES 10Y mensual | ✔ datos.gov.co 32sa-8pi3; fallback BanRep | ✔ COLO / ICOLCAP.CL | ✔ dic-2026; ❌ 2027 (no publicado) |
 
@@ -148,7 +148,7 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 
 ## Pendientes priorizados
 
-1. **Con claves: `smoke us mx` y arreglar los ⚠** (FRED y Banxico SIE).
+1. Deploy en Vercel (cargar `FRED_API_KEY` y `BANXICO_TOKEN` en Settings → Environment Variables).
 2. Calendarios: fechas 2027 de Banxico y JDBR (ninguno publicado al 18-nov-2026) en `api/_lib/calendar.js`. Fuentes:
    https://www.banxico.org.mx/publicaciones-y-prensa/calendario-de-publicaciones.html ·
    https://www.banrep.gov.co/es/calendario-junta-directiva (la JDBR decide al final de ene, mar, abr, jun, jul, sep, oct y dic).

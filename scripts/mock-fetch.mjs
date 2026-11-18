@@ -128,13 +128,11 @@ export async function mockFetch(input) {
     return json({ items: [{ nome_produto: 'IPCA-15', data_divulgacao: dmy(iso(Date.now() + 8 * DAY)) + ' 09:00:00' }, { nome_produto: 'Sistema de Contas Nacionais Trimestrais (PIB)', data_divulgacao: dmy(iso(Date.now() + 15 * DAY)) + ' 09:00:00' }] });
   }
   if (url.host === 'api.stlouisfed.org') {
-    if (u.includes('/releases/dates')) {
-      return json({ release_dates: [
-        { release_id: 10, release_name: 'Consumer Price Index', date: iso(Date.now() + 20 * DAY) },
-        { release_id: 50, release_name: 'Employment Situation', date: iso(Date.now() + 16 * DAY) },
-        { release_id: 54, release_name: 'Personal Income and Outlays', date: iso(Date.now() + 9 * DAY) },
-        { release_id: 999, release_name: 'Something Irrelevant', date: iso(Date.now() + 3 * DAY) },
-      ] });
+    if (u.includes('/release/dates')) {
+      // Formato real: una fecha por release consultado (sin release_name).
+      const rid = Number(url.searchParams.get('release_id'));
+      const off = { 10: 20, 50: 16, 54: 9 }[rid];
+      return json({ release_dates: off ? [{ release_id: rid, date: iso(Date.now() + off * DAY) }] : [] });
     }
     const id = url.searchParams.get('series_id');
     return json({ observations: (FRED[id] || (() => []))().map((p) => ({ date: p.d, value: p.v.toFixed(3) })) });

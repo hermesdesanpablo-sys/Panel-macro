@@ -16,8 +16,11 @@ Primera corrida de `smoke` contra las APIs reales (fuentes sin clave: BR, EZ, CA
 - Mock de BanRep actualizado al formato real de claves; `npm test` exige agenda para Colombia.
 - Verificado OK contra la API real: todo BR (incl. Focus IPCA 12m e IBGE), EZ (forwards `IF_*`, SPF), CA (V41690973),
   CO, Mundo y tickers ZQ de Yahoo.
-- Falta: smoke de EE.UU. y México (necesitan `FRED_API_KEY` / `BANXICO_TOKEN`). Calendarios 2027 de Banxico y BanRep
-  todavía no publicados.
+- Con claves: smoke de EE.UU. y México OK (FRED y Banxico SIE: todos los KPI con fuente).
+- EE.UU. agenda: `/fred/releases/dates` tardaba ~17 s en frío (timeout) y se cortaba en 1000 filas; ahora se consulta
+  `/fred/release/dates` por release (IDs fijos en `FRED_RELEASES`, ~0,4 s c/u).
+- UI revisada con datos reales (dev local): sin errores de consola.
+- Falta: calendarios 2027 de Banxico y BanRep (no publicados). Bono 2Y de BR/MX/CO en el comparativo (hoy n/d).
 
 ## 0.2.0 — 2026-11-18
 - Colombia: tasa de política e IPC (BanRep SDMX con descubrimiento de flujos), IBR overnight/6M,
