@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TimeChart, PathChart, Spark, AreaSpark, CurveChart } from './Charts.jsx';
+import { TimeChart, PathChart, Spark, AreaSpark } from './Charts.jsx';
 import { fmtNum, fmtDate, daysUntil, kpiByKey, fmtChg, ARROW, DIR_WORD, GROUPS, chgDir } from '../format.js';
 import { Flag } from './Flag.jsx';
 import { CmdIcon } from './CmdIcon.jsx';
@@ -436,7 +436,7 @@ function BondTiles({ countries, markets }) {
           </div>
         )}
       </div>
-      <div className="card-foot"><span>Costo de financiamiento en moneda propia de cada país (no es deuda en dólares: ver la solapa Crédito USD). Verde: la tasa subió · rojo: bajó. Eurozona: curva AAA; Brasil: NTN-F interpolada; México: última subasta; Colombia: promedio mensual.</span></div>
+      <div className="card-foot"><span>Costo de financiamiento en moneda propia de cada país (no es deuda en dólares). Verde: la tasa subió · rojo: bajó. Eurozona: curva AAA; Brasil: NTN-F interpolada; México: última subasta; Colombia: promedio mensual.</span></div>
     </section>
   );
 }
@@ -672,134 +672,6 @@ export function ComparePanel({ countries, a, b, setA, setB }) {
           </Card>
         ))}
       </div>
-    </div>
-  );
-}
-
-
-// ---------- Crédito soberano en USD ----------
-const SORTS = { s10: 'Spread 10Y', sMean: 'Spread promedio', y10: 'Rendimiento 10Y' };
-
-export function UsdPanel({ data }) {
-  const issuers = data?.issuers || [];
-  const withData = issuers.filter((i) => i.summary.n > 0);
-  const [sel, setSel] = useState(['br', 'mx', 'co']);
-  const [mode, setMode] = useState('ytm');
-  const [detail, setDetail] = useState('br');
-  const [sortKey, setSortKey] = useState('s10');
-  const ranked = [...issuers].sort((a, b) => (b.summary[sortKey] ?? -1e9) - (a.summary[sortKey] ?? -1e9));
-  const maxSpread = Math.max(1, ...issuers.map((i) => i.summary.s10 ?? i.summary.sMean ?? 0));
-  const toggle = (id) => setSel((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= 3 ? [...cur.slice(1), id] : [...cur, id]));
-  const series = sel
-    .map((id) => issuers.find((i) => i.id === id))
-    .filter(Boolean)
-    .map((i) => ({
-      name: i.name,
-      points: i.bonds.filter((b) => !b.stale && b.years <= 40 && (mode === 'ytm' ? b.ytm != null : b.spread != null)).map((b) => ({
-        x: b.years, y: mode === 'ytm' ? b.ytm : b.spread, label: `${i.name} ${fmtNum(b.coupon, 3)}% ${b.maturity.slice(0, 4)}`,
-        extra: `Precio ${fmtNum(b.price, 2)} al ${fmtDate(b.priceDate)}`,
-      })),
-    }));
-  const ref = mode === 'ytm' ? (data?.ust || []).map((p) => ({ x: p.years, y: p.v })) : [];
-  const det = issuers.find((i) => i.id === detail);
-  const cell = (v, unit, d = 2) => (v == null ? <span className="muted">—</span> : unit === 'pb' ? `${fmtNum(v, 0)} pb` : `${fmtNum(v, d)}%`);
-  if (!issuers.length) return <div className="empty big">Sin datos de bonos</div>;
-  return (
-    <div className="panel">
-      <Errors errors={data?.errors} />
-      <p className="lead">
-        Bonos soberanos <b>en dólares</b> (ley extranjera) de cada emisor: rendimiento a vencimiento y spread contra la curva del Tesoro
-        de EE.UU. al mismo plazo. Es lo que el mercado le cobra a cada país por financiarse en USD (no confundir con los bonos en moneda local).
-      </p>
-
-      <section className="card" id="usd-rank">
-        <div className="card-head">
-          <h3>Ranking de emisores</h3>
-          <div className="seg" role="group" aria-label="Ordenar por">
-            {Object.entries(SORTS).map(([k, l]) => <button key={k} className={sortKey === k ? 'on' : ''} onClick={() => setSortKey(k)}>{l}</button>)}
-          </div>
-        </div>
-        <div className="tbl-wrap">
-          <table className="tbl usd-rank">
-            <thead>
-              <tr><th>Emisor</th><th>Bonos</th><th>Rend. 5Y</th><th>Rend. 10Y</th><th>Spread 5Y</th><th>Spread 10Y</th><th className="bar-col">Spread 10Y vs UST</th><th>Spread prom.</th><th>Plazo máx.</th></tr>
-            </thead>
-            <tbody>
-              {ranked.map((i) => {
-                const sp = i.summary.s10 ?? i.summary.sMean;
-                return (
-                  <tr key={i.id} className={detail === i.id ? 'sel' : ''} onClick={() => setDetail(i.id)} style={{ cursor: 'pointer' }}>
-                    <td className="name"><span className="cell-flag"><Flag id={i.cc} />{i.name}</span></td>
-                    <td className="num">{i.summary.n}<span className="muted">/{i.summary.total}</span></td>
-                    <td className="num">{cell(i.summary.y5)}</td>
-                    <td className="num"><b>{cell(i.summary.y10)}</b></td>
-                    <td className="num">{cell(i.summary.s5, 'pb')}</td>
-                    <td className="num"><b>{cell(i.summary.s10, 'pb')}</b></td>
-                    <td className="bar-col">{sp != null && <span className="hbar" style={{ width: `${Math.max(2, (sp / maxSpread) * 100)}%` }} />}</td>
-                    <td className="num">{cell(i.summary.sMean, 'pb')}</td>
-                    <td className="num">{i.summary.maxYears ? `${fmtNum(i.summary.maxYears, 0)} años` : '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <div className="card-foot">
-          <span>Rendimiento y spread a 5 y 10 años: interpolados entre los bonos del emisor (sin extrapolar; "—" si no hay bonos a ambos lados del plazo). Spread = rendimiento − Tesoro de EE.UU. al mismo plazo. La barra usa el spread 10Y (o el promedio si no hay). Hacé clic en un emisor para ver sus bonos.</span>
-        </div>
-      </section>
-
-      <section className="card" id="usd-curves">
-        <div className="card-head">
-          <h3>Curvas en USD por plazo</h3>
-          <div className="seg" role="group" aria-label="Medida">
-            <button className={mode === 'ytm' ? 'on' : ''} onClick={() => setMode('ytm')}>Rendimiento</button>
-            <button className={mode === 'spread' ? 'on' : ''} onClick={() => setMode('spread')}>Spread vs UST</button>
-          </div>
-        </div>
-        <div className="chips" role="group" aria-label="Emisores (hasta 3)">
-          {withData.map((i) => (
-            <button key={i.id} className={`chip ${sel.includes(i.id) ? 'on' : ''}`} onClick={() => toggle(i.id)} aria-pressed={sel.includes(i.id)}>
-              <Flag id={i.cc} round size={16} />{i.name}
-            </button>
-          ))}
-        </div>
-        <CurveChart series={series} benchmark={ref} unit={mode === 'ytm' ? '%' : 'pb'} />
-        <div className="card-foot"><span>Hasta 3 emisores a la vez (para que los colores se distingan). Cada punto es un bono con precio de los últimos días; la línea gris punteada es la curva del Tesoro (FRED). Se grafica hasta 40 años: los bonos más largos (México 2110, Perú 2121) están en la tabla.</span></div>
-      </section>
-
-      {det && (
-        <section className="card" id="usd-bonds">
-          <div className="card-head">
-            <h3 className="cell-flag"><Flag id={det.cc} />Bonos en USD de {det.name}</h3>
-            <select className="sel-sm" value={detail} onChange={(e) => setDetail(e.target.value)} aria-label="Emisor">
-              {issuers.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-            </select>
-          </div>
-          <div className="tbl-wrap">
-            <table className="tbl">
-              <thead><tr><th>Bono</th><th>Cupón</th><th>Vencimiento</th><th>Precio</th><th>Rendimiento</th><th>Duration</th><th>Spread vs UST</th><th>Precio al</th></tr></thead>
-              <tbody>
-                {det.bonds.map((b) => (
-                  <tr key={b.isin} className={b.stale ? 'stale' : ''}>
-                    <td className="name"><a href={b.url} target="_blank" rel="noreferrer">{b.isin}</a><span className="sub">{b.name}</span></td>
-                    <td className="num">{fmtNum(b.coupon, 3)}%{b.couponType && b.couponType !== 'Fest' ? <span className="sub">step-up / variable</span> : null}</td>
-                    <td className="num">{fmtDate(b.maturity)}<span className="sub">{fmtNum(b.years, 1)} años</span></td>
-                    <td className="num">{b.price == null ? '—' : fmtNum(b.price, 2)}</td>
-                    <td className="num"><b>{cell(b.ytm)}</b>{b.amort && <span className="sub">amortizable / step-up</span>}</td>
-                    <td className="num">{b.dur == null ? '—' : fmtNum(b.dur, 1)}</td>
-                    <td className="num">{cell(b.spread, 'pb')}</td>
-                    <td className="num">{b.priceDate ? fmtDate(b.priceDate) : '—'}{b.stale && <span className="sub">fuera de la curva</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="card-foot">
-            <span>Precios limpios indicativos de bolsas alemanas (onvista). Rendimiento en base semestral (como los Treasuries): bonos bullet, cálculo propio desde el precio; amortizables y step-up (Argentina, Ecuador y algunos de Panamá y Uruguay), TIR de onvista pasada de anual a semestral (contrastar con la fuente local). Duration modificada en años. Los bonos con precio de más de 10 días, en default o sin cupón informado quedan fuera de las curvas (en gris). Lista de bonos al {data.listUpdated ? fmtDate(data.listUpdated) : '—'}.</span>
-          </div>
-        </section>
-      )}
     </div>
   );
 }

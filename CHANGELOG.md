@@ -1,18 +1,9 @@
 # Changelog
 
-## 0.6.0 — 2026-11-19 (Crédito USD)
-- **Crédito USD** (solapa nueva): 148 bonos soberanos en dólares de Argentina, Brasil, Chile, Colombia, Ecuador, México,
-  Panamá, Perú y Uruguay. Ranking por emisor (rendimiento y spread a 5/10 años interpolados, spread promedio, plazo máximo),
-  curvas por plazo de hasta 3 emisores contra la curva del Tesoro (rendimiento o spread) y tabla de bonos por emisor.
-- Fuente: onvista (precios de bolsas alemanas). El EMBI de JP Morgan no tiene fuente gratuita (Ipeadata lo cortó en 2024).
-- **Tasas**: onvista no publica rendimiento para muchos bonos y cuando lo hace usa ISMA (anual). Todo se lleva a base
-  semestral: TIR propia para bullets (`ytmBullet`, validada contra onvista) y TIR de onvista convertida para amortizables /
-  step-up. Duration modificada propia para bullets. Fuera de las curvas: precios de más de 10 días, menores a 20 (default)
-  o sin cupón informado. Se excluyen holdouts argentinos y globales en moneda local pagaderos en USD.
-- `scripts/discover-usd-bonds.mjs`: arma la lista de ISINs refinando el prefijo del CUSIP (la búsqueda corta en 10 resultados).
-- Mundo: íconos para cada commodity; "Bonos a 10 años **en moneda local**" con nota (no es deuda en USD).
+## 0.5.1 — 2026-11-19
+- Mundo: íconos para cada commodity (en cuadros, panel "Hoy" y desempeño); "Bonos a 10 años **en moneda local**" con nota
+  (es el costo de financiarse en moneda propia, no deuda en USD).
 - Menú más compacto (entra en una línea a 1440 px).
-- Verificado: `smoke` de los 9 endpoints sin errores; `npm test` con tests de TIR y duration; capturas sin errores.
 
 ## 0.5.0 — 2026-11-18 (Mundo tipo terminal + Comparar)
 - **Mundo** reorganizado en cuadros: índices principales (bandera, código, último y variación del día; "ver los 12"),

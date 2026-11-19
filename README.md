@@ -71,7 +71,6 @@ scripts/test-parsers.mjs  → test offline con formatos simulados (+ genera dato
 | 🇺🇸 | Implícita futuros +12m (historia) | Yahoo | ZQ{mes}{aa}.CBT, 1 año |
 | 🇪🇺 | Forward 1Y (historia) | BCE | YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_1Y |
 | todos | Proxy MSCI país (USD) + índice local | Yahoo | EWZ/^BVSP, EUSA/^GSPC, EZU/^STOXX50E, EWW/^MXX, EWC/^GSPTSE, COLO/ICOLCAP.CL, EWJ/^N225 |
-| Crédito USD | Bonos soberanos en USD de AR, BR, CL, CO, EC, MX, PA, PE, UY (precio, TIR semestral, duration, spread vs UST) | onvista + FRED | `api/_lib/usd-bonds.json` (lo arma `scripts/discover-usd-bonds.mjs`) |
 | Mundo | 56 activos: MSCI global y por país, índices de EE.UU., Europa, Asia y América, VIX, Treasuries, 11 monedas, commodities | Yahoo | ver `world.js` |
 
 ## Estado, pendientes y credenciales

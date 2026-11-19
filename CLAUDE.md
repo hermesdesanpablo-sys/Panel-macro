@@ -6,8 +6,7 @@ Contexto para Claude Code. Leer entero antes de tocar código.
 
 Dashboard macro con un panel por país (Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Japón), una vista
 **Mundo** (cuadros tipo terminal + panel lateral "Hoy", tendencias y comparativo entre países), una solapa
-**Comparar** (dos países lado a lado), una solapa **Crédito USD** (curvas y spreads de la deuda soberana en dólares
-de 9 emisores latinoamericanos) y una **Agenda** consolidada.
+**Comparar** (dos países lado a lado) y una **Agenda** consolidada.
 Dueño: Hermes (renta fija / mercado de capitales, Argentina). Idioma de la UI y de los comentarios: español.
 
 Objetivo de cada panel:
@@ -20,13 +19,11 @@ Objetivo de cada panel:
 ## Arquitectura
 
 ```
-api/country.js              GET /api/country?c=br|us|eu|mx|ca|co|jp|world|usd  (función serverless Vercel, cache edge 30 min)
+api/country.js              GET /api/country?c=br|us|eu|mx|ca|co|jp|world  (función serverless Vercel, cache edge 30 min)
 api/_lib/util.js            HTTP, fechas, series, kpi(), trend(), spreadSeries(), settle()
 api/_lib/yahoo.js           Yahoo Finance: precios, perf, futuros Fed funds (ZQ)
 api/_lib/calendar.js        Fechas de reuniones de bancos centrales (estático, revisar 1 vez/año)
 api/_lib/sources/<pais>.js  Un adaptador por país. Devuelve el "contrato de payload" (abajo)
-api/_lib/sources/usd.js     Crédito soberano en USD (onvista + curva del Tesoro de FRED). Payload propio: issuers[].bonds[]
-api/_lib/usd-bonds.json     Lista de ISINs en USD por emisor (la genera scripts/discover-usd-bonds.mjs)
 src/App.jsx                 Tabs, carga en paralelo de todos los países, modo ?mock=1
 src/components/Panels.jsx   Kpi, Dynamics, CountryPanel, TrendsTable, WorldPanel (MajorIndices, QuoteCard, BondTiles,
                             MiniTiles, Watchlist), ComparePanel, AgendaList
@@ -36,7 +33,6 @@ scripts/smoke.mjs           Prueba contra las APIs REALES (requiere .env)
 scripts/test-parsers.mjs    Test offline con fetch simulado + genera src/mock-data.json
 scripts/mock-fetch.mjs      fetch falso: imita el FORMATO de cada API con datos sintéticos
 scripts/dev-api.mjs         Servidor local de /api (alternativa a `vercel dev`)
-scripts/discover-usd-bonds.mjs  Rearma usd-bonds.json (correr cada 2-3 meses o cuando un país emite)
 ```
 
 Por qué serverless: los navegadores bloquean (CORS) varias de estas APIs y las claves no pueden ir al
@@ -142,15 +138,6 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 | 🇨🇴 | ✔ DF_CBR_DAILY_HIST | ✔ IPC derivado de la UVR (DF_UVR_DAILY_HIST); fallback FRED OCDE | proxy IBR 6M − política; ❌ Encuesta BanRep (captcha) | ✔ IBR ON/6M (efectiva); ✔ TES 2Y (interp. 1Y–5Y) y 10Y, mensual | ✔ datos.gov.co 32sa-8pi3; fallback BanRep | ✔ COLO / ICOLCAP.CL | ✔ dic-2026; ❌ 2027 (no publicado) |
 
 | 🇯🇵 | ✔ BoJ call O/N (STRDCLUCON) | ✔ BIS WS_LONG_CPI M.JP.771 | ✔ Tankan infl. 1a; proxy JGB 2Y − call | ✔ MOF JGB 2Y/10Y/30Y | ✔ Yahoo JPY=X | ✔ EWJ/^N225 | ✔ BoJ 2026–2027 |
-
-### Notas de Crédito USD (onvista)
-- `https://api.onvista.de/api/v1/bonds/ISIN:<ISIN>/snapshot` (sin clave): `bondsFigures.yieldToMaturity` (ISMA), `modifyDuration`,
-  `priceForCalculation` y su fecha; `bondsBaseData.datetimeMaturity`; `bondsIssuer.isoCountry`.
-- Las tasas son de precios indicativos de bolsas alemanas: bonos con precio de más de 10 días quedan fuera de las curvas.
-  En step-up (AR, EC) contrastar la TIR con la fuente local. Spread = TIR − Tesoro de EE.UU. interpolado al plazo (FRED DGS*).
-- La búsqueda (`/instruments/query`) devuelve como máximo 10 resultados: el script refina el prefijo del ISIN (CUSIP del emisor).
-  Se excluyen los globales en moneda local pagaderos en USD ("RB/DL", "KP/DL") y se deduplica 144A/Reg S por (vencimiento, cupón).
-- EMBI de JP Morgan: no hay fuente gratuita (Ipeadata lo cortó en jul-2024).
 
 ### Notas de Japón
 - BoJ API (sin clave): `https://www.stat-search.boj.or.jp/api/v1/getDataCode?format=json&lang=en&db=<DB>&code=<CODE>&startDate=<AAAAMM | AAAA0T>`.
