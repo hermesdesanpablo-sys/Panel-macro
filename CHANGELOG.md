@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0 — 2026-11-19 (Crédito USD con EMBI + Chile)
+- **Chile** (nuevo panel): TPM, IPC, BCP 2Y/10Y, BCU 10Y, compensación inflacionaria 10Y, dólar observado, Imacec, IPSA,
+  ECH; expectativas de la EEE (inflación 11/23 meses, TPM por plazo, PIB) y de la EOF (TPM e inflación 12m), con trayectoria
+  de TPM esperada y tabla. Fuente: cuadros públicos de la BDE del Banco Central de Chile (sin credenciales). Agenda: RPM 15-dic-2026.
+- **Crédito USD** (solapa nueva): spread **EMBI** de la planilla diaria del Banco Central de la Rep. Dominicana (Global,
+  América Latina y 16 países): ranking con variaciones a 1d/1m/3m/12m/en el año, rango de 12 meses, rendimiento en USD
+  aproximado (UST 7Y + spread) e historia comparada desde 2007. Debajo, curvas de los bonos soberanos en USD (onvista)
+  con TIR propia en base semestral para bullets y TIR de onvista convertida para amortizables/step-up.
+- `api/_lib/xlsx.js`: lector de .xlsx sin dependencias. Tests de TIR, duration y del parser del EMBI (planilla simulada).
+- Menú en una sola fila (con scroll horizontal si no entra).
+
 ## 0.5.1 — 2026-11-19
 - Mundo: íconos para cada commodity (en cuadros, panel "Hoy" y desempeño); "Bonos a 10 años **en moneda local**" con nota
   (es el costo de financiarse en moneda propia, no deuda en USD).

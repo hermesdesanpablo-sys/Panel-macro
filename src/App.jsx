@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { CountryPanel, WorldPanel, AgendaList, ComparePanel } from './components/Panels.jsx';
+import { CountryPanel, WorldPanel, AgendaList, ComparePanel, UsdPanel } from './components/Panels.jsx';
 import { fmtDate } from './format.js';
 import { Flag } from './components/Flag.jsx';
 
@@ -11,11 +11,13 @@ const TABS = [
   { id: 'mx', label: 'México' },
   { id: 'ca', label: 'Canadá' },
   { id: 'co', label: 'Colombia' },
+  { id: 'cl', label: 'Chile' },
   { id: 'jp', label: 'Japón' },
+  { id: 'usd', label: 'Crédito USD' },
   { id: 'compare', label: 'Comparar' },
   { id: 'agenda', label: 'Agenda' },
 ];
-const COUNTRIES = ['br', 'us', 'eu', 'mx', 'ca', 'co', 'jp'];
+const COUNTRIES = ['br', 'us', 'eu', 'mx', 'ca', 'co', 'cl', 'jp'];
 const MOCK = new URLSearchParams(location.search).has('mock');
 
 async function load(id) {
@@ -52,6 +54,8 @@ export default function App() {
     }
   }, []);
   const fetchAll = useCallback(() => ['world', ...COUNTRIES].forEach(fetchOne), [fetchOne]);
+  // Crédito USD cotiza ~100 bonos: se pide solo al abrir la solapa (y con Recargar si ya estaba abierta).
+  useEffect(() => { if (tab === 'usd' && !data.usd && state.usd !== 'loading') fetchOne('usd'); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(fetchAll, [fetchAll]);
   useEffect(() => {
@@ -90,7 +94,7 @@ export default function App() {
         </nav>
         <div className="actions">
           {updated && <span className="muted">Actualizado {fmtDate(updated.slice(0, 10))} {updated.slice(11, 16)} UTC</span>}
-          <button className="btn" onClick={fetchAll}>Recargar</button>
+          <button className="btn" onClick={() => { fetchAll(); if (data.usd) fetchOne('usd'); }}>Recargar</button>
         </div>
       </header>
 
@@ -104,6 +108,8 @@ export default function App() {
         )}
         {tab === 'compare' ? (
           <ComparePanel countries={countries} a={cmpA} b={cmpB} setA={setCmpA} setB={setCmpB} />
+        ) : tab === 'usd' && current ? (
+          <UsdPanel data={current} />
         ) : tab === 'agenda' ? (
           <section className="card" id="agenda-all">
             <h2 className="title"><Flag id="agenda" /> Agenda consolidada</h2>

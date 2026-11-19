@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TimeChart, PathChart, Spark, AreaSpark } from './Charts.jsx';
+import { TimeChart, PathChart, Spark, AreaSpark, CurveChart } from './Charts.jsx';
 import { fmtNum, fmtDate, daysUntil, kpiByKey, fmtChg, ARROW, DIR_WORD, GROUPS, chgDir } from '../format.js';
 import { Flag } from './Flag.jsx';
 import { CmdIcon } from './CmdIcon.jsx';
@@ -436,7 +436,7 @@ function BondTiles({ countries, markets }) {
           </div>
         )}
       </div>
-      <div className="card-foot"><span>Costo de financiamiento en moneda propia de cada país (no es deuda en dólares). Verde: la tasa subió · rojo: bajó. Eurozona: curva AAA; Brasil: NTN-F interpolada; México: última subasta; Colombia: promedio mensual.</span></div>
+      <div className="card-foot"><span>Costo de financiamiento en moneda propia de cada país (no es deuda en dólares: ver la solapa Crédito USD). Verde: la tasa subió · rojo: bajó. Eurozona: curva AAA; Brasil: NTN-F interpolada; México: última subasta; Colombia: promedio mensual.</span></div>
     </section>
   );
 }
@@ -672,6 +672,241 @@ export function ComparePanel({ countries, a, b, setA, setB }) {
           </Card>
         ))}
       </div>
+    </div>
+  );
+}
+
+
+// ---------- Crédito soberano en USD ----------
+const RANGES = { '1A': 365, '3A': 3 * 365, '5A': 5 * 365, Todo: 1e6 };
+
+/** Spread EMBI por país (BCRD): ranking con variaciones y rango 12m, más historia comparada. */
+function EmbiSection({ embi }) {
+  const [sel, setSel] = useState(['ar', 'br', 'cl']);
+  const [range, setRange] = useState('3A');
+  const [sortKey, setSortKey] = useState('last');
+  if (!embi) return <div className="card empty">El spread EMBI del BCRD no respondió; probá Recargar.</div>;
+  const aggs = embi.countries.filter((c) => ['global', 'latam'].includes(c.id));
+  const ctry = embi.countries.filter((c) => !['global', 'latam'].includes(c.id));
+  const outlier = (c) => c.last > 2000; // Venezuela en default: fuera de la escala de barras
+  const maxBar = Math.max(1, ...ctry.filter((c) => !outlier(c)).map((c) => c.last));
+  const sortVal = (c) => (sortKey === 'last' ? c.last : c.chg[sortKey] ?? -1e9);
+  // Los países en default (fuera de escala) van siempre al final.
+  const ranked = [...ctry].sort((a, b) => (outlier(a) - outlier(b)) || sortVal(b) - sortVal(a));
+  const toggle = (id) => setSel((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= 3 ? [...cur.slice(1), id] : [...cur, id]));
+  const from = new Date(Date.parse(embi.asOf) - RANGES[range] * 864e5).toISOString().slice(0, 10);
+  const idx = embi.dates.map((d, i) => [d, i]).filter(([d]) => d >= from);
+  const latam = embi.countries.find((c) => c.id === 'latam');
+  const chosen = sel.map((id) => embi.countries.find((c) => c.id === id)).filter(Boolean);
+  const chart = {
+    title: 'Spread EMBI', unit: ' pb',
+    lines: chosen.map((c, i) => ({ key: `k${i}`, label: c.name })),
+    data: idx.map(([d, i]) => Object.fromEntries([['d', d], ...chosen.map((c, k) => [`k${k}`, c.values[i]])])),
+  };
+  const chgCell = (v) => <td className="num"><Chg v={v} unit="pb" /></td>;
+  const ust7 = embi.ust7;
+  return (
+    <>
+      <section className="card" id="embi-rank">
+        <div className="card-head">
+          <h3>Riesgo país: spread EMBI por país</h3>
+          <div className="seg" role="group" aria-label="Ordenar por">
+            {[['last', 'Spread'], ['m1', '1 mes'], ['y1', '12 meses'], ['ytd', 'En el año']].map(([k, l]) => (
+              <button key={k} className={sortKey === k ? 'on' : ''} onClick={() => setSortKey(k)}>{l}</button>
+            ))}
+          </div>
+        </div>
+        <div className="embi-aggs">
+          {aggs.map((c) => (
+            <div key={c.id} className="mini-tile">
+              <span className="mt-name">{c.name}</span>
+              <span className="mt-last">{fmtNum(c.last, 0)} pb</span>
+              <span className="muted" style={{ fontSize: 12.5 }}><Chg v={c.chg.m1} unit="pb" /> 1 mes</span>
+            </div>
+          ))}
+          {ust7 != null && (
+            <div className="mini-tile">
+              <span className="mt-name">Tesoro EE.UU. 7 años</span>
+              <span className="mt-last">{fmtNum(ust7, 2)}%</span>
+              <span className="muted" style={{ fontSize: 12.5 }}>base para el rendimiento implícito</span>
+            </div>
+          )}
+        </div>
+        <div className="tbl-wrap">
+          <table className="tbl usd-rank">
+            <thead>
+              <tr><th>País</th><th>Spread</th><th className="bar-col">Nivel</th><th>1 día</th><th>1 mes</th><th>3 meses</th><th>12 meses</th><th>En el año</th><th>Rango 12 meses</th><th>Rend. USD aprox.</th></tr>
+            </thead>
+            <tbody>
+              {ranked.map((c) => {
+                const pos = c.max1y > c.min1y ? ((c.last - c.min1y) / (c.max1y - c.min1y)) * 100 : 50;
+                return (
+                  <tr key={c.id} className={sel.includes(c.id) ? 'sel' : ''} onClick={() => toggle(c.id)} style={{ cursor: 'pointer' }} title="Clic para sumarlo o quitarlo del gráfico">
+                    <td className="name"><span className="cell-flag"><Flag id={c.cc} />{c.name}</span>{c.stale && <span className="sub">dato al {fmtDate(c.date)}</span>}</td>
+                    <td className="num"><b>{fmtNum(c.last, 0)} pb</b></td>
+                    <td className="bar-col">{outlier(c) ? <span className="muted" style={{ fontSize: 12 }}>fuera de escala (default)</span> : <span className="hbar" style={{ width: `${Math.max(2, (c.last / maxBar) * 100)}%` }} />}</td>
+                    {chgCell(c.chg.d1)}{chgCell(c.chg.m1)}{chgCell(c.chg.m3)}{chgCell(c.chg.y1)}{chgCell(c.chg.ytd)}
+                    <td className="num range-cell">
+                      <span className="range"><span className="range-dot" style={{ left: `${pos}%` }} /></span>
+                      <span className="sub">{fmtNum(c.min1y, 0)} – {fmtNum(c.max1y, 0)}</span>
+                    </td>
+                    <td className="num">{ust7 != null && !outlier(c) ? `${fmtNum(ust7 + c.last / 100, 2)}%` : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="card-foot">
+          <span>Spread del índice J.P. Morgan EMBI Global Diversified de cada país contra Treasuries, en pb, al {fmtDate(embi.asOf)}. Fuente: <a className="src" href={embi.url} target="_blank" rel="noreferrer">Banco Central de la República Dominicana</a> (planilla diaria). Rojo = el spread subió (más riesgo). Rango 12 meses: el punto marca dónde está hoy entre el mínimo y el máximo del año. Rend. USD aprox. = Treasury 7 años + spread (la duration típica del índice); es una referencia, no la TIR de un bono puntual. Hacé clic en un país para sumarlo al gráfico.</span>
+        </div>
+      </section>
+
+      <section className="card" id="embi-hist">
+        <div className="card-head">
+          <h3>Historia del spread EMBI</h3>
+          <div className="seg" role="group" aria-label="Período">
+            {Object.keys(RANGES).map((r) => <button key={r} className={range === r ? 'on' : ''} onClick={() => setRange(r)}>{r}</button>)}
+          </div>
+        </div>
+        <div className="chips" role="group" aria-label="Países (hasta 3)">
+          {[latam, ...ranked].filter(Boolean).map((c) => (
+            <button key={c.id} className={`chip ${sel.includes(c.id) ? 'on' : ''}`} onClick={() => toggle(c.id)} aria-pressed={sel.includes(c.id)}>
+              <Flag id={c.cc} round size={16} />{c.name}
+            </button>
+          ))}
+        </div>
+        {chosen.length ? <TimeChart chart={chart} height={300} /> : <div className="empty">Elegí hasta 3 países</div>}
+        <div className="card-foot"><span>En pb. Hasta 3 países a la vez. Serie diaria los últimos 60 días, semanal hasta 5 años y mensual antes.</span></div>
+      </section>
+    </>
+  );
+}
+
+const SORTS = { s10: 'Spread 10Y', sMean: 'Spread promedio', y10: 'Rendimiento 10Y' };
+
+export function UsdPanel({ data }) {
+  const issuers = data?.issuers || [];
+  const withData = issuers.filter((i) => i.summary.n > 0);
+  const [sel, setSel] = useState(['br', 'mx', 'co']);
+  const [mode, setMode] = useState('ytm');
+  const [detail, setDetail] = useState('br');
+  const [sortKey, setSortKey] = useState('s10');
+  const ranked = [...issuers].sort((a, b) => (b.summary[sortKey] ?? -1e9) - (a.summary[sortKey] ?? -1e9));
+  const maxSpread = Math.max(1, ...issuers.map((i) => i.summary.s10 ?? i.summary.sMean ?? 0));
+  const toggle = (id) => setSel((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= 3 ? [...cur.slice(1), id] : [...cur, id]));
+  const series = sel
+    .map((id) => issuers.find((i) => i.id === id))
+    .filter(Boolean)
+    .map((i) => ({
+      name: i.name,
+      points: i.bonds.filter((b) => !b.stale && b.years <= 40 && (mode === 'ytm' ? b.ytm != null : b.spread != null)).map((b) => ({
+        x: b.years, y: mode === 'ytm' ? b.ytm : b.spread, label: `${i.name} ${fmtNum(b.coupon, 3)}% ${b.maturity.slice(0, 4)}`,
+        extra: `Precio ${fmtNum(b.price, 2)} al ${fmtDate(b.priceDate)}`,
+      })),
+    }));
+  const ref = mode === 'ytm' ? (data?.ust || []).map((p) => ({ x: p.years, y: p.v })) : [];
+  const det = issuers.find((i) => i.id === detail);
+  const cell = (v, unit, d = 2) => (v == null ? <span className="muted">—</span> : unit === 'pb' ? `${fmtNum(v, 0)} pb` : `${fmtNum(v, d)}%`);
+  if (!issuers.length) return <div className="empty big">Sin datos de bonos</div>;
+  return (
+    <div className="panel">
+      <Errors errors={data?.errors} />
+      <p className="lead">
+        Lo que el mercado le cobra a cada país por financiarse <b>en dólares</b>: el spread EMBI (riesgo país) y, debajo, las curvas
+        armadas con los bonos soberanos en USD de cada emisor. No confundir con los bonos en moneda local.
+      </p>
+      <EmbiSection embi={data?.embi} />
+      <h2 className="section">Curvas por bono (precios indicativos)</h2>
+
+      <section className="card" id="usd-rank">
+        <div className="card-head">
+          <h3>Ranking de emisores</h3>
+          <div className="seg" role="group" aria-label="Ordenar por">
+            {Object.entries(SORTS).map(([k, l]) => <button key={k} className={sortKey === k ? 'on' : ''} onClick={() => setSortKey(k)}>{l}</button>)}
+          </div>
+        </div>
+        <div className="tbl-wrap">
+          <table className="tbl usd-rank">
+            <thead>
+              <tr><th>Emisor</th><th>Bonos</th><th>Rend. 5Y</th><th>Rend. 10Y</th><th>Spread 5Y</th><th>Spread 10Y</th><th className="bar-col">Spread 10Y vs UST</th><th>Spread prom.</th><th>Plazo máx.</th></tr>
+            </thead>
+            <tbody>
+              {ranked.map((i) => {
+                const sp = i.summary.s10 ?? i.summary.sMean;
+                return (
+                  <tr key={i.id} className={detail === i.id ? 'sel' : ''} onClick={() => setDetail(i.id)} style={{ cursor: 'pointer' }}>
+                    <td className="name"><span className="cell-flag"><Flag id={i.cc} />{i.name}</span></td>
+                    <td className="num">{i.summary.n}<span className="muted">/{i.summary.total}</span></td>
+                    <td className="num">{cell(i.summary.y5)}</td>
+                    <td className="num"><b>{cell(i.summary.y10)}</b></td>
+                    <td className="num">{cell(i.summary.s5, 'pb')}</td>
+                    <td className="num"><b>{cell(i.summary.s10, 'pb')}</b></td>
+                    <td className="bar-col">{sp != null && <span className="hbar" style={{ width: `${Math.max(2, (sp / maxSpread) * 100)}%` }} />}</td>
+                    <td className="num">{cell(i.summary.sMean, 'pb')}</td>
+                    <td className="num">{i.summary.maxYears ? `${fmtNum(i.summary.maxYears, 0)} años` : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="card-foot">
+          <span>Rendimiento y spread a 5 y 10 años: interpolados entre los bonos del emisor (sin extrapolar; "—" si no hay bonos a ambos lados del plazo). Spread = rendimiento − Tesoro de EE.UU. al mismo plazo. La barra usa el spread 10Y (o el promedio si no hay). Hacé clic en un emisor para ver sus bonos.</span>
+        </div>
+      </section>
+
+      <section className="card" id="usd-curves">
+        <div className="card-head">
+          <h3>Curvas en USD por plazo</h3>
+          <div className="seg" role="group" aria-label="Medida">
+            <button className={mode === 'ytm' ? 'on' : ''} onClick={() => setMode('ytm')}>Rendimiento</button>
+            <button className={mode === 'spread' ? 'on' : ''} onClick={() => setMode('spread')}>Spread vs UST</button>
+          </div>
+        </div>
+        <div className="chips" role="group" aria-label="Emisores (hasta 3)">
+          {withData.map((i) => (
+            <button key={i.id} className={`chip ${sel.includes(i.id) ? 'on' : ''}`} onClick={() => toggle(i.id)} aria-pressed={sel.includes(i.id)}>
+              <Flag id={i.cc} round size={16} />{i.name}
+            </button>
+          ))}
+        </div>
+        <CurveChart series={series} benchmark={ref} unit={mode === 'ytm' ? '%' : 'pb'} />
+        <div className="card-foot"><span>Hasta 3 emisores a la vez (para que los colores se distingan). Cada punto es un bono con precio de los últimos días; la línea gris punteada es la curva del Tesoro (FRED). Se grafica hasta 40 años: los bonos más largos (México 2110, Perú 2121) están en la tabla.</span></div>
+      </section>
+
+      {det && (
+        <section className="card" id="usd-bonds">
+          <div className="card-head">
+            <h3 className="cell-flag"><Flag id={det.cc} />Bonos en USD de {det.name}</h3>
+            <select className="sel-sm" value={detail} onChange={(e) => setDetail(e.target.value)} aria-label="Emisor">
+              {issuers.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+            </select>
+          </div>
+          <div className="tbl-wrap">
+            <table className="tbl">
+              <thead><tr><th>Bono</th><th>Cupón</th><th>Vencimiento</th><th>Precio</th><th>Rendimiento</th><th>Duration</th><th>Spread vs UST</th><th>Precio al</th></tr></thead>
+              <tbody>
+                {det.bonds.map((b) => (
+                  <tr key={b.isin} className={b.stale ? 'stale' : ''}>
+                    <td className="name"><a href={b.url} target="_blank" rel="noreferrer">{b.isin}</a><span className="sub">{b.name}</span></td>
+                    <td className="num">{fmtNum(b.coupon, 3)}%{b.couponType && b.couponType !== 'Fest' ? <span className="sub">step-up / variable</span> : null}</td>
+                    <td className="num">{fmtDate(b.maturity)}<span className="sub">{fmtNum(b.years, 1)} años</span></td>
+                    <td className="num">{b.price == null ? '—' : fmtNum(b.price, 2)}</td>
+                    <td className="num"><b>{cell(b.ytm)}</b>{b.amort && <span className="sub">amortizable / step-up</span>}</td>
+                    <td className="num">{b.dur == null ? '—' : fmtNum(b.dur, 1)}</td>
+                    <td className="num">{cell(b.spread, 'pb')}</td>
+                    <td className="num">{b.priceDate ? fmtDate(b.priceDate) : '—'}{b.stale && <span className="sub">fuera de la curva</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="card-foot">
+            <span>Precios limpios indicativos de bolsas alemanas (onvista). Rendimiento en base semestral (como los Treasuries): bonos bullet, cálculo propio desde el precio; amortizables y step-up (Argentina, Ecuador y algunos de Panamá y Uruguay), TIR de onvista pasada de anual a semestral (contrastar con la fuente local). Duration modificada en años. Los bonos con precio de más de 10 días, en default o sin cupón informado quedan fuera de las curvas (en gris). Lista de bonos al {data.listUpdated ? fmtDate(data.listUpdated) : '—'}.</span>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -4,9 +4,10 @@ Contexto para Claude Code. Leer entero antes de tocar código.
 
 ## Qué es
 
-Dashboard macro con un panel por país (Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Japón), una vista
+Dashboard macro con un panel por país (Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Chile, Japón), una vista
 **Mundo** (cuadros tipo terminal + panel lateral "Hoy", tendencias y comparativo entre países), una solapa
-**Comparar** (dos países lado a lado) y una **Agenda** consolidada.
+**Comparar** (dos países lado a lado), una solapa **Crédito USD** (spread EMBI de América Latina y curvas de los
+bonos soberanos en dólares) y una **Agenda** consolidada.
 Dueño: Hermes (renta fija / mercado de capitales, Argentina). Idioma de la UI y de los comentarios: español.
 
 Objetivo de cada panel:
@@ -19,11 +20,14 @@ Objetivo de cada panel:
 ## Arquitectura
 
 ```
-api/country.js              GET /api/country?c=br|us|eu|mx|ca|co|jp|world  (función serverless Vercel, cache edge 30 min)
+api/country.js              GET /api/country?c=br|us|eu|mx|ca|co|cl|jp|world|usd  (función serverless Vercel, cache edge 30 min)
 api/_lib/util.js            HTTP, fechas, series, kpi(), trend(), spreadSeries(), settle()
 api/_lib/yahoo.js           Yahoo Finance: precios, perf, futuros Fed funds (ZQ)
 api/_lib/calendar.js        Fechas de reuniones de bancos centrales (estático, revisar 1 vez/año)
 api/_lib/sources/<pais>.js  Un adaptador por país. Devuelve el "contrato de payload" (abajo)
+api/_lib/sources/usd.js     Crédito USD: EMBI por país (BCRD) + bonos soberanos en USD (onvista) vs Tesoro (FRED). Payload propio
+api/_lib/usd-bonds.json     Lista de ISINs en USD por emisor (la genera scripts/discover-usd-bonds.mjs)
+api/_lib/xlsx.js            Lector mínimo de .xlsx sin dependencias (zlib), usado para la planilla del EMBI
 src/App.jsx                 Tabs, carga en paralelo de todos los países, modo ?mock=1
 src/components/Panels.jsx   Kpi, Dynamics, CountryPanel, TrendsTable, WorldPanel (MajorIndices, QuoteCard, BondTiles,
                             MiniTiles, Watchlist), ComparePanel, AgendaList
@@ -33,6 +37,7 @@ scripts/smoke.mjs           Prueba contra las APIs REALES (requiere .env)
 scripts/test-parsers.mjs    Test offline con fetch simulado + genera src/mock-data.json
 scripts/mock-fetch.mjs      fetch falso: imita el FORMATO de cada API con datos sintéticos
 scripts/dev-api.mjs         Servidor local de /api (alternativa a `vercel dev`)
+scripts/discover-usd-bonds.mjs  Rearma usd-bonds.json (correr cada 2-3 meses o cuando un país emite)
 ```
 
 Por qué serverless: los navegadores bloquean (CORS) varias de estas APIs y las claves no pueden ir al
@@ -137,7 +142,27 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 | 🇨🇦 | ✔ V39079 | ✔ V41690973; ✔ CPI-trim/median | proxy 2Y − overnight; ✔ breakeven LP (LONG − RRB) | ✔ GoC 2Y/10Y | ✔ | ✔ EWC/^GSPTSE | ✅ BoC |
 | 🇨🇴 | ✔ DF_CBR_DAILY_HIST | ✔ IPC derivado de la UVR (DF_UVR_DAILY_HIST); fallback FRED OCDE | proxy IBR 6M − política; ❌ Encuesta BanRep (captcha) | ✔ IBR ON/6M (efectiva); ✔ TES 2Y (interp. 1Y–5Y) y 10Y, mensual | ✔ datos.gov.co 32sa-8pi3; fallback BanRep | ✔ COLO / ICOLCAP.CL | ✔ dic-2026; ❌ 2027 (no publicado) |
 
+| 🇨🇱 | ✔ BDE F022.TPM | ✔ BDE IPC var. 12m | ✔ EEE (inflación 11/23m, TPM por plazo, PIB) y EOF (TPM e inflación 12m); ✔ BCP−BCU 10Y | ✔ BCP 2Y/10Y, BCU 10Y | ✔ dólar observado | ✔ ECH; IPSA mensual (BDE) | ✔ dic-2026; ❌ 2027 (publicado, no accesible) |
 | 🇯🇵 | ✔ BoJ call O/N (STRDCLUCON) | ✔ BIS WS_LONG_CPI M.JP.771 | ✔ Tankan infl. 1a; proxy JGB 2Y − call | ✔ MOF JGB 2Y/10Y/30Y | ✔ Yahoo JPY=X | ✔ EWJ/^N225 | ✔ BoJ 2026–2027 |
+
+### Notas de Crédito USD (onvista)
+- `https://api.onvista.de/api/v1/bonds/ISIN:<ISIN>/snapshot` (sin clave): `bondsFigures.yieldToMaturity` (ISMA), `modifyDuration`,
+  `priceForCalculation` y su fecha; `bondsBaseData.datetimeMaturity`; `bondsIssuer.isoCountry`.
+- Las tasas son de precios indicativos de bolsas alemanas: bonos con precio de más de 10 días quedan fuera de las curvas.
+  En step-up (AR, EC) contrastar la TIR con la fuente local. Spread = TIR − Tesoro de EE.UU. interpolado al plazo (FRED DGS*).
+- La búsqueda (`/instruments/query`) devuelve como máximo 10 resultados: el script refina el prefijo del ISIN (CUSIP del emisor).
+  Se excluyen los globales en moneda local pagaderos en USD ("RB/DL", "KP/DL") y se deduplica 144A/Reg S por (vencimiento, cupón).
+- EMBI: planilla diaria del Banco Central de la Rep. Dominicana (`EMBI_URL` en usd.js, URL fija sin el `?v=`; ~1 MB,
+  historia desde 2007, columnas Global, LATINO, REP DOM y 16 países). Valores en puntos porcentuales → pb. Sin API: se baja
+  la planilla en cada request (cache 30 min). Si cambia el encabezado, `parseEmbi` falla con un error claro.
+
+### Notas de Chile (BCCh BDE)
+- La API oficial (SieteRestWS) pide usuario/clave. Se usan las páginas públicas de cuadros:
+  `https://si3.bcentral.cl/Siete/ES/Siete/Cuadro/<CAP>/<MENU>/<CUADRO>` (filas con `data-serie`, fechas en los `<th>`).
+  Diarios: año en curso; `?cbFechaDiaria=AAAA` trae otro año. Mensuales: varios años por defecto. Cuadros en `CUADROS` (cl.js).
+- EEE (mensual, economistas) y EOF (quincenal, operadores financieros). En la tabla se usa el valor de la fecha exacta de la
+  última encuesta (las preguntas por "diciembre de cada año" rotan).
+- Si el BCCh cambia el HTML, `parseBdeCuadro` falla con "cuadro sin fechas/series". Alternativa: pedir credenciales de la API.
 
 ### Notas de Japón
 - BoJ API (sin clave): `https://www.stat-search.boj.or.jp/api/v1/getDataCode?format=json&lang=en&db=<DB>&code=<CODE>&startDate=<AAAAMM | AAAA0T>`.
@@ -170,7 +195,7 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 ## Pendientes priorizados
 
 1. Deploy en Vercel (cargar `FRED_API_KEY` y `BANXICO_TOKEN` en Settings → Environment Variables).
-2. Calendarios: fechas 2027 de Banxico y JDBR (ninguno publicado al 18-nov-2026) en `api/_lib/calendar.js`. Fuentes:
+2. Calendarios: fechas 2027 de Banxico, JDBR y BCCh (el de BCCh está publicado pero la página bloquea consultas automáticas). Fuentes:
    https://www.banxico.org.mx/publicaciones-y-prensa/calendario-de-publicaciones.html ·
    https://www.banrep.gov.co/es/calendario-junta-directiva (la JDBR decide al final de ene, mar, abr, jun, jul, sep, oct y dic).
 3. México: Bono M de mercado secundario diario (hoy: subasta primaria).
