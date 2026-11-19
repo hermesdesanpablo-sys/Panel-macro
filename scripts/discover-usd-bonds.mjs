@@ -30,7 +30,7 @@ for (const iss of ISSUERS) {
   for (const p of iss.prefixes) await byPrefix(p, found);
   for (const q of iss.names) (await search(q)).forEach((h) => found.set(h.isin, h));
   const bonds = [];
-  for (const isin of found.keys()) {
+  for (const isin of [...found.keys()].filter((x) => !(iss.exclude || []).includes(x))) {
     try {
       const b = parseBond(await ovSnapshot(isin));
       await sleep(150);

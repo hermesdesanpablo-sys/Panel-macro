@@ -57,6 +57,19 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   for (const p of ipc) assert.ok(Math.abs(p.v - 6.17) < 0.02, `ipcFromUvr ${p.d}: ${p.v}`);
   console.log(`✓ ipcFromUvr: ${ipc.length} meses, ${ipc[0].v}%`);
 }
+// TIR de bonos bullet: a la par (en fecha de cupón) rinde el cupón; bajo la par rinde más; ISMA→semestral.
+{
+  const { ytmBullet, ismaToSemi, isAmortizing } = await import('../api/_lib/sources/usd.js');
+  assert.ok(Math.abs(ytmBullet(100, 6, '2036-05-15', '2026-05-15') - 6) < 1e-3, 'TIR a la par ≠ cupón');
+  assert.ok(Math.abs(ytmBullet(100, 5, '2031-01-15', '2026-03-15') - 5) < 0.02, 'TIR a la par entre cupones');
+  assert.ok(ytmBullet(90, 5, '2036-01-15', '2026-03-15') > 6.3, 'TIR bajo la par');
+  assert.ok(Math.abs(ismaToSemi(6.09) - 6.0) < 0.01, 'ISMA→semestral');
+  assert.ok(isAmortizing('Argentinien DL-Bonds 2020(20/31-35)') && !isAmortizing('Brasilien DL-Bonds 2025(25/56)'), 'detección de amortizables');
+  const { modDurBullet } = await import('../api/_lib/sources/usd.js');
+  const dur = modDurBullet(6, 6, '2036-05-15', '2026-05-15');
+  assert.ok(dur > 7.2 && dur < 7.6, `duration 10 años al 6%: ${dur}`);
+  console.log('✓ ytmBullet / ismaToSemi / modDurBullet');
+}
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);
 console.log('OK – src/mock-data.json actualizado');

@@ -108,7 +108,7 @@ export function AreaSpark({ data, up = true, height = 100 }) {
  * Curvas de rendimiento por plazo: hasta 3 emisores (puntos = bonos, unidos por línea) y la curva del Tesoro
  * como referencia gris punteada. Eje X numérico (años al vencimiento). Un solo eje Y.
  */
-export function CurveChart({ series, ref, unit = '%', height = 340 }) {
+export function CurveChart({ series, benchmark, unit = '%', height = 340 }) {
   if (!series?.length) return <div className="empty">Elegí al menos un emisor</div>;
   const all = series.flatMap((s) => s.points);
   if (!all.length) return <div className="empty">Sin bonos con precio reciente</div>;
@@ -129,15 +129,15 @@ export function CurveChart({ series, ref, unit = '%', height = 340 }) {
     <ResponsiveContainer width="100%" height={height}>
       <ComposedChart margin={{ top: 8, right: 20, bottom: 8, left: 0 }}>
         <CartesianGrid stroke="var(--grid)" />
-        <XAxis type="number" dataKey="x" domain={[0, 'dataMax']} tickCount={8} allowDecimals={false} name="Años"
+        <XAxis type="number" dataKey="x" domain={[0, (max) => Math.ceil(max / 5) * 5]} tickCount={9} allowDecimals={false} name="Años"
           tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--grid)' }} tickLine={false}
           label={{ value: 'años al vencimiento', position: 'insideBottomRight', offset: -4, fill: 'var(--text-muted)', fontSize: 11 }} />
         <YAxis type="number" dataKey="y" domain={['auto', 'auto']} width={48} tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
           axisLine={false} tickLine={false} tickFormatter={fmtY} />
         <Tooltip content={<Tip />} cursor={{ strokeDasharray: '3 3', stroke: 'var(--text-muted)' }} />
         <Legend iconType="plainline" wrapperStyle={{ fontSize: 12, color: 'var(--text-secondary)' }} />
-        {ref?.length ? (
-          <Scatter name="Tesoro EE.UU." data={ref} line={{ stroke: 'var(--text-muted)', strokeDasharray: '5 4', strokeWidth: 1.5 }}
+        {benchmark?.length ? (
+          <Scatter name="Tesoro EE.UU." data={benchmark} line={{ stroke: 'var(--text-muted)', strokeDasharray: '5 4', strokeWidth: 1.5 }}
             shape={() => null} legendType="plainline" fill="var(--text-muted)" isAnimationActive={false} />
         ) : null}
         {series.map((s, i) => (

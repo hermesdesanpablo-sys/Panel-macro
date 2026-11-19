@@ -695,7 +695,7 @@ export function UsdPanel({ data }) {
     .filter(Boolean)
     .map((i) => ({
       name: i.name,
-      points: i.bonds.filter((b) => !b.stale && (mode === 'ytm' ? b.ytm != null : b.spread != null)).map((b) => ({
+      points: i.bonds.filter((b) => !b.stale && b.years <= 40 && (mode === 'ytm' ? b.ytm != null : b.spread != null)).map((b) => ({
         x: b.years, y: mode === 'ytm' ? b.ytm : b.spread, label: `${i.name} ${fmtNum(b.coupon, 3)}% ${b.maturity.slice(0, 4)}`,
         extra: `Precio ${fmtNum(b.price, 2)} al ${fmtDate(b.priceDate)}`,
       })),
@@ -764,8 +764,8 @@ export function UsdPanel({ data }) {
             </button>
           ))}
         </div>
-        <CurveChart series={series} ref={ref} unit={mode === 'ytm' ? '%' : 'pb'} />
-        <div className="card-foot"><span>Hasta 3 emisores a la vez (para que los colores se distingan). Cada punto es un bono con precio de los últimos días; la línea gris punteada es la curva del Tesoro (FRED).</span></div>
+        <CurveChart series={series} benchmark={ref} unit={mode === 'ytm' ? '%' : 'pb'} />
+        <div className="card-foot"><span>Hasta 3 emisores a la vez (para que los colores se distingan). Cada punto es un bono con precio de los últimos días; la línea gris punteada es la curva del Tesoro (FRED). Se grafica hasta 40 años: los bonos más largos (México 2110, Perú 2121) están en la tabla.</span></div>
       </section>
 
       {det && (
@@ -786,7 +786,7 @@ export function UsdPanel({ data }) {
                     <td className="num">{fmtNum(b.coupon, 3)}%{b.couponType && b.couponType !== 'Fest' ? <span className="sub">step-up / variable</span> : null}</td>
                     <td className="num">{fmtDate(b.maturity)}<span className="sub">{fmtNum(b.years, 1)} años</span></td>
                     <td className="num">{b.price == null ? '—' : fmtNum(b.price, 2)}</td>
-                    <td className="num"><b>{cell(b.ytm)}</b></td>
+                    <td className="num"><b>{cell(b.ytm)}</b>{b.amort && <span className="sub">amortizable / step-up</span>}</td>
                     <td className="num">{b.dur == null ? '—' : fmtNum(b.dur, 1)}</td>
                     <td className="num">{cell(b.spread, 'pb')}</td>
                     <td className="num">{b.priceDate ? fmtDate(b.priceDate) : '—'}{b.stale && <span className="sub">fuera de la curva</span>}</td>
@@ -796,7 +796,7 @@ export function UsdPanel({ data }) {
             </table>
           </div>
           <div className="card-foot">
-            <span>Precios indicativos de bolsas alemanas (onvista); rendimiento ISMA y duration modificada calculados por onvista. Los bonos con precio de más de 10 días o sin rendimiento quedan fuera de las curvas. En bonos step-up (Argentina, Ecuador) conviene contrastar la TIR con la fuente local. Lista de bonos al {data.listUpdated ? fmtDate(data.listUpdated) : '—'}.</span>
+            <span>Precios limpios indicativos de bolsas alemanas (onvista). Rendimiento en base semestral (como los Treasuries): bonos bullet, cálculo propio desde el precio; amortizables y step-up (Argentina, Ecuador y algunos de Panamá y Uruguay), TIR de onvista pasada de anual a semestral (contrastar con la fuente local). Duration modificada en años. Los bonos con precio de más de 10 días, en default o sin cupón informado quedan fuera de las curvas (en gris). Lista de bonos al {data.listUpdated ? fmtDate(data.listUpdated) : '—'}.</span>
           </div>
         </section>
       )}
