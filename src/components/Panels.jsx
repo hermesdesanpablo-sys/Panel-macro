@@ -290,7 +290,7 @@ function CountryCompareTable({ countries }) {
     const y2 = kpiByKey(p, 'y2')?.value;
     const fx = kpiByKey(p, 'fx');
     // FX: variación de la moneda local vs USD (positivo = se apreció).
-    // EUR/USD y DXY ya cotizan la moneda local en el numerador; el resto (USD/XXX) se invierte.
+    // EURUSD y DXY ya cotizan la moneda local en el numerador; el resto (USD/XXX) se invierte.
     let fxChg = fx?.change ?? null;
     if (fxChg != null && !['eu', 'us'].includes(p.id)) fxChg = (1 / (1 + fxChg / 100) - 1) * 100;
     return {
@@ -485,6 +485,7 @@ function Watchlist({ markets }) {
           ])}
         </tbody>
       </table>
+      <div className="watch-foot">Monedas en formato de mercado: USDMXN = pesos mexicanos por 1 dólar; EURUSD = dólares por 1 euro.</div>
     </aside>
   );
 }

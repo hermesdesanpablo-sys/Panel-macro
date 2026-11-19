@@ -235,7 +235,7 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 5. Agenda de datos para MX (INEGI), CA (StatCan), CO (DANE), EZ (Eurostat): hoy solo hay BR (IBGE) y EE.UU. (FRED).
 6. Persistir snapshots diarios (p.ej. Vercel KV / Postgres + cron) para tener historia propia de variables
    que la fuente no guarda (strip de futuros completo, forwards por plazo, encuestas).
-7. Si se conecta LSEG: adaptador `lseg` para DI futuro, OIS (USD/EUR/CAD), swaps TIIE/IBR y TES/Mbono.
+7. Si se conecta LSEG: adaptador `lseg` para DI futuro, OIS (USD/EURCAD), swaps TIIE/IBR y TES/Mbono.
 
 ## Convenciones
 
@@ -244,6 +244,8 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 - Gráficos: **nunca dos ejes Y**. Máximo 3 series por gráfico (paleta validada para daltonismo: `--series-1..3`).
 - Colores de variación: en paneles de país, chips azul (baja) / rojo (sube) con flecha; en Mundo (precios), convención de
   mercado verde (sube) / rojo (baja), siempre con signo. Nunca color solo.
+- Monedas: rótulos en formato de ticker de mercado, sin barra: USDMXN = pesos mexicanos por 1 dólar, EURUSD = dólares por
+  1 euro. **No usar "USD/MXN"**: para Hermes la barra significa "moneda de adelante por 1 unidad de la de atrás".
 - Cada número muestra su fuente (`source` + `url`). Los cálculos propios se rotulan "Cálculo propio".
 - No inventar datos: si no hay fuente, KPI `n/d` con `source: 'Pendiente'` y nota de por qué.
 - Las claves solo en variables de entorno.

@@ -77,7 +77,7 @@ export default async function eurozone() {
       'BCE DFR': () => ecb(S.dfr, daysAgo(1100)),
       'BCE HICP': () => ecb(S.hicp, daysAgo(1100)),
       'BCE HICP core': () => ecb(S.core, daysAgo(1100)),
-      'BCE EUR/USD': () => ecb(S.eurusd, daysAgo(400)),
+      'BCE EURUSD': () => ecb(S.eurusd, daysAgo(400)),
       'BCE €STR': () => ecb(S.estr, daysAgo(120)),
       'BCE curva 2Y': () => ecb(S.y2, daysAgo(400)),
       'BCE curva 10Y': () => ecb(S.y10, daysAgo(400)),
@@ -98,7 +98,7 @@ export default async function eurozone() {
   const dfr = d['BCE DFR'] || [];
   const hicp = d['BCE HICP'] || [];
   const core = d['BCE HICP core'] || [];
-  const eurusd = d['BCE EUR/USD'] || [];
+  const eurusd = d['BCE EURUSD'] || [];
   const y2 = d['BCE curva 2Y'] || [];
   const y10 = d['BCE curva 10Y'] || [];
   const src = (k) => ({ source: `BCE ${k.replace('/', '.')}`, url: ecbUrl(k) });
@@ -121,7 +121,7 @@ export default async function eurozone() {
       kpi({ key: 'exp_cpi', group: 'expectations', label: 'Infl. esperada LP (SPF)', series: spf || [], ...src(S.spfLT) }),
       kpi({ key: 'y2', group: 'market', label: 'Curva AAA 2Y', series: y2, changeDays: 30, ...src(S.y2) }),
       kpi({ key: 'y10', group: 'market', label: 'Curva AAA 10Y', series: y10, changeDays: 30, ...src(S.y10) }),
-      kpi({ key: 'fx', group: 'fx', label: 'EUR/USD (ref. BCE)', series: eurusd, unit: '', decimals: 4, changeDays: 365, ...src(S.eurusd) }),
+      kpi({ key: 'fx', group: 'fx', label: 'EURUSD (ref. BCE)', series: eurusd, unit: '', decimals: 4, changeDays: 365, ...src(S.eurusd) }),
       kpi({ key: 'unemp', group: 'activity', label: 'Desempleo', series: d['BCE desempleo'] || [], decimals: 1, ...src(S.unemp) }),
     ],
     equity: d['Yahoo EZU/^STOXX50E'],
@@ -138,7 +138,7 @@ export default async function eurozone() {
         data: merge({ dfr: thin(dfr.filter((p) => p.d >= (hicp[0]?.d || ''))), hicp, core }),
       },
       { id: 'curve', title: 'Curva AAA zona euro: 2Y y 10Y', unit: '%', lines: [{ key: 'y2', label: '2Y' }, { key: 'y10', label: '10Y' }], data: merge({ y2, y10 }) },
-      { id: 'fx', title: 'EUR/USD – referencia BCE', unit: '', lines: [{ key: 'v', label: 'EUR/USD' }], data: merge({ v: eurusd }) },
+      { id: 'fx', title: 'EURUSD – referencia BCE', unit: '', lines: [{ key: 'v', label: 'EURUSD' }], data: merge({ v: eurusd }) },
       {
         id: 'exp-rate',
         group: 'exp',

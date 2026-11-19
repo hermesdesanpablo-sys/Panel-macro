@@ -1,4 +1,4 @@
-// Chile: Banco Central de Chile (cuadros públicos de la BDE, sin clave) + Yahoo (USD/CLP intradía, ECH).
+// Chile: Banco Central de Chile (cuadros públicos de la BDE, sin clave) + Yahoo (USDCLP intradía, ECH).
 //
 // Fuente principal: API oficial de la BDE (SieteRestWS) con BCCH_API_TOKEN (API Key Token; VENCE AL AÑO de generarlo,
 // se renueva en "Mi Cuenta" de la BDE). Si no hay token o la API falla, se usan las páginas públicas de "cuadros" de la
@@ -211,7 +211,7 @@ export default async function chile() {
       kpi({ key: 'y2', group: 'market', label: 'BCP 2 años', series: bcp2, changeDays: 30, ...src(C.tasas, S.bcp2) }),
       kpi({ key: 'y10', group: 'market', label: 'BCP 10 años', series: bcp10, changeDays: 30, ...src(C.tasas, S.bcp10) }),
       kpi({ key: 'real10', group: 'market', label: 'BCU 10 años (real, UF)', series: bcu10, changeDays: 30, ...src(C.tasas, S.bcu10) }),
-      kpi({ key: 'fx', group: 'fx', label: 'USD/CLP (dólar observado)', series: usdclp, unit: '', decimals: 2, changeDays: 365, ...src(C.dolar, S.dolar) }),
+      kpi({ key: 'fx', group: 'fx', label: 'USDCLP (dólar observado)', series: usdclp, unit: '', decimals: 2, changeDays: 365, ...src(C.dolar, S.dolar) }),
       kpi({ key: 'imacec', group: 'activity', label: 'Imacec a/a', series: imacec, decimals: 1, source: `BCCh ${via} ${S.imacec} (calc. a/a)`, url: bdeUrl(C.imacec) }),
       kpi({ key: 'ipsa', group: 'activity', label: 'IPSA (cierre mensual)', series: ipsa, unit: '', decimals: 0, ...src(C.bolsa, S.ipsa) }),
     ],
@@ -225,7 +225,7 @@ export default async function chile() {
         data: merge({ tpm: thin(tpm), ipc: ipc.filter((p) => p.d >= (tpm[0]?.d || '')) }),
       },
       { id: 'curve', title: 'Bonos del Banco Central: BCP 2Y y 10Y, BCU 10Y', unit: '%', lines: [{ key: 'b2', label: 'BCP 2Y' }, { key: 'b10', label: 'BCP 10Y' }, { key: 'u10', label: 'BCU 10Y (real)' }], data: merge({ b2: bcp2, b10: bcp10, u10: bcu10 }) },
-      { id: 'fx', title: 'USD/CLP – dólar observado', unit: '', lines: [{ key: 'v', label: 'USD/CLP' }], data: merge({ v: usdclp }) },
+      { id: 'fx', title: 'USDCLP – dólar observado', unit: '', lines: [{ key: 'v', label: 'USDCLP' }], data: merge({ v: usdclp }) },
       {
         id: 'exp-rate',
         group: 'exp',

@@ -78,7 +78,7 @@ export default async function japan() {
       'BoJ Tankan inflación esperada': () => boj(BOJ.tankan, daysAgo(1500)),
       'MOF curva JGB': () => jgb(daysAgo(400)),
       'BIS IPC Japón': async () => parseBisCsv(await getText(`${BIS_CPI}?startPeriod=${iso(daysAgo(1200)).slice(0, 7)}&format=csv`, { timeout: 25000 })),
-      'Yahoo USD/JPY': () => yahooSeries('JPY=X'),
+      'Yahoo USDJPY': () => yahooSeries('JPY=X'),
       'Yahoo EWJ/^N225': () => equityBlock('EWJ', 'iShares MSCI Japan (EWJ, USD)', '^N225', 'Nikkei 225'),
     },
     errors
@@ -87,7 +87,7 @@ export default async function japan() {
   const curve = d['MOF curva JGB'] || { y1: [], y2: [], y5: [], y10: [], y30: [] };
   const cpi = d['BIS IPC Japón'] || [];
   const tankan = d['BoJ Tankan inflación esperada'] || [];
-  const fx = d['Yahoo USD/JPY'] || [];
+  const fx = d['Yahoo USDJPY'] || [];
   const slope = spreadSeries(curve.y2, call);
   const bojSrc = (code) => ({ source: `BoJ ${code}`, url: BOJ_URL });
   const mof = (t) => ({ source: `MOF JGB ${t}`, url: MOF_URL });
@@ -106,7 +106,7 @@ export default async function japan() {
       kpi({ key: 'y2', group: 'market', label: 'JGB 2Y', series: curve.y2, decimals: 3, changeDays: 30, ...mof('2Y') }),
       kpi({ key: 'y10', group: 'market', label: 'JGB 10Y', series: curve.y10, decimals: 3, changeDays: 30, ...mof('10Y') }),
       kpi({ key: 'y30', group: 'market', label: 'JGB 30Y', series: curve.y30, decimals: 3, ...mof('30Y') }),
-      kpi({ key: 'fx', group: 'fx', label: 'USD/JPY', series: fx, unit: '', decimals: 2, changeDays: 365, source: 'Yahoo JPY=X', url: 'https://finance.yahoo.com/quote/JPY=X' }),
+      kpi({ key: 'fx', group: 'fx', label: 'USDJPY', series: fx, unit: '', decimals: 2, changeDays: 365, source: 'Yahoo JPY=X', url: 'https://finance.yahoo.com/quote/JPY=X' }),
     ],
     equity: d['Yahoo EWJ/^N225'],
     charts: [
@@ -121,7 +121,7 @@ export default async function japan() {
         data: merge({ call: thin(call.filter((p) => p.d >= (cpi[0]?.d || ''))), cpi }),
       },
       { id: 'curve', title: 'Curva JGB: 2Y, 10Y y 30Y', unit: '%', lines: [{ key: 'y2', label: '2Y' }, { key: 'y10', label: '10Y' }, { key: 'y30', label: '30Y' }], data: merge({ y2: curve.y2, y10: curve.y10, y30: curve.y30 }) },
-      { id: 'fx', title: 'USD/JPY', unit: '', lines: [{ key: 'v', label: 'USD/JPY' }], data: merge({ v: fx }) },
+      { id: 'fx', title: 'USDJPY', unit: '', lines: [{ key: 'v', label: 'USDJPY' }], data: merge({ v: fx }) },
       {
         id: 'exp-rate',
         group: 'exp',

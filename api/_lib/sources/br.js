@@ -11,7 +11,7 @@ export const SGS = {
   selicEfetiva: 1178, // Selic efetiva anualizada base 252
   ipca12m: 13522, // IPCA acumulado 12 meses
   ipcaMes: 433, // IPCA variação mensal
-  ptax: 1, // USD/BRL PTAX venda
+  ptax: 1, // USDBRL PTAX venda
   reservas: 13621, // Reservas internacionais – total (US$ mi, diária)
   desemprego: 24369, // Taxa de desocupação PNAD Contínua
 };
@@ -98,7 +98,7 @@ export function parseFocusAnnual(rows) {
   const latest = rows.filter((r) => r.Data === lastDate);
   const years = [...new Set(latest.map((r) => String(r.DataReferencia)))].sort().slice(0, 3);
   const order = ['IPCA', 'Selic', 'Câmbio', 'PIB Total'];
-  const labels = { IPCA: 'IPCA (%)', Selic: 'Selic fin de año (%)', 'Câmbio': 'USD/BRL fin de año', 'PIB Total': 'PIB (%)' };
+  const labels = { IPCA: 'IPCA (%)', Selic: 'Selic fin de año (%)', 'Câmbio': 'USDBRL fin de año', 'PIB Total': 'PIB (%)' };
   return {
     title: 'Boletim Focus – medianas',
     asOf: lastDate,
@@ -244,8 +244,8 @@ export default async function brazil() {
     kpi({ key: 'cpi_m', group: 'inflation', label: 'IPCA último mes', series: d['SGS 433 IPCA m/m'] || [], ...sgsSrc(433) }),
     kpi({ key: 'exp_cpi', group: 'expectations', label: 'IPCA esperado 12m (Focus)', series: ipca12f, ...focusSrc }),
     kpi({ key: 'exp_rate', group: 'expectations', label: `Selic esperada fin ${nextY} (Focus)`, series: selicExp, ...focusSrc }),
-    kpi({ key: 'exp_fx', group: 'expectations', label: `USD/BRL esperado fin ${nextY}`, series: fxExp, unit: '', decimals: 2, ...focusSrc }),
-    kpi({ key: 'fx', group: 'fx', label: 'USD/BRL (PTAX)', series: ptax, unit: '', decimals: 4, changeDays: 365, ...sgsSrc(1) }),
+    kpi({ key: 'exp_fx', group: 'expectations', label: `USDBRL esperado fin ${nextY}`, series: fxExp, unit: '', decimals: 2, ...focusSrc }),
+    kpi({ key: 'fx', group: 'fx', label: 'USDBRL (PTAX)', series: ptax, unit: '', decimals: 4, changeDays: 365, ...sgsSrc(1) }),
     kpi({ key: 'reserves', group: 'fx', label: 'Reservas (US$ mn)', series: d['SGS 13621 Reservas'] || [], unit: '', decimals: 0, ...sgsSrc(13621) }),
     kpi({ key: 'unemp', group: 'activity', label: 'Desocupación', series: d['SGS 24369 Desocupação'] || [], ...sgsSrc(24369) }),
     kpi({ key: 'y2', group: 'market', label: 'Prefijado 2Y', series: pre2, changeDays: 30, note: 'LTN interpolada a 2 años (tasa de compra)', ...tdSrc('LTN') }),
@@ -272,7 +272,7 @@ export default async function brazil() {
         ],
         data: merge({ selic: thin(selic.filter((p) => p.d >= (ipca[0]?.d || ''))), ipca }),
       },
-      { id: 'fx', title: 'USD/BRL – PTAX venta', unit: '', lines: [{ key: 'v', label: 'PTAX' }], data: merge({ v: ptax }) },
+      { id: 'fx', title: 'USDBRL – PTAX venta', unit: '', lines: [{ key: 'v', label: 'PTAX' }], data: merge({ v: ptax }) },
       { id: 'curve', title: 'Curva prefijada (Tesouro Direto): 2Y y 10Y', unit: '%', lines: [{ key: 'y2', label: '2Y' }, { key: 'y10', label: '10Y' }], data: merge({ y2: pre2, y10: pre10 }) },
       {
         id: 'exp-rate',

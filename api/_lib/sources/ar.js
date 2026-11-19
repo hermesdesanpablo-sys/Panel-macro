@@ -144,7 +144,7 @@ export default async function argentina() {
       tamarKpi,
       embiKpi,
       kpi({ key: 'badlar', group: 'market', label: 'BADLAR bancos privados (TNA)', series: S('BCRA BADLAR'), ...bcraSrc(BCRA.badlar) }),
-      kpi({ key: 'fx', group: 'fx', label: 'USD/ARS mayorista (A3500)', series: a3500, unit: '', decimals: 2, changeDays: 365, ...bcraSrc(BCRA.a3500) }),
+      kpi({ key: 'fx', group: 'fx', label: 'USDARS mayorista (A3500)', series: a3500, unit: '', decimals: 2, changeDays: 365, ...bcraSrc(BCRA.a3500) }),
       kpi({ key: 'reserves', group: 'fx', label: 'Reservas (US$ mn)', series: S('BCRA reservas'), unit: '', decimals: 0, ...bcraSrc(BCRA.reservas) }),
       kpi({ key: 'pb12', group: 'activity', label: 'Resultado primario SPN 12m (% PBI)', series: pb, ...fiscalSrc }),
       kpi({ key: 'fb12', group: 'activity', label: 'Resultado financiero SPN 12m (% PBI)', series: fb, ...fiscalSrc }),
@@ -160,7 +160,7 @@ export default async function argentina() {
       },
       {
         id: 'fx',
-        title: 'USD/ARS mayorista y bandas cambiarias',
+        title: 'USDARS mayorista y bandas cambiarias',
         unit: '',
         lines: [{ key: 'v', label: 'A3500' }, { key: 'sup', label: 'Banda superior' }, { key: 'inf', label: 'Banda inferior' }],
         data: merge({ v: thin(a3500.filter((p) => p.d >= iso(daysAgo(400)))), sup: thin(S('BCRA banda superior')), inf: thin(S('BCRA banda inferior')) }),

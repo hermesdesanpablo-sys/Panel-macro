@@ -7,7 +7,7 @@ import { meetingEvents } from '../calendar.js';
 export const VALET = {
   target: 'V39079', // Target for the overnight rate
   corra: 'AVG.INTWO', // CORRA
-  usdcad: 'FXUSDCAD', // USD/CAD (BoC)
+  usdcad: 'FXUSDCAD', // USDCAD (BoC)
   y2: 'BD.CDN.2YR.DQ.YLD', // GoC 2Y
   y10: 'BD.CDN.10YR.DQ.YLD', // GoC 10Y
   cpiIndex: 'V41690973', // CPI all-items (índice) -> a/a calculado (verificar)
@@ -35,7 +35,7 @@ export default async function canada() {
     {
       'BoC V39079': () => valet(V.target, daysAgo(1100)),
       'BoC CORRA': () => valet(V.corra, daysAgo(120)),
-      'BoC USD/CAD': () => valet(V.usdcad, daysAgo(400)),
+      'BoC USDCAD': () => valet(V.usdcad, daysAgo(400)),
       'BoC 2Y': () => valet(V.y2, daysAgo(400)),
       'BoC 10Y': () => valet(V.y10, daysAgo(400)),
       'BoC CPI índice': () => valet(V.cpiIndex, daysAgo(1500)),
@@ -53,7 +53,7 @@ export default async function canada() {
   const trim = d['BoC CPI-trim'] || [];
   const y2 = d['BoC 2Y'] || [];
   const y10 = d['BoC 10Y'] || [];
-  const usdcad = d['BoC USD/CAD'] || [];
+  const usdcad = d['BoC USDCAD'] || [];
   const src = (id) => ({ source: `BoC Valet ${id}`, url: valetUrl(id) });
   const slope = spreadSeries(y2, target);
   // Inflación implícita de largo plazo: bono nominal largo − Real Return Bond (aprox. aditiva).
@@ -74,7 +74,7 @@ export default async function canada() {
       kpi({ key: 'exp_cpi', group: 'expectations', label: 'Inflación implícita LP', series: breakeven, note: 'Breakeven: bono largo nominal − Real Return Bond', source: 'Cálculo propio (Valet LONG − RRB)', url: valetUrl(V.rrb) }),
       kpi({ key: 'y2', group: 'market', label: 'GoC 2Y', series: y2, changeDays: 30, ...src(V.y2) }),
       kpi({ key: 'y10', group: 'market', label: 'GoC 10Y', series: y10, changeDays: 30, ...src(V.y10) }),
-      kpi({ key: 'fx', group: 'fx', label: 'USD/CAD', series: usdcad, unit: '', decimals: 4, changeDays: 365, ...src(V.usdcad) }),
+      kpi({ key: 'fx', group: 'fx', label: 'USDCAD', series: usdcad, unit: '', decimals: 4, changeDays: 365, ...src(V.usdcad) }),
     ],
     equity: d['Yahoo EWC/^GSPTSE'],
     charts: [
@@ -90,7 +90,7 @@ export default async function canada() {
         data: merge({ tgt: target.filter((p) => p.d >= (trim[0]?.d || '')), cpi, trim }),
       },
       { id: 'curve', title: 'Bonos del Gobierno de Canadá: 2Y y 10Y', unit: '%', lines: [{ key: 'y2', label: '2Y' }, { key: 'y10', label: '10Y' }], data: merge({ y2, y10 }) },
-      { id: 'fx', title: 'USD/CAD', unit: '', lines: [{ key: 'v', label: 'USD/CAD' }], data: merge({ v: usdcad }) },
+      { id: 'fx', title: 'USDCAD', unit: '', lines: [{ key: 'v', label: 'USDCAD' }], data: merge({ v: usdcad }) },
       {
         id: 'exp-rate',
         group: 'exp',

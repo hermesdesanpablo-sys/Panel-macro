@@ -209,7 +209,7 @@ export default async function colombia() {
       kpi({ key: 'ibr6', group: 'market', label: 'IBR 6M', series: ibr6, decimals: 3, ...bsrc(BANREP_FLOWS.ibr) }),
       kpi({ key: 'y2', group: 'market', label: 'TES 2Y (prom. mensual)', series: tes2, changeDays: 365, note: 'Interpolado entre TES 1Y y 5Y', source: `Cálculo propio (BanRep ${BANREP_FLOWS.tes})`, url: BANREP_URL }),
       kpi({ key: 'y10', group: 'market', label: 'TES 10Y (prom. mensual)', series: tes.y10, changeDays: 365, ...bsrc(BANREP_FLOWS.tes) }),
-      kpi({ key: 'fx', group: 'fx', label: 'USD/COP (TRM)', series: trm, unit: '', decimals: 2, changeDays: 365, ...trmSrc }),
+      kpi({ key: 'fx', group: 'fx', label: 'USDCOP (TRM)', series: trm, unit: '', decimals: 2, changeDays: 365, ...trmSrc }),
     ],
     equity: d['Yahoo COLO/COLCAP'],
     charts: [
@@ -223,7 +223,7 @@ export default async function colombia() {
         ],
         data: merge({ pol: thin(policy.filter((p) => p.d >= (cpi[0]?.d || ''))), cpi }),
       },
-      { id: 'fx', title: 'USD/COP – TRM', unit: '', lines: [{ key: 'v', label: 'TRM' }], data: merge({ v: trm }) },
+      { id: 'fx', title: 'USDCOP – TRM', unit: '', lines: [{ key: 'v', label: 'TRM' }], data: merge({ v: trm }) },
       {
         id: 'exp-rate',
         group: 'exp',
