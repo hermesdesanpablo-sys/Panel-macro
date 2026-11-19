@@ -5,6 +5,7 @@ import { Flag } from './components/Flag.jsx';
 
 const TABS = [
   { id: 'world', label: 'Mundo' },
+  { id: 'ar', label: 'Argentina' },
   { id: 'br', label: 'Brasil' },
   { id: 'us', label: 'EE.UU.' },
   { id: 'eu', label: 'Eurozona' },
@@ -18,7 +19,7 @@ const TABS = [
   { id: 'compare', label: 'Comparar' },
   { id: 'agenda', label: 'Agenda' },
 ];
-const COUNTRIES = ['br', 'us', 'eu', 'mx', 'ca', 'co', 'cl', 'jp'];
+const COUNTRIES = ['ar', 'br', 'us', 'eu', 'mx', 'ca', 'co', 'cl', 'jp'];
 const MOCK = new URLSearchParams(location.search).has('mock');
 
 async function load(id) {

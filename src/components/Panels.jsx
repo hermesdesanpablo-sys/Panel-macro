@@ -265,7 +265,7 @@ function TrendsTable({ countries }) {
         </table>
       </div>
       <div className="card-foot">
-        <span>Expectativa de tasa: Focus (BR), futuros Fed funds (EE.UU.), forward 1Y AAA (EZ), Encuesta Banxico (MX), 2Y − overnight (CA), IBR 6M − política (CO), JGB 2Y − call (JP). Inflación esperada: Focus (BR), breakeven (EE.UU., CA), SPF (EZ), Encuesta Banxico (MX), Tankan (JP). Pasá el mouse sobre una celda para ver la serie usada. * FX: + = la moneda local se apreció vs USD.</span>
+        <span>Expectativa de tasa: TAMAR esperada REM (AR), Focus (BR), futuros Fed funds (EE.UU.), forward 1Y AAA (EZ), Encuesta Banxico (MX), 2Y − overnight (CA), IBR 6M − política (CO), JGB 2Y − call (JP). Inflación esperada: REM (AR), Focus (BR), breakeven (EE.UU., CA), SPF (EZ), Encuesta Banxico (MX), Tankan (JP). Pasá el mouse sobre una celda para ver la serie usada. * FX: + = la moneda local se apreció vs USD.</span>
       </div>
     </section>
   );
@@ -924,13 +924,23 @@ const Signed = ({ v, d = 1, unit = '%', invert = false }) => {
 };
 const HIGH_INFL = ['ar']; // la fórmula en moneda local no captura el efecto cambiario sobre deuda en USD
 
+const offDate = (x) => (x ? fmtDate(x.d) : '');
 /** Lectura en texto de la ficha de un país (solo con los números que hay; nada inventado). */
 function reading(c) {
   const s = c.summary;
+  const o = c.official;
   const out = [];
+  if (o && (o.pb || o.fb || o.debt)) {
+    const parts = [];
+    if (o.pb) parts.push(`resultado primario ${pct(o.pb.v)} del PBI`);
+    if (o.fb) parts.push(`resultado total ${pct(o.fb.v)}`);
+    const per = (o.pb || o.fb) ? ` (${(o.pb || o.fb).label}, al ${offDate(o.pb || o.fb)})` : '';
+    out.push(`Dato oficial más reciente: ${parts.join(' y ')}${per}.` + (o.debt ? ` Deuda: ${lvl(o.debt.v, 1)} del PBI (${o.debt.label}, al ${offDate(o.debt)}).` : '') +
+      ' Lo que sigue usa el FMI (gobierno general, anual) para que los países sean comparables.');
+  }
   if (s.ca != null && s.fb != null) {
     out.push(`En ${s.year}, ${c.name} tuvo ${s.ca < 0 ? 'un déficit' : 'un superávit'} de cuenta corriente de ${fmtNum(Math.abs(s.ca), 1)}% del PBI: ` +
-      `el sector público ${s.fb < 0 ? 'desahorró' : 'ahorró'} ${fmtNum(Math.abs(s.fb), 1)}% (resultado fiscal) y el sector privado ${s.priv >= 0 ? 'ahorró' : 'desahorró'} en neto ${fmtNum(Math.abs(s.priv), 1)}%.` +
+      `el sector público ${s.fb < 0 ? 'desahorró' : 'ahorró'} ${fmtNum(Math.abs(s.fb), 1)}% (resultado del gobierno general según el FMI, con intereses devengados) y el sector privado ${s.priv >= 0 ? 'ahorró' : 'desahorró'} en neto ${fmtNum(Math.abs(s.priv), 1)}%.` +
       (s.ca < 0 ? ' Esa brecha externa se financia con ahorro del resto del mundo (deuda, inversión extranjera o caída de reservas).' : ' El país es acreedor neto del resto del mundo en ese año.'));
   }
   if (s.trade != null && s.tradeYear === s.year && s.ca != null) {
@@ -981,6 +991,7 @@ export function SustPanel({ data }) {
                 <th>País</th><th>Cuenta corriente</th><th>Resultado fiscal</th><th>Primario</th><th>Brecha privada (S−I)</th>
                 <th>Deuda/PBI {Y - 2}</th><th>{Y - 1}</th><th>{Y}</th><th>Δ 2 años</th><th>Deuda/PBI {E}</th><th>Inflación {Y} (dic/dic)</th><th>Tasa implícita</th><th>Crec. PBI nominal</th><th>Primario que estabiliza</th><th>Holgura</th>
                 <th>Balanza comercial</th><th>Reservas (meses imp.)</th>
+                <th className="off-col">Oficial: deuda</th><th className="off-col">Oficial: primario</th><th className="off-col">Oficial: total</th>
               </tr>
             </thead>
             <tbody>
@@ -1005,6 +1016,15 @@ export function SustPanel({ data }) {
                     <td className="num"><Signed v={s.pbGap} />{HIGH_INFL.includes(x.id) && s.pbGap != null && <span className="sub">ver nota</span>}</td>
                     <td className="num"><Signed v={s.trade} />{s.tradeYear && s.tradeYear !== Y && <span className="sub">{s.tradeYear}</span>}</td>
                     <td className="num">{s.resMonths == null ? '—' : fmtNum(s.resMonths, 1)}</td>
+                    {['debt', 'pb', 'fb'].map((k) => {
+                      const o = x.official?.[k];
+                      return (
+                        <td key={k} className="num off-col" title={o?.label}>
+                          {o ? (k === 'debt' ? <b>{lvl(o.v, 1)}</b> : <Signed v={o.v} d={2} />) : <span className="muted">—</span>}
+                          {o && <span className="sub">{fmtDate(o.d)} · {o.freq}</span>}
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}
@@ -1016,6 +1036,9 @@ export function SustPanel({ data }) {
             Deuda: gobierno general según el FMI (incluye provincias y estados); puede diferir de la deuda de la Administración Central que publican
             los ministerios (perímetro y PBI usado). Inflación: FMI, diciembre contra diciembre (debajo, la proyección del año siguiente).
             Crec. PBI nominal = crecimiento real + deflactor del PBI, promedio del año (no es la inflación).
+            Columnas "Oficial": último dato de cada país con su perímetro y frecuencia (pasá el mouse para ver la fuente): Argentina, Sector Público Nacional
+            base caja mensual (acumulado 12 meses; PBI interpolado del FMI); Brasil, DBGG y NFSP del BCB (mensual); Chile, Gobierno Central del BCCh
+            (trimestral, 4 trimestres); EE.UU., gobierno federal (FRED); Eurozona, gobierno general (Eurostat, 4 trimestres). El resto, solo FMI.
             Tasa implícita = intereses netos / deuda del año anterior. Primario que estabiliza = d·(i − g)/(1 + g); holgura = primario efectivo − el que estabiliza
             (verde: la deuda tiende a bajar sin esfuerzo adicional). Argentina: con inflación alta y deuda mayormente en dólares, la fórmula en pesos no incluye el efecto
             cambiario y sobrestima la holgura. Canadá: intereses netos negativos (activos de los fondos públicos). Eurozona: el FMI no publica PBI nominal del agregado.
@@ -1050,6 +1073,18 @@ export function SustPanel({ data }) {
         <Card id="pbstar" title="Primario efectivo vs el que estabiliza la deuda (% del PBI)" note={HIGH_INFL.includes(c.id) ? 'Con inflación alta, el primario que estabiliza en moneda local es engañoso (ver nota del tablero).' : 'Si el efectivo está por encima, la deuda/PBI tiende a bajar.'}>
           <YearChart data={rows} projFrom={P} lines={[{ key: 'pb', label: 'Primario efectivo' }, { key: 'pbStar', label: 'Primario que estabiliza' }]} />
         </Card>
+        {c.official?.series && (c.official.series.pb?.length || c.official.series.fb?.length) ? (
+          <Card id="off-fiscal" title={`Resultado fiscal oficial (% del PBI, ${c.official.pb?.freq || c.official.fb?.freq})`} note={(c.official.pb || c.official.fb).label}
+            source="Fuente oficial" url={c.official.url}>
+            <TimeChart chart={{ title: 'Resultado fiscal oficial', unit: '%', lines: [c.official.series.pb?.length && { key: 'pb', label: 'Primario' }, c.official.series.fb?.length && { key: 'fb', label: 'Total' }].filter(Boolean),
+              data: (() => { const m = new Map(); for (const [k, ser] of Object.entries({ pb: c.official.series.pb || [], fb: c.official.series.fb || [] })) for (const p of ser) m.set(p.d, { ...(m.get(p.d) || { d: p.d }), [k]: p.v }); return [...m.values()].sort((a, b) => (a.d < b.d ? -1 : 1)); })() }} />
+          </Card>
+        ) : null}
+        {c.official?.series?.debt?.length ? (
+          <Card id="off-debt" title={`Deuda oficial (% del PBI, ${c.official.debt.freq})`} note={c.official.debt.label} source="Fuente oficial" url={c.official.url}>
+            <TimeChart chart={{ title: 'Deuda oficial', unit: '%', lines: [{ key: 'v', label: 'Deuda / PBI' }], data: c.official.series.debt.map((p) => ({ d: p.d, v: p.v })) }} />
+          </Card>
+        ) : null}
         <Card id="trade" title="Balanza comercial vs cuenta corriente (% del PBI)" note="La diferencia son rentas (intereses, utilidades) y transferencias. Balanza comercial: Banco Mundial, sin proyecciones.">
           <YearChart data={rows} projFrom={P} lines={[{ key: 'trade', label: 'Balanza comercial (bienes y servicios)' }, { key: 'ca', label: 'Cuenta corriente' }]} />
         </Card>

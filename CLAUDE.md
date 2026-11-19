@@ -4,7 +4,7 @@ Contexto para Claude Code. Leer entero antes de tocar código.
 
 ## Qué es
 
-Dashboard macro con un panel por país (Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Chile, Japón), una vista
+Dashboard macro con un panel por país (Argentina, Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Chile, Japón), una vista
 **Mundo** (cuadros tipo terminal + panel lateral "Hoy", tendencias y comparativo entre países), una solapa
 **Comparar** (dos países lado a lado), una solapa **Crédito USD** (spread EMBI de América Latina y curvas de los
 bonos soberanos en dólares), una solapa **Sostenibilidad** (tres brechas, deuda/PBI y primario que estabiliza la deuda)
@@ -21,7 +21,7 @@ Objetivo de cada panel:
 ## Arquitectura
 
 ```
-api/country.js              GET /api/country?c=br|us|eu|mx|ca|co|cl|jp|world|usd|sust  (función serverless Vercel, cache edge 30 min)
+api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|jp|world|usd|sust  (función serverless Vercel, cache edge 30 min)
 api/_lib/util.js            HTTP, fechas, series, kpi(), trend(), spreadSeries(), settle()
 api/_lib/yahoo.js           Yahoo Finance: precios, perf, futuros Fed funds (ZQ)
 api/_lib/calendar.js        Fechas de reuniones de bancos centrales (estático, revisar 1 vez/año)
@@ -145,6 +145,7 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 | 🇨🇦 | ✔ V39079 | ✔ V41690973; ✔ CPI-trim/median | proxy 2Y − overnight; ✔ breakeven LP (LONG − RRB) | ✔ GoC 2Y/10Y | ✔ | ✔ EWC/^GSPTSE | ✅ BoC |
 | 🇨🇴 | ✔ DF_CBR_DAILY_HIST | ✔ IPC derivado de la UVR (DF_UVR_DAILY_HIST); fallback FRED OCDE | proxy IBR 6M − política; ❌ Encuesta BanRep (captcha) | ✔ IBR ON/6M (efectiva); ✔ TES 2Y (interp. 1Y–5Y) y 10Y, mensual | ✔ datos.gov.co 32sa-8pi3; fallback BanRep | ✔ COLO / ICOLCAP.CL | ✔ dic-2026; ❌ 2027 (no publicado) |
 
+| 🇦🇷 | ✔ TAMAR (BCRA 44; sin tasa de política desde jul-25) y pases 1d (150) | ✔ INDEC vía BCRA (27 m/m, 28 a/a) | ✔ REM: 12m (BCRA 29, con historia) + planilla completa (inflación, TAMAR, TC, PIB, fiscal) | ✔ BADLAR; EMBI (BCRD); ❌ curva en pesos | ✔ A3500 + bandas | ✔ ARGT | ✔ IPC INDEC 15-dic-2026 |
 | 🇨🇱 | ✔ BDE F022.TPM | ✔ BDE IPC var. 12m | ✔ EEE (inflación 11/23m, TPM por plazo, PIB) y EOF (TPM e inflación 12m); ✔ BCP−BCU 10Y | ✔ BCP 2Y/10Y, BCU 10Y | ✔ dólar observado | ✔ ECH; IPSA mensual (BDE) | ✔ dic-2026; ❌ 2027 (publicado, no accesible) |
 | 🇯🇵 | ✔ BoJ call O/N (STRDCLUCON) | ✔ BIS WS_LONG_CPI M.JP.771 | ✔ Tankan infl. 1a; proxy JGB 2Y − call | ✔ MOF JGB 2Y/10Y/30Y | ✔ Yahoo JPY=X | ✔ EWJ/^N225 | ✔ BoJ 2026–2027 |
 
@@ -159,12 +160,26 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
   historia desde 2007, columnas Global, LATINO, REP DOM y 16 países). Valores en puntos porcentuales → pb. Sin API: se baja
   la planilla en cada request (cache 30 min). Si cambia el encabezado, `parseEmbi` falla con un error claro.
 
+### Notas de Argentina
+- BCRA API v4 (sin clave): `https://api.bcra.gob.ar/estadisticas/v4.0/monetarias/<id>?desde=&hasta=` (la v3 devuelve 410).
+  Ids en `BCRA` (ar.js). La 160 "tasa de política" está discontinuada desde jul-2025.
+- REM: el link a `relevamiento-expectativas-mercado-tablas-AAAA-MM.xlsx` se toma de https://www.bcra.gob.ar/relevamiento-expectativas-mercado-rem/
+  (secciones por título en la columna B; períodos mensuales como serial de Excel). También hay un `...-historico.xlsx` de URL fija.
+- Fiscal: datos.gob.ar series 379.9_SUPERAVIT_017__23_94 (primario) y 379.9_RESULTADO_017__18_38 (financiero), SPN base caja,
+  millones de pesos; acumulado 12 meses / PBI nominal del FMI interpolado. Verificado: 2025 = 1,38% y 0,17% del PBI.
+- No hay API de la deuda oficial (Finanzas publica PDF/Excel trimestral): en Sostenibilidad queda la del FMI (gobierno general).
+
 ### Notas de Sostenibilidad (FMI WEO + Banco Mundial)
 - FMI: `https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.RES/WEO/+/<PAISES>.<INDICADORES>.A` (SDMX-JSON 3.0, sin clave).
   La API "DataMapper" de imf.org responde 403 a consultas automáticas: usar esta. Eurozona = `G163`.
   Indicadores: BCA_NGDPD, GGXCNL_NGDP, GGXONLB_NGDP, GGXWDG_NGDP, NGSD_NGDP, NID_NGDP, NGDP, NGDP_RPCH. Desde el año en curso = proyección.
 - Banco Mundial: `api.worldbank.org/v2/country/<ISO3;...>/indicator/<código>?format=json` — NE.RSB.GNFS.ZS (balanza bys),
   DT.DOD.DECT.GN.ZS (deuda externa, solo emergentes), FI.RES.TOTL.MO (reservas en meses), DT.TDS.DECT.EX.ZS (servicio de deuda externa).
+- Datos oficiales (columnas "Oficial"): AR Hacienda mensual; BR SGS 13762 (DBGG), 5793/5727 (NFSP 12m, positivo = déficit → se invierte);
+  CL BCCh F051.D7.PPB.C.Z.Z.T (deuda GC) y F051.G21.PPI.C.Z.Z.T (balance trimestral en % del PBI ANUAL → se suman 4 trimestres);
+  EA Eurostat gov_10q_ggdebt / gov_10q_ggnfa (B9 en % del PBI del trimestre → se promedian 4); EE.UU. FRED GFDEGDQ188S y FYFSGDA188S.
+- Diferencias esperables FMI vs oficial: perímetro (gobierno general vs nacional/central), base caja vs devengado (intereses
+  capitalizables), y definición de deuda (el FMI incluye en Brasil todos los títulos del Tesoro en cartera del BCB: 93% vs DBGG 83%).
 - Tres brechas: CC = resultado fiscal + (S − I) privado. Intereses netos = primario − total. i = intereses·(1+g)/d₋₁;
   primario que estabiliza = d₋₁·(i − g)/(1 + g). Con inflación alta y deuda en USD (Argentina) la fórmula en moneda local
   no captura el efecto cambiario (se avisa en la UI). El test offline verifica que la identidad cierre todos los años.

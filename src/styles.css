@@ -262,6 +262,9 @@ a.src:hover { color: var(--accent); }
 .reading p:first-of-type { color: var(--text-primary); }
 .mini-kpis { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); margin: 14px 0 0; }
 
+.tbl th.off-col, .tbl td.off-col { background: rgba(57,135,229,.05); }
+.tbl th.off-col { color: var(--text-secondary); }
+
 @media (max-width: 1180px) {
   .world-layout { grid-template-columns: 1fr; }
   .watch { position: static; max-height: none; }

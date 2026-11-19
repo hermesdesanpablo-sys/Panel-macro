@@ -99,7 +99,7 @@ const VALET = {
   'BD.CDN.LONG.DQ.YLD': () => walk(3.9, 400, 0.006),
   'BD.CDN.RRB.DQ.YLD': () => walk(1.8, 400, 0.008),
 };
-const YLEVEL = { EWZ: 30, '^BVSP': 150000, EUSA: 110, '^GSPC': 6700, EZU: 58, '^STOXX50E': 5600, EWW: 64, '^MXX': 62000, EWC: 48, '^GSPTSE': 30000, ACWI: 140, URTH: 180, EEM: 52, ILF: 30, '^N225': 48000, '^VIX': 17, '^TNX': 4.2, '^IRX': 3.6, 'DX-Y.NYB': 99, 'EURUSD=X': 1.15, 'BRL=X': 5.4, 'MXN=X': 18.4, 'CAD=X': 1.39, 'BZ=F': 64, 'GC=F': 4000, 'HG=F': 5, 'ZS=F': 1100, COLO: 27, 'ICOLCAP.CL': 15000, 'COP=X': 3900, EWJ: 80, 'JPY=X': 150, ECH: 30 };
+const YLEVEL = { EWZ: 30, '^BVSP': 150000, EUSA: 110, '^GSPC': 6700, EZU: 58, '^STOXX50E': 5600, EWW: 64, '^MXX': 62000, EWC: 48, '^GSPTSE': 30000, ACWI: 140, URTH: 180, EEM: 52, ILF: 30, '^N225': 48000, '^VIX': 17, '^TNX': 4.2, '^IRX': 3.6, 'DX-Y.NYB': 99, 'EURUSD=X': 1.15, 'BRL=X': 5.4, 'MXN=X': 18.4, 'CAD=X': 1.39, 'BZ=F': 64, 'GC=F': 4000, 'HG=F': 5, 'ZS=F': 1100, COLO: 27, 'ICOLCAP.CL': 15000, 'COP=X': 3900, EWJ: 80, 'JPY=X': 150, ECH: 30, ARGT: 70 };
 
 /** XLSX mínimo (ZIP sin compresión) con una hoja y textos compartidos, para imitar planillas reales. */
 function mockXlsx(rows) {
@@ -231,6 +231,39 @@ export async function mockFetch(input) {
     }
     else if (u.includes('DF_TRM')) body = ser('TRM', walk(3900, 400, 0.005));
     return text(`<message:GenericData><message:DataSet>${body}</message:DataSet></message:GenericData>`);
+  }
+  if (url.host === 'api.bcra.gob.ar') {
+    // API de estadísticas v4 del BCRA: results[0].detalle = [{fecha, valor}] (de la más nueva a la más vieja).
+    const id = Number(u.match(/monetarias\/(\d+)/)[1]);
+    const lv = { 1: 45000, 5: 1500, 7: 23, 44: 24, 150: 20, 27: 2, 28: 33, 29: 22, 1187: 700, 1188: 1950 }[id] ?? 10;
+    const monthly = [27, 28, 29].includes(id);
+    const s = monthly ? walk(lv, 30, 0.02, 'M') : walk(lv, 500, 0.003);
+    return json({ status: 200, results: [{ idVariable: id, detalle: s.reverse().map((p) => ({ fecha: p.d, valor: p.v })) }] });
+  }
+  if (url.host === 'www.bcra.gob.ar') {
+    if (u.endsWith('.xlsx')) {
+      // Planilla del REM: título de sección en la col. B, filas con período (serial Excel o texto), referencia y mediana.
+      const ser = (d) => String(Math.round((Date.parse(d) - Date.UTC(1899, 11, 30)) / DAY));
+      const y = new Date().getUTCFullYear();
+      const months = walk(1, 6, 0, 'M').map((p) => ser(p.d));
+      const sec = (t, ref, lvl) => [['', t], ['', 'Período', 'Referencia', 'Mediana'], ...months.map((m) => ['', m, ref, String(lvl)]), ['', 'próx. 12 meses', ref, String(lvl * 1.1)], ['', 'próx. 24 meses', ref, String(lvl * 0.9)], ['', String(y), ref, String(lvl)], ['', String(y + 1), ref, String(lvl * 0.8)]];
+      const rows = [['', 'Relevamiento de Expectativas'], ...sec('Precios minoristas (IPC nivel general; INDEC)', 'var. %', 1.8), ...sec('Precios minoristas (IPC núcleo; INDEC)', 'var. %', 1.7),
+        ...sec('Tasa de interés (TAMAR)', 'TNA; %', 24), ...sec('Tipo de cambio nominal', '$/USD', 1600), ...sec('PIB a precios constantes', 'var. %', 2), ['', 'Fuente: REM - BCRA (oct-26)']];
+      return new Response(mockXlsx(rows), { status: 200 });
+    }
+    return text('<a href="/archivos/Pdfs/PublicacionesEstadisticas/informes/relevamiento-expectativas-mercado-tablas-2026-10.xlsx">Tablas</a>');
+  }
+  if (url.host === 'apis.datos.gob.ar') {
+    // API de series de tiempo de Argentina: data = [[fecha, v1, v2, ...]] mensual.
+    const ids = url.searchParams.get('ids').split(',');
+    const rows = walk(1, 48, 0, 'M').map((p, i) => [p.d, ...ids.map((id, k) => (k === 0 ? 1.2e6 : 0.2e6) * 1.03 ** i * (1 + Math.sin(i / 3 + k) * 0.5))]);
+    return json({ data: rows, meta: [] });
+  }
+  if (url.host === 'ec.europa.eu') {
+    // Eurostat JSON-stat: dimension.time.category.index + value por posición.
+    const qs = ['2023-Q1', '2023-Q2', '2023-Q3', '2023-Q4', '2024-Q1', '2024-Q2', '2024-Q3', '2024-Q4', '2025-Q1', '2025-Q2'];
+    const isDebt = u.includes('ggdebt');
+    return json({ dimension: { time: { category: { index: Object.fromEntries(qs.map((q, i) => [q, i])) } } }, value: Object.fromEntries(qs.map((q, i) => [String(i), isDebt ? 88 + i * 0.1 : -3 + Math.sin(i) * 0.5])) });
   }
   if (url.host === 'api.imf.org') {
     // SDMX-JSON 3.0 del WEO: dimensiones COUNTRY/INDICATOR/FREQUENCY y observaciones por índice de año.

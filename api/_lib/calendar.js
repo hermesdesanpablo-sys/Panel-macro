@@ -55,6 +55,14 @@ export const POLICY_MEETINGS = {
     // dic-2026 verificado en banrep.gov.co (18-nov-2026). 2027: BanRep todavía no lo publicó.
     dates: ['2026-12-18'],
   },
+  ar: {
+    // El BCRA no tiene reuniones de política con fecha fija: la agenda de Argentina son publicaciones de datos.
+    label: 'INDEC',
+    src: 'https://www.indec.gob.ar/indec/web/Calendario-Fecha-0',
+    dates: [],
+    // IPC de noviembre: 15-dic-2026 (calendario de difusión del INDEC, 2.º semestre 2026). 2027: PENDIENTE.
+    extra: [{ date: '2026-12-15', event: 'INDEC – IPC de noviembre', kind: 'data' }],
+  },
   cl: {
     label: 'BCCh – Reunión de Política Monetaria',
     src: 'https://www.bcentral.cl/web/banco-central/noticias-y-publicaciones/prensa/calendario-de-politica-monetaria-y-financiera',
