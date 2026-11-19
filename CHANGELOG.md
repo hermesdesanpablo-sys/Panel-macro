@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1 — 2026-11-19 (Sostenibilidad: rechequeo de datos)
+- Inflación del FMI (dic/dic y proyección del año siguiente) en el tablero, separada del **crecimiento del PBI nominal**
+  (real + deflactor, promedio del año). En el mensaje anterior se rotuló mal como "inflación" el 45,5% de Argentina 2025:
+  es crecimiento nominal; la inflación del FMI es 31,5% dic/dic 2025 y 29,5% proyectada 2026.
+- Deuda/PBI de los últimos dos años (2023, 2024, 2025) y variación en 2 años; lectura por país con esa evolución.
+- Primario que estabiliza la deuda también como promedio de las proyecciones 2026–2031.
+- Notas: deuda del FMI = gobierno general (no Administración Central; contrastado con Finanzas: AR 78,1% a dic-25 AC vs
+  80,1% GG FMI). Argentina 2023: el ratio salta por la devaluación de diciembre medida contra PBI a precios promedio.
+
 ## 0.7.0 — 2026-11-19 (Sostenibilidad)
 - **Sostenibilidad** (solapa nueva): modelo de las tres brechas para 11 economías (AR, BR, CL, CO, MX, PE, UY, EE.UU., CA,
   Eurozona, JP). Tablero con cuenta corriente, resultado fiscal y primario, brecha privada (S−I), deuda/PBI actual y a 5 años,
