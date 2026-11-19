@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1 — 2026-11-19
+- Mundo: íconos para cada commodity (en cuadros, panel "Hoy" y desempeño); "Bonos a 10 años **en moneda local**" con nota
+  (es el costo de financiarse en moneda propia, no deuda en USD).
+- Menú más compacto (entra en una línea a 1440 px).
+
 ## 0.5.0 — 2026-11-18 (Mundo tipo terminal + Comparar)
 - **Mundo** reorganizado en cuadros: índices principales (bandera, código, último y variación del día; "ver los 12"),
   MSCI ACWI e índice dólar con número grande y área de 12 meses, cuadros de bonos a 10 años de los 7 países + UST 30Y

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { TimeChart, PathChart, Spark, AreaSpark } from './Charts.jsx';
 import { fmtNum, fmtDate, daysUntil, kpiByKey, fmtChg, ARROW, DIR_WORD, GROUPS, chgDir } from '../format.js';
 import { Flag } from './Flag.jsx';
+import { CmdIcon } from './CmdIcon.jsx';
 
 function Source({ source, url }) {
   if (!source) return null;
@@ -346,6 +347,11 @@ const sign = (v, d) => {
 const pn = (v) => (v == null || !Number.isFinite(v) || Math.abs(v) < 1e-9 ? 'mk-flat' : v > 0 ? 'mk-pos' : 'mk-neg');
 const yahoo = (t) => `https://finance.yahoo.com/quote/${encodeURIComponent(t)}`;
 
+/** Ícono de un activo de Mundo: dibujo para commodities, bandera redonda para el resto. */
+function AssetIcon({ m, size = 18 }) {
+  return m.cc === 'cmd' ? <CmdIcon ticker={m.ticker} size={size + 2} /> : <Flag id={m.cc} round size={size} />;
+}
+
 function Badge({ m }) {
   return <span className="badge-ico"><Flag id={m.cc} round size={34} /></span>;
 }
@@ -413,7 +419,7 @@ function BondTiles({ countries, markets }) {
   const us30 = markets.find((m) => m.ticker === '^TYX');
   return (
     <section className="card tv-card" id="bonds">
-      <h3>Bonos soberanos a 10 años</h3>
+      <h3>Bonos a 10 años en moneda local</h3>
       <div className="bond-tiles">
         {tiles.map((t) => (
           <div key={t.id} className={`bond-tile ${t.chg > 0.5 ? 'bt-pos' : t.chg < -0.5 ? 'bt-neg' : 'bt-flat'}`} title={t.label}>
@@ -430,7 +436,7 @@ function BondTiles({ countries, markets }) {
           </div>
         )}
       </div>
-      <div className="card-foot"><span>Verde: la tasa subió · rojo: bajó. Eurozona: curva AAA; Brasil: NTN-F interpolada; México: última subasta; Colombia: promedio mensual.</span></div>
+      <div className="card-foot"><span>Costo de financiamiento en moneda propia de cada país (no es deuda en dólares). Verde: la tasa subió · rojo: bajó. Eurozona: curva AAA; Brasil: NTN-F interpolada; México: última subasta; Colombia: promedio mensual.</span></div>
     </section>
   );
 }
@@ -443,7 +449,7 @@ function MiniTiles({ title, items }) {
       <div className="mini-tiles">
         {items.filter((m) => m.perf).map((m) => (
           <a key={m.ticker} className="mini-tile" href={yahoo(m.ticker)} target="_blank" rel="noreferrer">
-            <span className="mt-name">{m.label}</span>
+            <span className="mt-name">{m.cc === 'cmd' && <CmdIcon ticker={m.ticker} size={20} />}{m.label}</span>
             <span className="mt-last">{fmtNum(m.perf.last, decFor(m))}</span>
             <span className={`mt-chg ${pn(m.perf.d1)}`}>{m.perf.chgUnit === 'pb' ? `${sign(m.perf.d1, 0)} pb` : `${sign(m.perf.d1, 2)}%`}</span>
           </a>
@@ -469,7 +475,7 @@ function Watchlist({ markets }) {
               const isRate = p?.chgUnit === 'pb';
               return (
                 <tr key={m.ticker} title={m.label} onClick={() => window.open(yahoo(m.ticker), '_blank', 'noopener')}>
-                  <td><span className="w-sym"><Flag id={m.cc} round size={16} />{m.code}</span></td>
+                  <td><span className="w-sym"><AssetIcon m={m} size={16} />{m.code}</span></td>
                   <td className="num">{p ? fmtNum(p.last, decFor(m)) : '—'}</td>
                   <td className={`num ${pn(p?.d1abs)}`}>{p ? sign(p.d1abs, isRate ? 3 : decFor(m)) : '—'}</td>
                   <td className={`num ${pn(p?.d1)}`}>{p ? (isRate ? `${sign(p.d1, 0)} pb` : `${sign(p.d1, 2)}%`) : '—'}</td>
@@ -523,7 +529,7 @@ export function WorldPanel({ world, countries }) {
                   <tbody>
                     {markets.filter((m) => m.group === g).map((m) => (
                       <tr key={m.ticker}>
-                        <td className="name"><a href={yahoo(m.ticker)} target="_blank" rel="noreferrer" className="cell-flag"><Flag id={m.cc} round size={18} />{m.label}</a></td>
+                        <td className="name"><a href={yahoo(m.ticker)} target="_blank" rel="noreferrer" className="cell-flag"><AssetIcon m={m} size={18} />{m.label}</a></td>
                         <td className="num"><b>{m.perf ? `${fmtNum(m.perf.last, decFor(m))}${m.unit === '%' ? '%' : ''}` : '—'}</b></td>
                         {['ytd', 'y1'].map((f) => <td key={f} className="num"><PctChg v={m.perf?.[f]} unit={m.perf?.chgUnit} /></td>)}
                         <td className="spark-col"><Spark data={m.spark} height={30} /></td>
