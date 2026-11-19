@@ -90,6 +90,7 @@ formato) y `smoke` para ese país.
 | 2 | Proyecto Vercel (cuenta existente) | Hosting + funciones | `vercel link` o importar repo | — | ☐ |
 | 3 | FRED API key | EE.UU. completo; IPC Colombia fallback | https://fredaccount.stlouisfed.org/apikeys | `FRED_API_KEY` | ☐ |
 | 4 | Banxico SIE token | México completo | https://www.banxico.org.mx/SieAPIRest/service/v1/token | `BANXICO_TOKEN` | ☐ |
+| 4b | BCCh API Key Token (**vence ~19-nov-2027**) | Chile por la API oficial (sin token: cuadros públicos) | https://si3.bcentral.cl/Siete/es/Siete/API → Mi Cuenta → Apikey Token | `BCCH_API_TOKEN` | ☐ |
 | 5 | (opcional) Token de app datos.gov.co | Evita rate limit de la TRM | https://www.datos.gov.co/profile/edit/developer_settings | `SOCRATA_APP_TOKEN` (no implementado aún) | ☐ |
 | 6 | (opcional) LSEG / Trading Economics | DI futuro, OIS, swaps, TES, encuestas | Conectores ya usados por Hermes | a definir | ☐ |
 
@@ -157,7 +158,10 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
   la planilla en cada request (cache 30 min). Si cambia el encabezado, `parseEmbi` falla con un error claro.
 
 ### Notas de Chile (BCCh BDE)
-- La API oficial (SieteRestWS) pide usuario/clave. Se usan las páginas públicas de cuadros:
+- Fuente principal: API oficial `SieteRestWS.ashx?token=<BCCH_API_TOKEN>&function=GetSeries&timeseries=<código>&firstdate=aaaa-mm-dd`
+  (el token lleva `$` y `/`: va codificado en la URL; la respuesta viene en latin-1). El token **vence al año**: con token
+  vencido el panel muestra el aviso "token inválido o vencido" y sigue con los cuadros públicos.
+- Respaldo sin credenciales: las páginas públicas de cuadros:
   `https://si3.bcentral.cl/Siete/ES/Siete/Cuadro/<CAP>/<MENU>/<CUADRO>` (filas con `data-serie`, fechas en los `<th>`).
   Diarios: año en curso; `?cbFechaDiaria=AAAA` trae otro año. Mensuales: varios años por defecto. Cuadros en `CUADROS` (cl.js).
 - EEE (mensual, economistas) y EOF (quincenal, operadores financieros). En la tabla se usa el valor de la fecha exacta de la
