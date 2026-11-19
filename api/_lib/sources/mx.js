@@ -27,8 +27,8 @@ export const SIE_EXPECTATIONS = [
   ['SR14146', 'Inflación general, cierre año t+1', 2],
   ['SR14167', 'Inflación subyacente, cierre año t', 2],
   ['SR14687', 'Tasa de fondeo, dentro de 4 trimestres', 2],
-  ['SR14770', 'USD/MXN, cierre año t', 2],
-  ['SR14777', 'USD/MXN, cierre año t+1', 2],
+  ['SR14770', 'USDMXN, cierre año t', 2],
+  ['SR14777', 'USDMXN, cierre año t+1', 2],
   ['SR14448', 'PIB real, año t', 2],
   ['SR14455', 'PIB real, año t+1', 2],
 ];
@@ -63,7 +63,7 @@ export default async function mexico() {
       'Banxico SIE inflación': () => sie([SIE.inflacion], daysAgo(1100)),
       // Un solo request para toda la encuesta (el SIE limita la cantidad de consultas).
       'Banxico encuesta': () => sie([SIE_SURVEY.infl12m, ...SIE_SURVEY.path, ...SIE_EXPECTATIONS.map((e) => e[0])].filter((x, i, a) => a.indexOf(x) === i), daysAgo(800)),
-      'Yahoo USD/MXN': () => yahooSeries('MXN=X'),
+      'Yahoo USDMXN': () => yahooSeries('MXN=X'),
       'Yahoo EWW/^MXX': () => equityBlock('EWW', 'iShares MSCI Mexico (EWW, USD)', '^MXX', 'S&P/BMV IPC'),
     },
     errors
@@ -75,7 +75,7 @@ export default async function mexico() {
   const infl = (d['Banxico SIE inflación'] || {})[SIE.inflacion] || [];
   const cetes = s[SIE.cetes28] || [];
   const src = (id) => ({ source: `Banxico SIE ${id}`, url: sieUrl(id) });
-  const fxSeries = fix.length ? fix : d['Yahoo USD/MXN'] || [];
+  const fxSeries = fix.length ? fix : d['Yahoo USDMXN'] || [];
   const sv = d['Banxico encuesta'] || {};
   const surveyUrl = 'https://www.banxico.org.mx/publicaciones-y-prensa/encuestas-sobre-las-expectativas-de-los-especialis/encuestas-expectativas-del-se.html';
   const svSrc = { source: 'Banxico SIE – Encuesta a especialistas (mediana)', url: surveyUrl };
@@ -122,7 +122,7 @@ export default async function mexico() {
       kpi({
         key: 'fx',
         group: 'fx',
-        label: fix.length ? 'USD/MXN (FIX)' : 'USD/MXN (Yahoo)',
+        label: fix.length ? 'USDMXN (FIX)' : 'USDMXN (Yahoo)',
         series: fxSeries,
         unit: '',
         decimals: 4,
@@ -164,7 +164,7 @@ export default async function mexico() {
         lines: [{ key: 'infl', label: 'INPC a/a' }, { key: 'exp', label: 'Esperada 12m' }],
         data: merge({ infl: infl.filter((p) => p.d >= iso(daysAgo(800))), exp: sv[SIE_SURVEY.infl12m] || [] }),
       },
-      { id: 'fx', title: 'USD/MXN', unit: '', lines: [{ key: 'v', label: 'USD/MXN' }], data: merge({ v: thin(fxSeries.filter((p) => p.d >= iso(daysAgo(380)))) }) },
+      { id: 'fx', title: 'USDMXN', unit: '', lines: [{ key: 'v', label: 'USDMXN' }], data: merge({ v: thin(fxSeries.filter((p) => p.d >= iso(daysAgo(380)))) }) },
     ],
     expectations: expectations ? [expectations] : [],
     path,

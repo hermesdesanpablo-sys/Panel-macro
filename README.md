@@ -33,7 +33,7 @@ scripts/test-parsers.mjs  → test offline con formatos simulados (+ genera dato
 |---|---|---|---|
 | 🇧🇷 | Selic meta | BCB SGS | 432 |
 | 🇧🇷 | IPCA 12m / mensual | BCB SGS | 13522 / 433 |
-| 🇧🇷 | USD/BRL PTAX venta | BCB SGS | 1 |
+| 🇧🇷 | USDBRL PTAX venta | BCB SGS | 1 |
 | 🇧🇷 | Reservas (US$ mn) | BCB SGS | 13621 |
 | 🇧🇷 | Desocupación PNADC | BCB SGS | 24369 |
 | 🇧🇷 | Focus anual (IPCA, Selic, cambio, PIB) | BCB Olinda | ExpectativasMercadoAnuais |
@@ -47,7 +47,7 @@ scripts/test-parsers.mjs  → test offline con formatos simulados (+ genera dato
 | 🇪🇺 | DFR, €STR | BCE | FM.D.U2.EUR.4F.KR.DFR.LEV, EST.B.EU000A2X2A25.WT |
 | 🇪🇺 | HICP y core a/a | BCE | HICP.M.U2.N.000000.4D0.ANR, HICP.M.U2.N.XEF000.4D0.ANR |
 | 🇪🇺 | Curva AAA 2Y/10Y y forwards | BCE | YC.B.U2.EUR.4F.G_N_A.SV_C_YM.{SR_2Y,SR_10Y,IF_*} |
-| 🇪🇺 | EUR/USD referencia | BCE | EXR.D.USD.EUR.SP00.A |
+| 🇪🇺 | EURUSD referencia | BCE | EXR.D.USD.EUR.SP00.A |
 | 🇪🇺 | Desempleo, SPF largo plazo | BCE | LFSI.M.I9.S.UNEHRT.TOTAL0.15_74.T, SPF.Q.U2.HICP.POINT.LT.Q.AVG |
 | 🇲🇽 | Tasa objetivo, FIX, Cetes 28, TIIE 28 | Banxico SIE | SF61745, SF43718, SF43936, SF43783 |
 | 🇲🇽 | Inflación INPC a/a | Banxico SIE | SP30578 |
@@ -58,7 +58,7 @@ scripts/test-parsers.mjs  → test offline con formatos simulados (+ genera dato
 | 🇯🇵 | Call O/N, Tankan inflación esperada | BoJ API | FM01 STRDCLUCON, CO TK99F0000204HCQ00000 |
 | 🇯🇵 | IPC a/a | BIS | WS_LONG_CPI M.JP.771 |
 | 🇯🇵 | JGB 2Y/10Y/30Y | MOF | jgbcme_all.csv + jgbcme.csv |
-| 🇨🇦 | Overnight target, CORRA, USD/CAD | BoC Valet | V39079, AVG.INTWO, FXUSDCAD |
+| 🇨🇦 | Overnight target, CORRA, USDCAD | BoC Valet | V39079, AVG.INTWO, FXUSDCAD |
 | 🇨🇦 | GoC 2Y/10Y | BoC Valet | BD.CDN.2YR.DQ.YLD, BD.CDN.10YR.DQ.YLD |
 | 🇨🇦 | CPI (a/a calculado), CPI-trim, CPI-median | BoC Valet | V41690973, CPI_TRIM, CPI_MEDIAN |
 | 🇨🇴 | Tasa de política | BanRep SDMX | DF_CBR_DAILY_HIST |

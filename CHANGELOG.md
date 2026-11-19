@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.2 — 2026-11-19 (convención de monedas)
+- Rótulos de tipo de cambio en formato de ticker sin barra (USDMXN, USDBRL, EURUSD, USDJPY…), coherente con los valores
+  (moneda cotizada por 1 unidad de la base). Nota de convención en el panel "Hoy" y en CLAUDE.md.
+
 ## 0.8.1 — 2026-11-19 (Recargar)
 - Antes el CDN guardaba cada respuesta 30 min (+1 h stale): "Recargar" devolvía la copia. Ahora la caché depende del dato:
   Mundo 60 s sin stale, países 5 min, Crédito USD 15 min, Sostenibilidad 6 h; "Recargar" agrega ?fresh=<ts> (siempre MISS).
