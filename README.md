@@ -72,6 +72,8 @@ scripts/test-parsers.mjs  → test offline con formatos simulados (+ genera dato
 | 🇪🇺 | Forward 1Y (historia) | BCE | YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_1Y |
 | todos | Proxy MSCI país (USD) + índice local | Yahoo | EWZ/^BVSP, EUSA/^GSPC, EZU/^STOXX50E, EWW/^MXX, EWC/^GSPTSE, COLO/ICOLCAP.CL, EWJ/^N225 |
 | 🇨🇱 | TPM, BCP 2Y/10Y, BCU 10Y, dólar observado, IPC, Imacec, IPSA, EEE, EOF | BCCh BDE (cuadros públicos) | ver `CUADROS` en `cl.js` |
+| Sostenibilidad | Cuenta corriente, resultado fiscal y primario, ahorro e inversión, deuda/PBI (historia + proyección a 5 años) | FMI WEO (API SDMX) | ver `WEO` en `sust.js` |
+| Sostenibilidad | Balanza comercial, deuda externa, reservas, servicio de deuda externa | Banco Mundial (WDI) | ver `WB` en `sust.js` |
 | Crédito USD | Spread EMBI por país (Global, LatAm y 16 países) | Banco Central de la Rep. Dominicana | Serie_Historica_Spread_del_EMBI.xlsx |
 | Crédito USD | Bonos soberanos en USD de AR, BR, CL, CO, EC, MX, PA, PE, UY (precio, TIR semestral, duration, spread vs UST) | onvista + FRED | `api/_lib/usd-bonds.json` |
 | Mundo | 56 activos: MSCI global y por país, índices de EE.UU., Europa, Asia y América, VIX, Treasuries, 11 monedas, commodities | Yahoo | ver `world.js` |

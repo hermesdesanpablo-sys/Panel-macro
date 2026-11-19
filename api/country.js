@@ -1,4 +1,4 @@
-// GET /api/country?c=br|us|eu|mx|ca|co|cl|jp|world|usd
+// GET /api/country?c=br|us|eu|mx|ca|co|cl|jp|world|usd|sust
 // Devuelve un payload normalizado por país. Vercel cachea en el edge 30 min.
 import br from './_lib/sources/br.js';
 import us from './_lib/sources/us.js';
@@ -8,10 +8,11 @@ import ca from './_lib/sources/ca.js';
 import co from './_lib/sources/co.js';
 import jp from './_lib/sources/jp.js';
 import cl from './_lib/sources/cl.js';
+import sust from './_lib/sources/sust.js';
 import usd from './_lib/sources/usd.js';
 import world from './_lib/sources/world.js';
 
-export const ADAPTERS = { br, us, eu, mx, ca, co, cl, jp, world, usd };
+export const ADAPTERS = { br, us, eu, mx, ca, co, cl, jp, world, usd, sust };
 
 export default async function handler(req, res) {
   const c = String(req.query?.c || new URL(req.url, 'http://x').searchParams.get('c') || '').toLowerCase();

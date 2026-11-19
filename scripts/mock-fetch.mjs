@@ -232,6 +232,28 @@ export async function mockFetch(input) {
     else if (u.includes('DF_TRM')) body = ser('TRM', walk(3900, 400, 0.005));
     return text(`<message:GenericData><message:DataSet>${body}</message:DataSet></message:GenericData>`);
   }
+  if (url.host === 'api.imf.org') {
+    // SDMX-JSON 3.0 del WEO: dimensiones COUNTRY/INDICATOR/FREQUENCY y observaciones por índice de año.
+    const key = decodeURIComponent(u.match(/WEO\/\+\/([^?]+)/)[1]).split('.');
+    const cs = key[0].split('+'), inds = key[1].split('+');
+    const years = Array.from({ length: 2031 - 2004 + 1 }, (_, i) => String(2004 + i));
+    const base = { BCA_NGDPD: -1.5, GGXCNL_NGDP: -3, GGXONLB_NGDP: 0.5, GGXWDG_NGDP: 60, NGSD_NGDP: 20, NID_NGDP: 21.5, NGDP: 1000, NGDP_RPCH: 2 };
+    const series = {};
+    cs.forEach((c, ci) => inds.forEach((ind, ii) => {
+      series[`${ci}:${ii}:0`] = {
+        attributes: [0, 0, 0, '9/30/2026'],
+        observations: Object.fromEntries(years.map((y, t) => [t, [String(ind === 'NGDP' ? base.NGDP * 1.07 ** t : base[ind] + Math.sin(t / 3 + ci) * (ind === 'GGXWDG_NGDP' ? 8 : 1))]])),
+      };
+    }));
+    return json({ data: { structures: [{ dimensions: { series: [{ id: 'COUNTRY', values: cs.map((id) => ({ id })) }, { id: 'INDICATOR', values: inds.map((id) => ({ id })) }, { id: 'FREQUENCY', values: [{ id: 'A' }] }],
+      observation: [{ id: 'TIME_PERIOD', values: years.map((value) => ({ value })) }] }, attributes: { series: [{ id: 'SCALE' }, { id: 'DECIMALS_DISPLAYED' }, { id: 'OVERLAP' }, { id: 'COUNTRY_UPDATE_DATE' }] } }],
+      dataSets: [{ series }] } });
+  }
+  if (url.host === 'api.worldbank.org') {
+    const codes = u.match(/country\/([^/]+)\/indicator/)[1].split(';');
+    const rows = codes.flatMap((c, i) => Array.from({ length: 21 }, (_, k) => ({ countryiso3code: c, date: String(2005 + k), value: 2 + Math.sin(k / 4 + i) * 3 })));
+    return json([{ page: 1, lastupdated: '2026-11-11' }, rows]);
+  }
   if (url.host === 'si3.bcentral.cl') {
     // Cuadro de la BDE (HTML): encabezados con fechas ("17.Nov.2026" o "Nov.2026") y una fila por serie (data-serie).
     const M = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
