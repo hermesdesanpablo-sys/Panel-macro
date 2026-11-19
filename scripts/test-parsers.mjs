@@ -21,6 +21,16 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   out[id] = { ...p, updatedAt: new Date().toISOString(), mock: true };
   const missing = (p.kpis || []).filter((k) => k.value == null && k.source !== 'Pendiente').map((k) => k.label);
   const problems = [...p.errors.map((e) => `${e.source}: ${e.message}`), ...missing.map((m) => `KPI vacío: ${m}`)];
+  if (id === 'sust') {
+    if (p.countries.length < 10) problems.push(`solo ${p.countries.length} países`);
+    // Identidad de las tres brechas: cuenta corriente = fiscal + privada, en todos los años con dato.
+    for (const c of p.countries) for (const r of c.rows) if (r.ca != null && r.fb != null && Math.abs(r.ca - (r.fb + r.priv)) > 0.02) problems.push(`${c.id} ${r.y}: no cierra la identidad`);
+    if (p.countries.some((c) => c.summary.debt == null)) problems.push('país sin deuda/PBI');
+    console.log(`${problems.length ? '✗' : '✓'} sust: ${p.countries.length} países, ${p.countries[0].rows.length} años`);
+    problems.slice(0, 5).forEach((x) => console.log('    ' + x));
+    fails += problems.length;
+    continue;
+  }
   if (id === 'usd') {
     const withCurve = p.issuers.filter((i) => i.summary.n > 0);
     if (withCurve.length < 3) problems.push(`solo ${withCurve.length} emisores con curva`);

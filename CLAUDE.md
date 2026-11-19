@@ -7,7 +7,8 @@ Contexto para Claude Code. Leer entero antes de tocar código.
 Dashboard macro con un panel por país (Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Chile, Japón), una vista
 **Mundo** (cuadros tipo terminal + panel lateral "Hoy", tendencias y comparativo entre países), una solapa
 **Comparar** (dos países lado a lado), una solapa **Crédito USD** (spread EMBI de América Latina y curvas de los
-bonos soberanos en dólares) y una **Agenda** consolidada.
+bonos soberanos en dólares), una solapa **Sostenibilidad** (tres brechas, deuda/PBI y primario que estabiliza la deuda)
+y una **Agenda** consolidada.
 Dueño: Hermes (renta fija / mercado de capitales, Argentina). Idioma de la UI y de los comentarios: español.
 
 Objetivo de cada panel:
@@ -20,13 +21,14 @@ Objetivo de cada panel:
 ## Arquitectura
 
 ```
-api/country.js              GET /api/country?c=br|us|eu|mx|ca|co|cl|jp|world|usd  (función serverless Vercel, cache edge 30 min)
+api/country.js              GET /api/country?c=br|us|eu|mx|ca|co|cl|jp|world|usd|sust  (función serverless Vercel, cache edge 30 min)
 api/_lib/util.js            HTTP, fechas, series, kpi(), trend(), spreadSeries(), settle()
 api/_lib/yahoo.js           Yahoo Finance: precios, perf, futuros Fed funds (ZQ)
 api/_lib/calendar.js        Fechas de reuniones de bancos centrales (estático, revisar 1 vez/año)
 api/_lib/sources/<pais>.js  Un adaptador por país. Devuelve el "contrato de payload" (abajo)
 api/_lib/sources/usd.js     Crédito USD: EMBI por país (BCRD) + bonos soberanos en USD (onvista) vs Tesoro (FRED). Payload propio
 api/_lib/usd-bonds.json     Lista de ISINs en USD por emisor (la genera scripts/discover-usd-bonds.mjs)
+api/_lib/sources/sust.js    Sostenibilidad: FMI WEO (API SDMX) + Banco Mundial (WDI). Payload propio: countries[].rows por año
 api/_lib/xlsx.js            Lector mínimo de .xlsx sin dependencias (zlib), usado para la planilla del EMBI
 src/App.jsx                 Tabs, carga en paralelo de todos los países, modo ?mock=1
 src/components/Panels.jsx   Kpi, Dynamics, CountryPanel, TrendsTable, WorldPanel (MajorIndices, QuoteCard, BondTiles,
@@ -156,6 +158,16 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 - EMBI: planilla diaria del Banco Central de la Rep. Dominicana (`EMBI_URL` en usd.js, URL fija sin el `?v=`; ~1 MB,
   historia desde 2007, columnas Global, LATINO, REP DOM y 16 países). Valores en puntos porcentuales → pb. Sin API: se baja
   la planilla en cada request (cache 30 min). Si cambia el encabezado, `parseEmbi` falla con un error claro.
+
+### Notas de Sostenibilidad (FMI WEO + Banco Mundial)
+- FMI: `https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.RES/WEO/+/<PAISES>.<INDICADORES>.A` (SDMX-JSON 3.0, sin clave).
+  La API "DataMapper" de imf.org responde 403 a consultas automáticas: usar esta. Eurozona = `G163`.
+  Indicadores: BCA_NGDPD, GGXCNL_NGDP, GGXONLB_NGDP, GGXWDG_NGDP, NGSD_NGDP, NID_NGDP, NGDP, NGDP_RPCH. Desde el año en curso = proyección.
+- Banco Mundial: `api.worldbank.org/v2/country/<ISO3;...>/indicator/<código>?format=json` — NE.RSB.GNFS.ZS (balanza bys),
+  DT.DOD.DECT.GN.ZS (deuda externa, solo emergentes), FI.RES.TOTL.MO (reservas en meses), DT.TDS.DECT.EX.ZS (servicio de deuda externa).
+- Tres brechas: CC = resultado fiscal + (S − I) privado. Intereses netos = primario − total. i = intereses·(1+g)/d₋₁;
+  primario que estabiliza = d₋₁·(i − g)/(1 + g). Con inflación alta y deuda en USD (Argentina) la fórmula en moneda local
+  no captura el efecto cambiario (se avisa en la UI). El test offline verifica que la identidad cierre todos los años.
 
 ### Notas de Chile (BCCh BDE)
 - Fuente principal: API oficial `SieteRestWS.ashx?token=<BCCH_API_TOKEN>&function=GetSeries&timeseries=<código>&firstdate=aaaa-mm-dd`

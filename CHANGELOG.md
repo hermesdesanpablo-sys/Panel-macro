@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0 — 2026-11-19 (Sostenibilidad)
+- **Sostenibilidad** (solapa nueva): modelo de las tres brechas para 11 economías (AR, BR, CL, CO, MX, PE, UY, EE.UU., CA,
+  Eurozona, JP). Tablero con cuenta corriente, resultado fiscal y primario, brecha privada (S−I), deuda/PBI actual y a 5 años,
+  tasa implícita, crecimiento nominal, primario que estabiliza la deuda y holgura, balanza comercial y reservas.
+  Ficha por país con lectura en texto (solo con los números disponibles) y 4 gráficos (tres brechas, ahorro e inversión,
+  primario efectivo vs estabilizador, balanza comercial vs cuenta corriente). Trayectoria de deuda/PBI comparada (hasta 3 países).
+- Fuentes: FMI WEO por la API SDMX oficial (historia desde 2005 y proyecciones a 2031) y Banco Mundial (WDI).
+- Ajustes: el BCCh pasó a la API oficial con token (#5). Menú en una fila.
+
 ## 0.6.0 — 2026-11-19 (Crédito USD con EMBI + Chile)
 - **Chile** (nuevo panel): TPM, IPC, BCP 2Y/10Y, BCU 10Y, compensación inflacionaria 10Y, dólar observado, Imacec, IPSA,
   ECH; expectativas de la EEE (inflación 11/23 meses, TPM por plazo, PIB) y de la EOF (TPM e inflación 12m), con trayectoria

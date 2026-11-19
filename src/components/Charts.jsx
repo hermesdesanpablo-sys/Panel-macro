@@ -1,5 +1,5 @@
 import {
-  ResponsiveContainer, LineChart, Line, AreaChart, Area, ComposedChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
+  ResponsiveContainer, LineChart, Line, AreaChart, Area, ComposedChart, Scatter, ReferenceArea, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine,
 } from 'recharts';
 import { useId } from 'react';
 import { COLORS, fmtNum, fmtDate, fmtMonth } from '../format.js';
@@ -146,6 +146,48 @@ export function CurveChart({ series, benchmark, unit = '%', height = 340 }) {
             legendType="plainline" isAnimationActive={false} />
         ))}
       </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
+/**
+ * Serie anual (eje X = año) con la zona de proyección sombreada y línea en 0. Un solo eje Y, hasta 3 series.
+ * `data`: [{ y, k1, k2, ... }], `projFrom`: primer año proyectado.
+ */
+export function YearChart({ data, lines, projFrom, unit = '%', height = 260, zero = true }) {
+  if (!data?.length) return <div className="empty">Sin datos</div>;
+  const last = data[data.length - 1].y;
+  const Tip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="tip">
+        <div className="tip-date">{label}{label >= projFrom ? ' · proyección FMI' : ''}</div>
+        {payload.filter((p) => p.value != null).map((p) => (
+          <div key={p.dataKey} className="tip-row"><span className="swatch" style={{ background: p.color }} /><span className="tip-name">{p.name}</span>
+            <span className="tip-val">{fmtNum(p.value, 1)}{unit}</span></div>
+        ))}
+      </div>
+    );
+  };
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart data={data} margin={{ top: 8, right: 20, bottom: 0, left: 0 }}>
+        <CartesianGrid stroke="var(--grid)" vertical={false} />
+        {projFrom && projFrom <= last && (
+          <ReferenceArea x1={projFrom - 0.5} x2={last + 0.5} fill="var(--surface-3)" fillOpacity={0.55} ifOverflow="extendDomain"
+            label={{ value: 'Proyección FMI', position: 'insideTopRight', fill: 'var(--text-muted)', fontSize: 11 }} />
+        )}
+        {zero && <ReferenceLine y={0} stroke="var(--text-muted)" strokeOpacity={0.6} />}
+        <XAxis dataKey="y" type="number" domain={[data[0].y - 0.5, last + 0.5]} ticks={data.filter((r) => r.y % 2 === 1).map((r) => r.y)}
+          tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--grid)' }} tickLine={false} allowDecimals={false} />
+        <YAxis width={44} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v, 0)} domain={['auto', 'auto']} />
+        <Tooltip content={<Tip />} cursor={{ stroke: 'var(--text-muted)', strokeDasharray: '3 3' }} />
+        {lines.length > 1 && <Legend iconType="plainline" wrapperStyle={{ fontSize: 12, color: 'var(--text-secondary)' }} />}
+        {lines.map((l, i) => (
+          <Line key={l.key} dataKey={l.key} name={l.label} stroke={COLORS[i]} strokeWidth={2} dot={false} connectNulls isAnimationActive={false}
+            activeDot={{ r: 4, strokeWidth: 2, stroke: 'var(--surface-1)' }} />
+        ))}
+      </LineChart>
     </ResponsiveContainer>
   );
 }

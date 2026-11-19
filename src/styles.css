@@ -257,6 +257,11 @@ a.src:hover { color: var(--accent); }
 .range { position: relative; display: block; height: 6px; border-radius: 3px; background: var(--surface-3); margin: 4px 0 2px; }
 .range-dot { position: absolute; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--text-primary); box-shadow: 0 0 0 2px var(--surface-1); }
 
+/* ---------- Sostenibilidad ---------- */
+.reading p { color: var(--text-secondary); font-size: 14.5px; line-height: 1.6; margin: 0 0 10px; max-width: 1100px; }
+.reading p:first-of-type { color: var(--text-primary); }
+.mini-kpis { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); margin: 14px 0 0; }
+
 @media (max-width: 1180px) {
   .world-layout { grid-template-columns: 1fr; }
   .watch { position: static; max-height: none; }

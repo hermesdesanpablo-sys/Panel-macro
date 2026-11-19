@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TimeChart, PathChart, Spark, AreaSpark, CurveChart } from './Charts.jsx';
+import { TimeChart, PathChart, Spark, AreaSpark, CurveChart, YearChart } from './Charts.jsx';
 import { fmtNum, fmtDate, daysUntil, kpiByKey, fmtChg, ARROW, DIR_WORD, GROUPS, chgDir } from '../format.js';
 import { Flag } from './Flag.jsx';
 import { CmdIcon } from './CmdIcon.jsx';
@@ -907,6 +907,154 @@ export function UsdPanel({ data }) {
           </div>
         </section>
       )}
+    </div>
+  );
+}
+
+
+// ---------- Sostenibilidad: tres brechas y deuda/PBI ----------
+const pct = (v, d = 1) => (v == null ? '—' : `${v > 0 ? '+' : ''}${fmtNum(v, d)}%`);
+const lvl = (v, d = 1) => (v == null ? '—' : `${fmtNum(v, d)}%`);
+/** Celda con signo y color de "holgura": verde si es favorable, rojo si no (siempre con signo). */
+// `invert`: para variables donde subir es desfavorable (p.ej. la deuda).
+const Signed = ({ v, d = 1, unit = '%', invert = false }) => {
+  if (v == null) return <span className="muted">—</span>;
+  const good = invert ? v < -0.05 : v > 0.05, bad = invert ? v > 0.05 : v < -0.05;
+  return <span className={good ? 'mk-pos' : bad ? 'mk-neg' : ''}>{v > 0 ? '+' : ''}{fmtNum(v, d)}{unit}</span>;
+};
+const HIGH_INFL = ['ar']; // la fórmula en moneda local no captura el efecto cambiario sobre deuda en USD
+
+/** Lectura en texto de la ficha de un país (solo con los números que hay; nada inventado). */
+function reading(c) {
+  const s = c.summary;
+  const out = [];
+  if (s.ca != null && s.fb != null) {
+    out.push(`En ${s.year}, ${c.name} tuvo ${s.ca < 0 ? 'un déficit' : 'un superávit'} de cuenta corriente de ${fmtNum(Math.abs(s.ca), 1)}% del PBI: ` +
+      `el sector público ${s.fb < 0 ? 'desahorró' : 'ahorró'} ${fmtNum(Math.abs(s.fb), 1)}% (resultado fiscal) y el sector privado ${s.priv >= 0 ? 'ahorró' : 'desahorró'} en neto ${fmtNum(Math.abs(s.priv), 1)}%.` +
+      (s.ca < 0 ? ' Esa brecha externa se financia con ahorro del resto del mundo (deuda, inversión extranjera o caída de reservas).' : ' El país es acreedor neto del resto del mundo en ese año.'));
+  }
+  if (s.trade != null && s.tradeYear === s.year && s.ca != null) {
+    out.push(`La balanza comercial de bienes y servicios fue ${pct(s.trade)} del PBI; la diferencia con la cuenta corriente (${pct(s.ca - s.trade)}) son rentas (intereses y utilidades) y transferencias.`);
+  }
+  if (s.debt != null && s.debtEnd != null) {
+    out.push(`La deuda pública bruta pasa de ${lvl(s.debt, 0)} a ${lvl(s.debtEnd, 0)} del PBI en ${s.endYear} según el FMI (${s.debtChg > 0 ? 'sube' : 'baja'} ${fmtNum(Math.abs(s.debtChg), 0)} puntos).`);
+  }
+  if (s.pbStar != null && s.pb != null) {
+    out.push(`Con una tasa implícita de ${lvl(s.iEff)} y un crecimiento nominal de ${lvl(s.gNom)}, el resultado primario que estabiliza la deuda es ${pct(s.pbStar)}; el efectivo fue ${pct(s.pb)} ` +
+      `(${s.pbGap >= 0 ? 'holgura' : 'faltante'} de ${fmtNum(Math.abs(s.pbGap), 1)} puntos).` + (HIGH_INFL.includes(c.id) ? ' Ojo: con inflación alta y deuda mayormente en dólares, esta fórmula en moneda local sobrestima la holgura (no incluye el efecto del tipo de cambio).' : ''));
+  }
+  return out;
+}
+
+export function SustPanel({ data }) {
+  const countries = data?.countries || [];
+  const [sel, setSel] = useState('br');
+  const [debtSel, setDebtSel] = useState(['ar', 'br', 'mx']);
+  if (!countries.length) return <div className="empty big">Sin datos del FMI</div>;
+  const c = countries.find((x) => x.id === sel) || countries[0];
+  const P = data.projFrom;
+  const rows = c.rows;
+  const toggle = (id) => setDebtSel((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= 3 ? [...cur.slice(1), id] : [...cur, id]));
+  const debtData = rows.map((r) => Object.fromEntries([['y', r.y], ...debtSel.map((id, k) => [`k${k}`, countries.find((x) => x.id === id)?.rows.find((q) => q.y === r.y)?.debt ?? null])]));
+  const Y = countries[0].summary.year, E = countries[0].summary.endYear;
+  return (
+    <div className="panel">
+      <Errors errors={data?.errors} />
+      <p className="lead">
+        Modelo de las <b>tres brechas</b>: la cuenta corriente (brecha externa) es igual al resultado fiscal más el ahorro neto del sector privado
+        (S − I). Junto con la trayectoria de la deuda pública y el resultado primario que la estabiliza, muestra de dónde sale la capacidad de repago
+        de cada país. Datos anuales en % del PBI; {P} en adelante, estimación y proyección del FMI (WEO{data.weoVintage ? ` actualizado al ${data.weoVintage}` : ''}).
+      </p>
+
+      <section className="card" id="sust-table">
+        <h3>Tablero ({Y}, deuda a {E})</h3>
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>País</th><th>Cuenta corriente</th><th>Resultado fiscal</th><th>Primario</th><th>Brecha privada (S−I)</th>
+                <th>Deuda/PBI {Y}</th><th>Deuda/PBI {E}</th><th>Tasa implícita</th><th>Crec. nominal</th><th>Primario que estabiliza</th><th>Holgura</th>
+                <th>Balanza comercial</th><th>Reservas (meses imp.)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {countries.map((x) => {
+                const s = x.summary;
+                return (
+                  <tr key={x.id} className={x.id === sel ? 'sel' : ''} onClick={() => setSel(x.id)} style={{ cursor: 'pointer' }} title="Clic para ver la ficha">
+                    <td className="name"><span className="cell-flag"><Flag id={x.cc} />{x.name}</span></td>
+                    <td className="num"><Signed v={s.ca} /></td>
+                    <td className="num"><Signed v={s.fb} /></td>
+                    <td className="num"><Signed v={s.pb} /></td>
+                    <td className="num"><Signed v={s.priv} /></td>
+                    <td className="num"><b>{lvl(s.debt, 0)}</b></td>
+                    <td className="num">{lvl(s.debtEnd, 0)}{s.debtChg != null && <span className="sub"><Signed v={s.debtChg} d={0} unit=" pts" invert /></span>}</td>
+                    <td className="num">{lvl(s.iEff)}</td>
+                    <td className="num">{lvl(s.gNom)}</td>
+                    <td className="num">{pct(s.pbStar)}</td>
+                    <td className="num"><Signed v={s.pbGap} />{HIGH_INFL.includes(x.id) && s.pbGap != null && <span className="sub">ver nota</span>}</td>
+                    <td className="num"><Signed v={s.trade} />{s.tradeYear && s.tradeYear !== Y && <span className="sub">{s.tradeYear}</span>}</td>
+                    <td className="num">{s.resMonths == null ? '—' : fmtNum(s.resMonths, 1)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="card-foot">
+          <span>Cuenta corriente = resultado fiscal + brecha privada (identidad de las tres brechas). Resultado fiscal y primario: gobierno general.
+            Tasa implícita = intereses netos / deuda del año anterior. Primario que estabiliza = d·(i − g)/(1 + g); holgura = primario efectivo − el que estabiliza
+            (verde: la deuda tiende a bajar sin esfuerzo adicional). Argentina: con inflación alta y deuda mayormente en dólares, la fórmula en pesos no incluye el efecto
+            cambiario y sobrestima la holgura. Canadá: intereses netos negativos (activos de los fondos públicos). Eurozona: el FMI no publica PBI nominal del agregado.
+            Fuentes: <a className="src" href={data.sources?.weo} target="_blank" rel="noreferrer">FMI WEO</a> y <a className="src" href={data.sources?.wb} target="_blank" rel="noreferrer">Banco Mundial (WDI)</a>.</span>
+        </div>
+      </section>
+
+      <h2 className="section">Ficha por país</h2>
+      <div className="chips" role="group" aria-label="País">
+        {countries.map((x) => (
+          <button key={x.id} className={`chip ${x.id === sel ? 'on' : ''}`} onClick={() => setSel(x.id)} aria-pressed={x.id === sel}>
+            <Flag id={x.cc} round size={16} />{x.name}
+          </button>
+        ))}
+      </div>
+      <section className="card reading">
+        <h3 className="cell-flag"><Flag id={c.cc} />{c.name}: lectura</h3>
+        {reading(c).map((t, i) => <p key={i}>{t}</p>)}
+        <div className="kpis mini-kpis">
+          {[['Deuda externa', c.summary.extDebt, '% del ingreso nacional'], ['Servicio de deuda externa', c.summary.extService, '% de las exportaciones'], ['Reservas', c.summary.resMonths, 'meses de importaciones', 1]].map(([l, v, u, plain]) => (
+            <div key={l} className="mini-tile"><span className="mt-name">{l}</span><span className="mt-last">{v == null ? '—' : plain ? fmtNum(v, 1) : `${fmtNum(v, 1)}%`}</span><span className="muted" style={{ fontSize: 12 }}>{u} · Banco Mundial</span></div>
+          ))}
+        </div>
+      </section>
+      <div className="grid">
+        <Card id="gaps" title="Las tres brechas (% del PBI)" note="Cuenta corriente = resultado fiscal + brecha privada.">
+          <YearChart data={rows} projFrom={P} lines={[{ key: 'ca', label: 'Cuenta corriente' }, { key: 'fb', label: 'Resultado fiscal' }, { key: 'priv', label: 'Brecha privada (S−I)' }]} />
+        </Card>
+        <Card id="si" title="Ahorro e inversión nacional (% del PBI)" note="Su diferencia es la cuenta corriente.">
+          <YearChart data={rows} projFrom={P} zero={false} lines={[{ key: 'sav', label: 'Ahorro nacional' }, { key: 'inv', label: 'Inversión' }]} />
+        </Card>
+        <Card id="pbstar" title="Primario efectivo vs el que estabiliza la deuda (% del PBI)" note={HIGH_INFL.includes(c.id) ? 'Con inflación alta, el primario que estabiliza en moneda local es engañoso (ver nota del tablero).' : 'Si el efectivo está por encima, la deuda/PBI tiende a bajar.'}>
+          <YearChart data={rows} projFrom={P} lines={[{ key: 'pb', label: 'Primario efectivo' }, { key: 'pbStar', label: 'Primario que estabiliza' }]} />
+        </Card>
+        <Card id="trade" title="Balanza comercial vs cuenta corriente (% del PBI)" note="La diferencia son rentas (intereses, utilidades) y transferencias. Balanza comercial: Banco Mundial, sin proyecciones.">
+          <YearChart data={rows} projFrom={P} lines={[{ key: 'trade', label: 'Balanza comercial (bienes y servicios)' }, { key: 'ca', label: 'Cuenta corriente' }]} />
+        </Card>
+      </div>
+
+      <h2 className="section">Trayectoria de la deuda pública / PBI</h2>
+      <section className="card" id="debt-path">
+        <div className="chips" role="group" aria-label="Países (hasta 3)">
+          {countries.map((x) => (
+            <button key={x.id} className={`chip ${debtSel.includes(x.id) ? 'on' : ''}`} onClick={() => toggle(x.id)} aria-pressed={debtSel.includes(x.id)}>
+              <Flag id={x.cc} round size={16} />{x.name}
+            </button>
+          ))}
+        </div>
+        <YearChart data={debtData} projFrom={P} zero={false} height={320}
+          lines={debtSel.map((id, k) => ({ key: `k${k}`, label: countries.find((x) => x.id === id)?.name || id }))} />
+        <div className="card-foot"><span>Deuda bruta del gobierno general, % del PBI. Hasta 3 países a la vez. Zona sombreada: proyección del FMI.</span></div>
+      </section>
     </div>
   );
 }

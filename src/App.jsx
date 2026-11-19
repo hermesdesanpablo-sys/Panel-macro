@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { CountryPanel, WorldPanel, AgendaList, ComparePanel, UsdPanel } from './components/Panels.jsx';
+import { CountryPanel, WorldPanel, AgendaList, ComparePanel, UsdPanel, SustPanel } from './components/Panels.jsx';
 import { fmtDate } from './format.js';
 import { Flag } from './components/Flag.jsx';
 
@@ -14,6 +14,7 @@ const TABS = [
   { id: 'cl', label: 'Chile' },
   { id: 'jp', label: 'Japón' },
   { id: 'usd', label: 'Crédito USD' },
+  { id: 'sust', label: 'Sostenibilidad' },
   { id: 'compare', label: 'Comparar' },
   { id: 'agenda', label: 'Agenda' },
 ];
@@ -55,7 +56,7 @@ export default function App() {
   }, []);
   const fetchAll = useCallback(() => ['world', ...COUNTRIES].forEach(fetchOne), [fetchOne]);
   // Crédito USD cotiza ~100 bonos: se pide solo al abrir la solapa (y con Recargar si ya estaba abierta).
-  useEffect(() => { if (tab === 'usd' && !data.usd && state.usd !== 'loading') fetchOne('usd'); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (['usd', 'sust'].includes(tab) && !data[tab] && state[tab] !== 'loading') fetchOne(tab); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(fetchAll, [fetchAll]);
   useEffect(() => {
@@ -94,7 +95,7 @@ export default function App() {
         </nav>
         <div className="actions">
           {updated && <span className="muted">Actualizado {fmtDate(updated.slice(0, 10))} {updated.slice(11, 16)} UTC</span>}
-          <button className="btn" onClick={() => { fetchAll(); if (data.usd) fetchOne('usd'); }}>Recargar</button>
+          <button className="btn" onClick={() => { fetchAll(); ['usd', 'sust'].forEach((t) => data[t] && fetchOne(t)); }}>Recargar</button>
         </div>
       </header>
 
@@ -108,6 +109,8 @@ export default function App() {
         )}
         {tab === 'compare' ? (
           <ComparePanel countries={countries} a={cmpA} b={cmpB} setA={setCmpA} setB={setCmpB} />
+        ) : tab === 'sust' && current ? (
+          <SustPanel data={current} />
         ) : tab === 'usd' && current ? (
           <UsdPanel data={current} />
         ) : tab === 'agenda' ? (
