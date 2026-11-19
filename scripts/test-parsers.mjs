@@ -21,6 +21,16 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   out[id] = { ...p, updatedAt: new Date().toISOString(), mock: true };
   const missing = (p.kpis || []).filter((k) => k.value == null && k.source !== 'Pendiente').map((k) => k.label);
   const problems = [...p.errors.map((e) => `${e.source}: ${e.message}`), ...missing.map((m) => `KPI vacío: ${m}`)];
+  if (id === 'usd') {
+    const withCurve = p.issuers.filter((i) => i.summary.n > 0);
+    if (withCurve.length < 3) problems.push(`solo ${withCurve.length} emisores con curva`);
+    if (!p.ust.length) problems.push('sin curva del Tesoro');
+    if (p.issuers.some((i) => i.bonds.some((b) => !b.stale && b.spread == null && b.years <= 30))) problems.push('bonos sin spread');
+    console.log(`${problems.length ? '✗' : '✓'} usd: ${p.issuers.length} emisores, ${p.issuers.reduce((s, i) => s + i.bonds.length, 0)} bonos`);
+    problems.forEach((x) => console.log('    ' + x));
+    fails += problems.length;
+    continue;
+  }
   if (id !== 'world') {
     if (!p.equity?.msci?.perf) problems.push('sin bloque MSCI');
     if (!p.calendar.length && !['mx'].includes(id)) problems.push('agenda vacía');

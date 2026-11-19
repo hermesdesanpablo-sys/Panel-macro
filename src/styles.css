@@ -206,7 +206,8 @@ a.src:hover { color: var(--accent); }
 .mini-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
 .mini-tile { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; font-variant-numeric: tabular-nums; }
 .mini-tile:hover { border-color: var(--border-strong); color: inherit; }
-.mt-name { font-size: 12.5px; color: var(--text-secondary); font-weight: 500; }
+.mt-name { font-size: 12.5px; color: var(--text-secondary); font-weight: 500; display: flex; align-items: center; gap: 7px; min-height: 22px; }
+.cmd-icon { flex: none; }
 .mt-last { font-size: 17px; font-weight: 600; color: var(--text-primary); }
 .mt-chg { font-size: 13px; font-weight: 600; }
 
@@ -232,6 +233,22 @@ a.src:hover { color: var(--accent); }
 .btn.swap { font-size: 16px; padding: 8px 12px; }
 .th-flag { display: inline-flex; align-items: center; gap: 8px; color: var(--text-primary); text-transform: none; letter-spacing: 0; font-size: 13px; }
 .cmp-tbl th:nth-child(5), .cmp-tbl td:nth-child(5), .cmp-tbl th:nth-child(8), .cmp-tbl td:nth-child(8) { border-left: 1px solid var(--border); }
+
+/* ---------- Crédito USD ---------- */
+.lead { color: var(--text-secondary); font-size: 14.5px; max-width: 980px; margin: -6px 0 18px; line-height: 1.55; }
+.card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.card-head h3 { margin: 0; }
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+.seg button { background: none; border: 0; color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 500; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
+.seg button.on { background: var(--surface-3); color: var(--text-primary); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.chip { display: inline-flex; align-items: center; gap: 7px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 500; padding: 5px 11px; border-radius: 999px; cursor: pointer; }
+.chip.on { border-color: var(--accent); color: var(--text-primary); background: rgba(57,135,229,.12); }
+.usd-rank .bar-col { width: 22%; min-width: 120px; }
+.hbar { display: block; height: 10px; border-radius: 0 4px 4px 0; background: var(--series-1); }
+.tbl tr.sel td { background: rgba(57,135,229,.08); }
+.tbl tr.stale td { opacity: .55; }
+.sel-sm { background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--border-strong); border-radius: 8px; padding: 6px 10px; font: inherit; }
 
 @media (max-width: 1180px) {
   .world-layout { grid-template-columns: 1fr; }

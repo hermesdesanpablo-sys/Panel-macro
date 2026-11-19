@@ -53,6 +53,7 @@ const SGS = {
   1178: () => steps([14.9, 13.65], 400),
 };
 const FRED = {
+  ...Object.fromEntries(['DGS1MO', 'DGS3MO', 'DGS6MO', 'DGS1', 'DGS3', 'DGS5', 'DGS7', 'DGS20', 'DGS30'].map((id, i) => [id, () => walk(3.6 + i * 0.12, 20, 0.004)])),
   DFEDTARU: () => steps([4.5, 4.25, 4.0, 3.75], 1100),
   DFEDTARL: () => steps([4.25, 4.0, 3.75, 3.5], 1100),
   EFFR: () => steps([3.83, 3.64], 400),
@@ -208,6 +209,21 @@ export async function mockFetch(input) {
     }
     else if (u.includes('DF_TRM')) body = ser('TRM', walk(3900, 400, 0.005));
     return text(`<message:GenericData><message:DataSet>${body}</message:DataSet></message:GenericData>`);
+  }
+  if (url.host === 'api.onvista.de') {
+    // Snapshot de un bono soberano en USD: rendimiento creciente con el plazo según el ISIN (determinístico).
+    const isin = decodeURIComponent(u.match(/ISIN:([A-Z0-9]+)/)[1]);
+    const h = [...isin].reduce((a, c) => a + c.charCodeAt(0), 0);
+    const years = 1 + (h % 28);
+    const mat = new Date(Date.now() + years * 365.25 * DAY).toISOString();
+    const ytm = 5 + (h % 4) + years * 0.08;
+    return json({
+      bondsDetails: { officialName: `Bono ${isin}`, isoCurrency: 'USD', coupon: 5 + (h % 5), nameTypeCoupon: 'Fest' },
+      bondsBaseData: { datetimeMaturity: mat, perpetual: false, inDefault: false },
+      bondsIssuer: { isoCountry: 'XX', nameTypeIssuer: 'öffentlich' },
+      bondsFigures: { priceForCalculation: 95 + (h % 10), datetimePriceForCalculation: new Date(Date.now() - DAY).toISOString(), yieldToMaturity: ytm, modifyDuration: Math.min(years * 0.8, 15) },
+      quote: { last: 96 },
+    });
   }
   if (url.host === 'www.tesourotransparente.gov.br') {
     // CSV del Tesouro Direto: fechas de la más nueva a la más vieja (como el real), separador ';' y coma decimal.
