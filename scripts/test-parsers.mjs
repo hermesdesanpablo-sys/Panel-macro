@@ -73,6 +73,14 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   assert.ok(dur > 7.2 && dur < 7.6, `duration 10 años al 6%: ${dur}`);
   console.log('✓ ytmBullet / ismaToSemi / modDurBullet');
 }
+// API del BCCh: fechas dd-mm-aaaa, NaN descartado, y error claro con token vencido.
+{
+  const { parseBdeApi } = await import('../api/_lib/sources/cl.js');
+  const s = parseBdeApi({ Codigo: 0, Series: { Obs: [{ indexDateString: '19-11-2026', value: '4.5' }, { indexDateString: '18-11-2026', value: 'NaN' }] } }, 'X');
+  assert.deepEqual(s, [{ d: '2026-11-19', v: 4.5 }]);
+  assert.throws(() => parseBdeApi({ Codigo: -5, Descripcion: 'Invalid username or password' }, 'X'), /token inválido o vencido/);
+  console.log('✓ parseBdeApi');
+}
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);
 console.log('OK – src/mock-data.json actualizado');

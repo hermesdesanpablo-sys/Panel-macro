@@ -1,8 +1,9 @@
 // Chile: Banco Central de Chile (cuadros públicos de la BDE, sin clave) + Yahoo (USD/CLP intradía, ECH).
 //
-// La API oficial de la BDE (SieteRestWS) pide usuario y contraseña. Los mismos datos están en las páginas de
-// "cuadros" de la BDE (HTML público): cada serie es una fila con su código (data-serie) y las fechas van en los
-// encabezados. URL estable: https://si3.bcentral.cl/Siete/ES/Siete/Cuadro/<CAP>/<MENU>/<CUADRO>
+// Fuente principal: API oficial de la BDE (SieteRestWS) con BCCH_API_TOKEN (API Key Token; VENCE AL AÑO de generarlo,
+// se renueva en "Mi Cuenta" de la BDE). Si no hay token o la API falla, se usan las páginas públicas de "cuadros" de la
+// BDE (HTML): cada serie es una fila con su código (data-serie) y las fechas van en los encabezados.
+// URL estable: https://si3.bcentral.cl/Siete/ES/Siete/Cuadro/<CAP>/<MENU>/<CUADRO>
 // - Cuadros diarios: muestran el año en curso; ?cbFechaDiaria=AAAA trae otro año.
 // - Cuadros mensuales: traen varios años por defecto.
 import { getText, clean, iso, daysAgo, settle, kpi, merge, thin, last, upcoming, spreadSeries, yoyFromIndex, valueAt } from '../util.js';
@@ -40,6 +41,45 @@ export const S = {
   ],
 };
 const bdeUrl = (path) => `${BDE}/${path}`;
+const API = 'https://si3.bcentral.cl/SieteRestWS/SieteRestWS.ashx';
+
+/** Una serie por la API oficial. Fechas 'dd-mm-aaaa', valores con punto decimal ('NaN' si falta). */
+export function parseBdeApi(j, code) {
+  if (j?.Codigo !== 0) {
+    const msg = j?.Descripcion || 'respuesta inesperada';
+    throw new Error(/password|token/i.test(msg) ? `API BCCh: token inválido o vencido (${msg}). Renovarlo en "Mi Cuenta" de la BDE.` : `API BCCh ${code}: ${msg}`);
+  }
+  return clean((j.Series?.Obs || []).map((o) => {
+    const [dd, mm, yy] = String(o.indexDateString).split('-');
+    return { d: `${yy}-${mm}-${dd}`, v: parseFloat(o.value) };
+  }));
+}
+async function bdeApi(code, from) {
+  const qs = new URLSearchParams({ token: process.env.BCCH_API_TOKEN, function: 'GetSeries', timeseries: code, firstdate: iso(from) });
+  const r = await fetch(`${API}?${qs}`, { signal: AbortSignal.timeout(20000) });
+  if (!r.ok) throw new Error(`HTTP ${r.status} en la API del BCCh`);
+  // La API responde en latin-1 (los títulos tienen tildes); los datos son ASCII.
+  return parseBdeApi(JSON.parse(new TextDecoder('latin1').decode(await r.arrayBuffer())), code);
+}
+
+/**
+ * Un grupo de series: por la API si hay token (las del grupo en paralelo); si falla, el cuadro público equivalente.
+ * Devuelve { data: {código: serie}, via: 'api' | 'cuadro' } y anota en `errors` por qué se usó el respaldo.
+ */
+async function group(path, codes, { daily = false, errors }) {
+  if (process.env.BCCH_API_TOKEN) {
+    try {
+      const from = daysAgo(daily ? 800 : 365 * 6);
+      const res = await Promise.all(codes.map((c) => bdeApi(c, from).then((s) => [c, s], (e) => (/token/.test(e.message) ? Promise.reject(e) : [c, []]))));
+      const data = Object.fromEntries(res);
+      if (Object.values(data).some((s) => s.length)) return { data, via: 'api' };
+      throw new Error(`API BCCh: sin datos para ${path.split('/').pop()}`);
+    } catch (e) {
+      if (!errors.some((x) => x.message === e.message)) errors.push({ source: 'API BCCh (se usan los cuadros públicos)', message: e.message });
+    }
+  }
+  return { data: daily ? await bdeDaily(path) : await bde(path), via: 'cuadro' };
+}
 
 const MES = { ene: '01', feb: '02', mar: '03', abr: '04', may: '05', jun: '06', jul: '07', ago: '08', sep: '09', oct: '10', nov: '11', dic: '12' };
 /** '17.Nov.2026' → 2026-11-17 · 'Nov.2026' → 2026-11-01 */
@@ -79,22 +119,27 @@ async function bdeDaily(path) {
 export default async function chile() {
   const errors = [];
   const C = CUADROS;
-  const d = await settle(
+  const y0n = new Date().getUTCFullYear();
+  const yrs = (prefix) => [y0n - 1, y0n, y0n + 1, y0n + 2].map((y) => `${prefix}${y}.M`);
+  const G = (path, codes, daily) => () => group(path, codes, { daily, errors });
+  const raw = await settle(
     {
-      'BCCh TPM y bonos BCP/BCU': () => bdeDaily(C.tasas),
-      'BCCh dólar observado': () => bdeDaily(C.dolar),
-      'BCCh IPC': () => bde(C.ipc),
-      'BCCh IPSA': () => bde(C.bolsa),
-      'BCCh Imacec': () => bde(C.imacec),
-      'BCCh EEE inflación': () => bde(C.eeeInf),
-      'BCCh EEE TPM': () => bde(C.eeeTpm),
-      'BCCh EEE PIB': () => bde(C.eeePib),
-      'BCCh EOF inflación': () => bdeDaily(C.eofInf),
-      'BCCh EOF TPM': () => bdeDaily(C.eofTpm),
+      'BCCh TPM y bonos BCP/BCU': G(C.tasas, [S.tpm, S.bcp2, S.bcp5, S.bcp10, S.bcu5, S.bcu10], true),
+      'BCCh dólar observado': G(C.dolar, [S.dolar], true),
+      'BCCh IPC': G(C.ipc, [S.ipc]),
+      'BCCh IPSA': G(C.bolsa, [S.ipsa]),
+      'BCCh Imacec': G(C.imacec, [S.imacec]),
+      'BCCh EEE inflación': G(C.eeeInf, [S.eeeInf11, S.eeeInf23, ...yrs('F089.IPC.V12.')]),
+      'BCCh EEE TPM': G(C.eeeTpm, S.eeePath.map(([c]) => c)),
+      'BCCh EEE PIB': G(C.eeePib, yrs('F089.PIB.V12.')),
+      'BCCh EOF inflación': G(C.eofInf, [S.eofInf12, S.eofInf24], true),
+      'BCCh EOF TPM': G(C.eofTpm, [S.eofTpm12, S.eofTpm24], true),
       'Yahoo ECH': () => yahooSeries('ECH'),
     },
     errors
   );
+  const via = Object.values(raw).some((x) => x?.via === 'api') ? 'API' : 'BDE';
+  const d = Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, v && v.data ? v.data : v]));
   const g = (k) => d[k] || {};
   const T = g('BCCh TPM y bonos BCP/BCU');
   const tpm = T[S.tpm] || [];
@@ -114,7 +159,7 @@ export default async function chile() {
     if (r && r.d === p.d) be10.push({ d: p.d, v: ((1 + p.v / 100) / (1 + r.v / 100) - 1) * 100 });
   }
   const slope = spreadSeries(bcp2, tpm);
-  const src = (path, code) => ({ source: `BCCh BDE ${code}`, url: bdeUrl(path) });
+  const src = (path, code) => ({ source: `BCCh ${via} ${code}`, url: bdeUrl(path) });
   const from1y = iso(daysAgo(400));
   const ech = d['Yahoo ECH'];
 
@@ -162,12 +207,12 @@ export default async function chile() {
       kpi({ key: 'exp_cpi', group: 'expectations', label: 'Inflación esperada en 11 meses (EEE)', series: eeeInf11, decimals: 1, ...src(C.eeeInf, S.eeeInf11) }),
       kpi({ key: 'exp_rate', group: 'expectations', label: 'TPM esperada en 11 meses (EEE)', series: eeeTpm11, ...src(C.eeeTpm, 'F089.TPM.TAS.14.M') }),
       kpi({ key: 'eof_tpm', group: 'expectations', label: 'TPM esperada 12m (operadores, EOF)', series: eofTpm12, ...src(C.eofTpm, S.eofTpm12) }),
-      kpi({ key: 'be10', group: 'expectations', label: 'Inflación implícita 10Y (BCP − BCU)', series: be10, note: 'Compensación inflacionaria: (1+BCP)/(1+BCU) − 1', source: 'Cálculo propio (BCCh BDE)', url: bdeUrl(C.tasas) }),
+      kpi({ key: 'be10', group: 'expectations', label: 'Inflación implícita 10Y (BCP − BCU)', series: be10, note: 'Compensación inflacionaria: (1+BCP)/(1+BCU) − 1', source: `Cálculo propio (BCCh ${via})`, url: bdeUrl(C.tasas) }),
       kpi({ key: 'y2', group: 'market', label: 'BCP 2 años', series: bcp2, changeDays: 30, ...src(C.tasas, S.bcp2) }),
       kpi({ key: 'y10', group: 'market', label: 'BCP 10 años', series: bcp10, changeDays: 30, ...src(C.tasas, S.bcp10) }),
       kpi({ key: 'real10', group: 'market', label: 'BCU 10 años (real, UF)', series: bcu10, changeDays: 30, ...src(C.tasas, S.bcu10) }),
       kpi({ key: 'fx', group: 'fx', label: 'USD/CLP (dólar observado)', series: usdclp, unit: '', decimals: 2, changeDays: 365, ...src(C.dolar, S.dolar) }),
-      kpi({ key: 'imacec', group: 'activity', label: 'Imacec a/a', series: imacec, decimals: 1, source: `BCCh BDE ${S.imacec} (calc. a/a)`, url: bdeUrl(C.imacec) }),
+      kpi({ key: 'imacec', group: 'activity', label: 'Imacec a/a', series: imacec, decimals: 1, source: `BCCh ${via} ${S.imacec} (calc. a/a)`, url: bdeUrl(C.imacec) }),
       kpi({ key: 'ipsa', group: 'activity', label: 'IPSA (cierre mensual)', series: ipsa, unit: '', decimals: 0, ...src(C.bolsa, S.ipsa) }),
     ],
     equity: ech ? { msci: { ticker: 'ECH', label: 'iShares MSCI Chile (ECH, USD)', series: ech, perf: perf(ech) }, local: null } : null,
