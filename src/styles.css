@@ -58,12 +58,14 @@ a:hover { color: var(--accent); }
 }
 .brand { font-weight: 700; font-size: 16px; letter-spacing: -0.01em; display: flex; gap: 10px; align-items: center; }
 .mock-badge { font-size: 11px; font-weight: 600; color: #000; background: var(--warn); padding: 2px 8px; border-radius: 4px; }
-.tabs { display: flex; flex-wrap: nowrap; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.tabs { display: flex; flex-wrap: wrap; gap: 2px; flex: 1; min-width: 0; }
+/* En pantallas angostas, una sola fila con scroll horizontal. */
+@media (max-width: 760px) { .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } }
 .tabs::-webkit-scrollbar { display: none; }
 .tabs button {
   background: none; border: 0; color: var(--text-secondary);
-  padding: 7px 10px; border-radius: 8px; cursor: pointer; font: inherit; font-size: 13.5px; font-weight: 500;
-  display: flex; align-items: center; gap: 7px; white-space: nowrap;
+  padding: 6px 8px; border-radius: 8px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 500;
+  display: flex; align-items: center; gap: 6px; white-space: nowrap;
 }
 .tabs button:hover { background: var(--surface-2); color: var(--text-primary); }
 .tabs button.on { background: var(--surface-3); color: var(--text-primary); }

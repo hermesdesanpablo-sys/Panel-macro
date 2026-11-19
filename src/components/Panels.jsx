@@ -130,7 +130,7 @@ function PerfTable({ equity }) {
 
 function ExpTable({ e }) {
   return (
-    <Card id={`exp-${e.title}`} title={e.title} source={e.source} url={e.url} note={e.asOf ? `Encuesta del ${fmtDate(e.asOf)}` : null}>
+    <Card id={`exp-${e.title}`} title={e.title} source={e.source} url={e.url} note={e.asOf ? `${e.asOfLabel || 'Encuesta del'} ${fmtDate(e.asOf)}` : null}>
       <div className="tbl-wrap"><table className="tbl">
         <thead><tr>{e.columns.map((c) => <th key={c}>{c}</th>)}</tr></thead>
         <tbody>

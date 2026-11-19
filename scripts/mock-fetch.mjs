@@ -55,6 +55,10 @@ const SGS = {
 const FRED = {
   ...Object.fromEntries(['DGS1MO', 'DGS3MO', 'DGS6MO', 'DGS1', 'DGS3', 'DGS5', 'DGS7', 'DGS20', 'DGS30'].map((id, i) => [id, () => walk(3.6 + i * 0.12, 20, 0.004)])),
   DFEDTARU: () => steps([4.5, 4.25, 4.0, 3.75], 1100),
+  // India (OCDE vía FRED, mensuales).
+  IRSTCI01INM156N: () => walk(5.4, 36, 0.01, 'M'),
+  INDIR3TIB01STM: () => walk(5.7, 36, 0.01, 'M'),
+  INDIRLTLT01STM: () => walk(6.5, 36, 0.005, 'M'),
   DFEDTARL: () => steps([4.25, 4.0, 3.75, 3.5], 1100),
   EFFR: () => steps([3.83, 3.64], 400),
   CPIAUCSL: () => index(300, 40, 2.9),
@@ -154,7 +158,9 @@ export async function mockFetch(input) {
     return json({ value });
   }
   if (url.host === 'servicodados.ibge.gov.br') {
-    return json({ items: [{ nome_produto: 'IPCA-15', data_divulgacao: dmy(iso(Date.now() + 8 * DAY)) + ' 09:00:00' }, { nome_produto: 'Sistema de Contas Nacionais Trimestrais (PIB)', data_divulgacao: dmy(iso(Date.now() + 15 * DAY)) + ' 09:00:00' }] });
+    // Nombres reales del calendario del IBGE (nombre completo, no la sigla).
+    const it = (n, k) => ({ nome_produto: n, data_divulgacao: dmy(iso(Date.now() + k * DAY)) + ' 09:00:00' });
+    return json({ items: [it('Índice Nacional de Preços ao Consumidor Amplo 15', 8), it('Índice Nacional de Preços ao Consumidor Amplo', 22), it('Índice Nacional de Preços ao Consumidor', 22), it('Sistema de Contas Nacionais Trimestrais', 15)] });
   }
   if (url.host === 'api.stlouisfed.org') {
     if (u.includes('/release/dates')) {
@@ -270,7 +276,7 @@ export async function mockFetch(input) {
     const key = decodeURIComponent(u.match(/WEO\/\+\/([^?]+)/)[1]).split('.');
     const cs = key[0].split('+'), inds = key[1].split('+');
     const years = Array.from({ length: 2031 - 2004 + 1 }, (_, i) => String(2004 + i));
-    const base = { BCA_NGDPD: -1.5, GGXCNL_NGDP: -3, GGXONLB_NGDP: 0.5, GGXWDG_NGDP: 60, NGSD_NGDP: 20, NID_NGDP: 21.5, NGDP: 1000, NGDP_RPCH: 2 };
+    const base = { BCA_NGDPD: -1.5, GGXCNL_NGDP: -3, GGXONLB_NGDP: 0.5, GGXWDG_NGDP: 60, NGSD_NGDP: 20, NID_NGDP: 21.5, NGDP: 1000, NGDP_RPCH: 2, PCPIPCH: 3, PCPIEPCH: 2.8 };
     const series = {};
     cs.forEach((c, ci) => inds.forEach((ind, ii) => {
       series[`${ci}:${ii}:0`] = {
@@ -355,7 +361,19 @@ export async function mockFetch(input) {
     return text(`Interest Rate,,,,,,,,,,,,,,,(Unit : %)\nDate,1Y,2Y,3Y,4Y,5Y,6Y,7Y,8Y,9Y,10Y,15Y,20Y,25Y,30Y,40Y\n${rows.join('\n')}\n`);
   }
   if (url.host === 'stats.bis.org') {
-    return text('FREQ,REF_AREA,UNIT_MEASURE,TIME_PERIOD,OBS_VALUE\n' + walk(2.5, 40, 0.03, 'M').map((p) => `M,JP,771,${p.d.slice(0, 7)},${p.v.toFixed(3)}`).join('\n') + '\n');
+    // Formato real: campos de texto con comas y punto y coma antes de TIME_PERIOD,OBS_VALUE; NaN en feriados.
+    const area = u.match(/\/(?:D|M)\.([A-Z]{2})/)[1];
+    if (u.includes('WS_CBPOL')) {
+      const rows = steps([5.0, 4.75, 4.5, 4.25], 1100).map((p, i) => `D,${area},368,0,,From 3 Apr 2001 onwards: official rate; see notes.,4,Central bank,Notes, with commas, Central bank policy rates - Daily,${p.d},${i % 50 === 7 ? 'NaN' : p.v},A,F,`);
+      return text('FREQ,REF_AREA,UNIT_MEASURE,UNIT_MULT,TIME_FORMAT,COMPILATION,DECIMALS,SOURCE_REF,SUPP_INFO_BREAKS,TITLE,TIME_PERIOD,OBS_VALUE,OBS_STATUS,OBS_CONF,OBS_PRE_BREAK\n' + rows.join('\n') + '\n');
+    }
+    return text('FREQ,REF_AREA,UNIT_MEASURE,UNIT_MULT,TIME_FORMAT,BREAKS,COVERAGE,DECIMALS,TITLE_TS,TIME_PERIOD,OBS_VALUE,OBS_CONF,OBS_PRE_BREAK,OBS_STATUS\n' + walk(2.5, 40, 0.03, 'M').map((p) => `M,${area},771,0,,,,,,${p.d.slice(0, 7)},${p.v.toFixed(3)},F,,A`).join('\n') + '\n');
+  }
+  if (url.host === 'www.dane.gov.co') {
+    // Vista mensual del calendario: links icalrepeat.detail/AAAA/MM/DD/<id>/-/<slug> con el título en <strong>.
+    const [, y, m] = u.match(/month\.calendar\/(\d{4})\/(\d{2})/);
+    const ev = (d, t) => `<a class="cal_titlelink" href="/index.php/calendario/icalrepeat.detail/${y}/${m}/${d}/1/-/x"><strong> ${t}</strong></a>`;
+    return text(`<html>${ev('07', 'Índice de Precios al Consumidor (IPC)')}${ev('07', 'Boletín diario de Precios de Alimentos (SIPSA)')}${ev('17', 'Producto Interno Bruto (PIB)')}${ev('18', 'Indicador de Seguimiento a la Economía (ISE)')}</html>`);
   }
   return new Response('not mocked: ' + u, { status: 404 });
 }

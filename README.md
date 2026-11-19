@@ -1,6 +1,6 @@
 # Macro Monitor
 
-Panel por país (Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Chile, Japón) + Mundo + Crédito USD + Comparar + agenda.
+Panel por país (Argentina, Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Chile, Perú, Japón, India) + Mundo + Crédito USD + Comparar + agenda.
 Cada indicador muestra su nivel y cómo se movió a 1/3/6/12 meses. **Para trabajar en el proyecto, leer `CLAUDE.md`.**
 Todo sale de fuentes oficiales gratuitas; los mercados, de Yahoo Finance.
 

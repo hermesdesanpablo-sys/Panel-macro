@@ -46,8 +46,9 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   }
   if (id !== 'world') {
     if (!p.equity?.msci?.perf) problems.push('sin bloque MSCI');
-    if (!p.calendar.length && !['mx'].includes(id)) problems.push('agenda vacía');
+    if (!p.calendar.length && !['mx', 'pe'].includes(id)) problems.push('agenda vacía');
     p.charts.forEach((c) => c.data.length || problems.push(`gráfico vacío: ${c.id}`));
+    if (id === 'br' && !['IBGE – IPCA', 'IBGE – IPCA-15 (mitad de mes)', 'IBGE – PIB trimestral (Contas Nacionais)'].every((ev) => p.calendar.some((e) => e.event === ev))) problems.push('agenda BR sin IPCA / IPCA-15 / PIB');
   } else if (p.markets.some((m) => !m.perf)) problems.push('mercados sin datos');
   console.log(`${problems.length ? '✗' : '✓'} ${id}: ${(p.kpis || p.markets).length} items${p.path ? `, trayectoria ${p.path.path.length}` : ''}, agenda ${p.calendar?.length ?? '-'}`);
   problems.forEach((x) => console.log('    ' + x));
@@ -90,6 +91,16 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   assert.deepEqual(s, [{ d: '2026-11-19', v: 4.5 }]);
   assert.throws(() => parseBdeApi({ Codigo: -5, Descripcion: 'Invalid username or password' }, 'X'), /token inválido o vencido/);
   console.log('✓ parseBdeApi');
+}
+// BIS: el par fecha,valor se toma aunque haya comas en los campos de texto; NaN se descarta.
+{
+  const { parseBis } = await import('../api/_lib/bis.js');
+  const s = parseBis('H\nD,IN,368,0,,Note: a, b; c.,4,RBI,x, y,Title,2026-10-16,5.5,A,F,\nD,IN,368,0,,n,4,RBI,x,T,2026-10-17,NaN,M,F,\nM,PE,771,0,,,,,,2026-09,4.54,F,,A\n');
+  assert.deepEqual(s, [{ d: '2026-09-01', v: 4.54 }, { d: '2026-10-16', v: 5.5 }]);
+  const { parseDaneMonth } = await import('../api/_lib/sources/co.js');
+  const ev = parseDaneMonth('<a href="/index.php/calendario/icalrepeat.detail/2027/01/08/10/-/ipc"><strong> Índice de Precios al Consumidor (IPC)</strong></a><a href="/index.php/calendario/icalrepeat.detail/2027/01/09/11/-/x"><strong> Resultados del IPC sin alimentos ni regulados (IPC)</strong></a>');
+  assert.deepEqual(ev.map((e) => e.date + ' ' + e.event), ['2027-01-08 DANE – IPC']);
+  console.log('✓ parseBis / parseDaneMonth');
 }
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);

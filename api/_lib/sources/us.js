@@ -1,7 +1,7 @@
 // Estados Unidos: FRED (requiere FRED_API_KEY gratuita) + Yahoo (futuros Fed funds, índices).
 import { getJson, clean, iso, daysAgo, daysAhead, settle, kpi, merge, thin, last, yoyFromIndex, upcoming, today, fmtMonthEs } from '../util.js';
 import { equityBlock, fedFundsStrip, yahooSeries, fedFundsContractHistory } from '../yahoo.js';
-import { meetingEvents } from '../calendar.js';
+import { agendaEvents } from '../calendar.js';
 
 const KEY = () => {
   const k = process.env.FRED_API_KEY;
@@ -18,13 +18,13 @@ export async function fred(id, from) {
 
 // Releases de FRED que entran en la agenda (IDs verificados contra /fred/release).
 export const FRED_RELEASES = {
-  10: 'Consumer Price Index',
-  50: 'Employment Situation',
-  53: 'Gross Domestic Product',
-  54: 'Personal Income and Outlays',
-  46: 'Producer Price Index',
-  9: 'Advance Monthly Sales for Retail and Food Services',
-  192: 'Job Openings and Labor Turnover Survey',
+  10: 'BLS – IPC (CPI)',
+  50: 'BLS – Empleo (nóminas no agrícolas)',
+  53: 'BEA – PIB (GDP)',
+  54: 'BEA – Ingreso y gasto personal (PCE)',
+  46: 'BLS – Precios mayoristas (PPI)',
+  9: 'Census – Ventas minoristas',
+  192: 'BLS – Vacantes laborales (JOLTS)',
 };
 
 /**
@@ -168,7 +168,7 @@ export default async function unitedStates() {
           note: 'Promedio mensual esperado de EFFR. Con una baja a mitad de mes, el contrato refleja solo parte del movimiento.',
         }
       : null,
-    calendar: upcoming([...meetingEvents('us'), ...(d['FRED calendario'] || [])]),
+    calendar: upcoming([...agendaEvents('us'), ...(d['FRED calendario'] || [])], 20),
     errors,
   };
 }

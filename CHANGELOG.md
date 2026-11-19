@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.9.0 — 2026-11-19 (Perú, India, agenda completa y orden de solapas)
+- **Orden de solapas**: Mundo, Crédito USD, Sostenibilidad, Comparar, Agenda y después los países (AR, BR, EE.UU., EZ, MX,
+  CA, CO, CL, PE, JP, IN). La barra pasa a dos filas en pantallas anchas (scroll horizontal en celular).
+- **Perú** (nuevo panel): tasa de referencia BCRP e IPC (BIS), EMBI (BCRD), USDPEN, EPU, proyecciones del FMI (WEO).
+  La API del BCRP responde con un desafío anti-bots a consultas automáticas (19-nov-2026): sin curva en soles ni encuesta.
+- **India** (nuevo panel): repo del RBI e IPC (BIS), call, interbancaria 3M y G-sec 10Y (OCDE vía FRED, mensuales),
+  proxy 3M − repo, USDINR, INDA/Nifty 50 y proyecciones del FMI (años fiscales abr–mar). India entra en Sostenibilidad.
+- **Agenda**: inflación, PIB y decisiones de banco central en todos los países, con fecha oficial:
+  - AR: INDEC (PDF 2.º sem. 2026): EMAE, IPC, PIB 3T. EZ: HICP flash y final hasta jun-27 (calendario estadístico del BCE)
+    y PIB 3T (Eurostat). MX: INPC quincenal y mensual, PIB oportuno y revisado, IGAE hasta jun-27 (PDF INEGI 2026 y 2027).
+  - CA: IPC y PIB (último "Next release" de The Daily). CO: DANE **en vivo** (vista mensual, IPC/PIB/ISE). CL: IPC del INE.
+  - JP: IPC nacional y de Tokio (MIC) y PIB (Cabinet Office). IN: decisiones del MPC (RBI) e IPC/PIB previstos (MOSPI).
+  - BR: **corregido** — el calendario del IBGE usa nombres completos y el filtro nunca captaba IPCA ni IPCA-15; ahora sí
+    (IPCA-15 rotulado "mitad de mes") y ventana de 90 días. EE.UU.: nombres de publicaciones en español.
+- Pendiente: Perú (BCRP e INEI sin calendario legible), BCCh (RPM 2027, PIB, Imacec), StatCan 2027, Banxico y BanRep 2027,
+  INDEC 1.er sem. 2027.
+- Tests: parser del BIS (campos con comas, NaN), parser del DANE, agenda de BR con IPCA/IPCA-15/PIB.
+
 ## 0.8.2 — 2026-11-19 (convención de monedas)
 - Rótulos de tipo de cambio en formato de ticker sin barra (USDMXN, USDBRL, EURUSD, USDJPY…), coherente con los valores
   (moneda cotizada por 1 unidad de la base). Nota de convención en el panel "Hoy" y en CLAUDE.md.

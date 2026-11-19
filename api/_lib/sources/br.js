@@ -1,7 +1,7 @@
 // Brasil: BCB SGS + BCB Olinda (Focus) + IBGE calendario + Yahoo.
 import { getJson, clean, dmyToIso, toDmy, iso, today, daysAgo, daysAhead, settle, kpi, merge, thin, last, upcoming, valueAt } from '../util.js';
 import { equityBlock } from '../yahoo.js';
-import { meetingEvents } from '../calendar.js';
+import { agendaEvents } from '../calendar.js';
 
 const SGS_URL = (code) => `https://www3.bcb.gov.br/sgspub/consultarvalores/telaCvsSelecionarSeries.paint?codigoSerie=${code}`;
 
@@ -139,17 +139,23 @@ async function ibgeCalendar() {
     const [y, m, dd] = d.toISOString().slice(0, 10).split('-');
     return `${m}-${dd}-${y}`;
   };
-  const j = await getJson(`https://servicodados.ibge.gov.br/api/v3/calendario/?qtd=200&de=${mdY(new Date())}&ate=${mdY(daysAhead(60))}`);
+  const j = await getJson(`https://servicodados.ibge.gov.br/api/v3/calendario/?qtd=200&de=${mdY(new Date())}&ate=${mdY(daysAhead(90))}`);
   const items = j.items || j || [];
-  const re = /IPCA|PIB|Contas Nacionais|PNAD Contínua|Produção Industrial|Pesquisa Mensal de Comércio|Pesquisa Mensal de Serviços/i;
+  // IBGE usa el nombre completo: "Índice Nacional de Preços ao Consumidor Amplo" (IPCA) y "... Amplo 15" (IPCA-15, la
+  // inflación de mitad de mes). El INPC y el IPCA-E se omiten. Rótulo corto para la agenda.
+  const SHORT = [
+    [/^Índice Nacional de Preços ao Consumidor Amplo 15$/i, 'IPCA-15 (mitad de mes)'],
+    [/^Índice Nacional de Preços ao Consumidor Amplo$/i, 'IPCA'],
+    [/^Sistema de Contas Nacionais Trimestrais$/i, 'PIB trimestral (Contas Nacionais)'],
+    [/^(PIB|Produção Industrial|Pesquisa Industrial Mensal|Pesquisa Mensal de Comércio|Pesquisa Mensal de Serviços|PNAD Contínua)/i, null],
+  ];
   return items
-    .filter((i) => re.test(i.nome_produto || i.titulo || ''))
-    .map((i) => ({
-      date: dmyToIso(i.data_divulgacao),
-      event: `IBGE – ${i.nome_produto || i.titulo}`,
-      kind: 'data',
-      url: 'https://www.ibge.gov.br/calendario-de-divulgacao.html',
-    }));
+    .map((i) => {
+      const name = (i.nome_produto || i.titulo || '').trim();
+      const hit = SHORT.find(([r]) => r.test(name));
+      return hit && { date: dmyToIso(i.data_divulgacao), event: `IBGE – ${hit[1] || name}`, kind: 'data', url: 'https://www.ibge.gov.br/calendario-de-divulgacao.html' };
+    })
+    .filter(Boolean);
 }
 
 /** Serie de medianas Focus de un indicador (para ver cómo se movió la expectativa). */
@@ -299,7 +305,7 @@ export default async function brazil() {
     ],
     expectations: [focus].filter(Boolean),
     path: d['Focus Selic por reunión'],
-    calendar: upcoming([...meetingEvents('br'), ...(d['IBGE calendario'] || [])]),
+    calendar: upcoming([...agendaEvents('br'), ...(d['IBGE calendario'] || [])], 20),
     errors,
   };
 }

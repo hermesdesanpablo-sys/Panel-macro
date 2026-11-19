@@ -1,7 +1,7 @@
 // Eurozona: ECB Data Portal (SDMX, sin clave) + Yahoo.
 import { getText, clean, iso, daysAgo, settle, kpi, merge, thin, last, upcoming } from '../util.js';
 import { equityBlock } from '../yahoo.js';
-import { meetingEvents } from '../calendar.js';
+import { agendaEvents } from '../calendar.js';
 
 const ECB = 'https://data-api.ecb.europa.eu/service/data';
 const ecbUrl = (flowKey) => `https://data.ecb.europa.eu/data/datasets/${flowKey.split('/')[0]}/${flowKey.replace('/', '.')}`;
@@ -166,7 +166,7 @@ export default async function eurozone() {
           note: 'Incluye prima por plazo y spread AAA vs €STR: sirve para la dirección, no como probabilidad exacta.',
         }
       : null,
-    calendar: upcoming(meetingEvents('eu')),
+    calendar: upcoming(agendaEvents('eu'), 20),
     errors,
   };
 }

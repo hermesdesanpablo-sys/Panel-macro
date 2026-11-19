@@ -1,7 +1,7 @@
 // México: Banxico SIE API (requiere BANXICO_TOKEN gratuito) + Yahoo.
 import { getJson, clean, dmyToIso, iso, daysAgo, settle, kpi, merge, thin, last, upcoming } from '../util.js';
 import { equityBlock, yahooSeries } from '../yahoo.js';
-import { meetingEvents } from '../calendar.js';
+import { agendaEvents } from '../calendar.js';
 
 // Catálogo: https://www.banxico.org.mx/SieAPIRest/service/v1/doc/catalogoSeries
 export const SIE = {
@@ -168,7 +168,7 @@ export default async function mexico() {
     ],
     expectations: expectations ? [expectations] : [],
     path,
-    calendar: upcoming(meetingEvents('mx')),
+    calendar: upcoming(agendaEvents('mx'), 20),
     errors,
   };
 }

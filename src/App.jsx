@@ -5,6 +5,10 @@ import { Flag } from './components/Flag.jsx';
 
 const TABS = [
   { id: 'world', label: 'Mundo' },
+  { id: 'usd', label: 'Crédito USD' },
+  { id: 'sust', label: 'Sostenibilidad' },
+  { id: 'compare', label: 'Comparar' },
+  { id: 'agenda', label: 'Agenda' },
   { id: 'ar', label: 'Argentina' },
   { id: 'br', label: 'Brasil' },
   { id: 'us', label: 'EE.UU.' },
@@ -13,13 +17,11 @@ const TABS = [
   { id: 'ca', label: 'Canadá' },
   { id: 'co', label: 'Colombia' },
   { id: 'cl', label: 'Chile' },
+  { id: 'pe', label: 'Perú' },
   { id: 'jp', label: 'Japón' },
-  { id: 'usd', label: 'Crédito USD' },
-  { id: 'sust', label: 'Sostenibilidad' },
-  { id: 'compare', label: 'Comparar' },
-  { id: 'agenda', label: 'Agenda' },
+  { id: 'in', label: 'India' },
 ];
-const COUNTRIES = ['ar', 'br', 'us', 'eu', 'mx', 'ca', 'co', 'cl', 'jp'];
+const COUNTRIES = ['ar', 'br', 'us', 'eu', 'mx', 'ca', 'co', 'cl', 'pe', 'jp', 'in'];
 const MOCK = new URLSearchParams(location.search).has('mock');
 
 /** `fresh`: pide datos nuevos salteando la caché del CDN (botón Recargar). */

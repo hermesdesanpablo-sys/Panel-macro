@@ -1,7 +1,7 @@
 // Canadá: Bank of Canada Valet API (sin clave) + Yahoo.
 import { getJson, clean, iso, daysAgo, settle, kpi, merge, last, yoyFromIndex, upcoming, spreadSeries } from '../util.js';
 import { equityBlock } from '../yahoo.js';
-import { meetingEvents } from '../calendar.js';
+import { agendaEvents } from '../calendar.js';
 
 // Lista de series: https://www.bankofcanada.ca/valet/lists/series/json
 export const VALET = {
@@ -105,7 +105,7 @@ export default async function canada() {
     ],
     expectations: [],
     path: null,
-    calendar: upcoming(meetingEvents('ca')),
+    calendar: upcoming(agendaEvents('ca'), 20),
     errors,
   };
 }

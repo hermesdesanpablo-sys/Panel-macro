@@ -6,7 +6,7 @@
 // - REM completo: planilla "relevamiento-expectativas-mercado-tablas-AAAA-MM.xlsx" (el link se toma de la página del REM).
 import { getJson, getText, clean, iso, daysAgo, settle, kpi, merge, thin, last, upcoming } from '../util.js';
 import { yahooSeries, perf } from '../yahoo.js';
-import { meetingEvents } from '../calendar.js';
+import { agendaEvents } from '../calendar.js';
 import { readFirstSheet, excelDate } from '../xlsx.js';
 import { embi, EMBI_PAGE } from './usd.js';
 import { officialAr, weoSeries } from './sust.js';
@@ -184,7 +184,7 @@ export default async function argentina() {
     ],
     expectations,
     path,
-    calendar: upcoming(meetingEvents('ar')),
+    calendar: upcoming(agendaEvents('ar'), 20),
     errors,
   };
 }

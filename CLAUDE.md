@@ -4,7 +4,7 @@ Contexto para Claude Code. Leer entero antes de tocar código.
 
 ## Qué es
 
-Dashboard macro con un panel por país (Argentina, Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Chile, Japón), una vista
+Dashboard macro con un panel por país (Argentina, Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Chile, Perú, Japón, India), una vista
 **Mundo** (cuadros tipo terminal + panel lateral "Hoy", tendencias y comparativo entre países), una solapa
 **Comparar** (dos países lado a lado), una solapa **Crédito USD** (spread EMBI de América Latina y curvas de los
 bonos soberanos en dólares), una solapa **Sostenibilidad** (tres brechas, deuda/PBI y primario que estabiliza la deuda)
@@ -21,10 +21,11 @@ Objetivo de cada panel:
 ## Arquitectura
 
 ```
-api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|jp|world|usd|sust  (función serverless Vercel, cache edge 30 min)
+api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust  (función serverless Vercel, cache edge 30 min)
 api/_lib/util.js            HTTP, fechas, series, kpi(), trend(), spreadSeries(), settle()
 api/_lib/yahoo.js           Yahoo Finance: precios, perf, futuros Fed funds (ZQ)
-api/_lib/calendar.js        Fechas de reuniones de bancos centrales (estático, revisar 1 vez/año)
+api/_lib/calendar.js        Reuniones de bancos centrales + publicaciones de IPC/PIB con fecha oficial (estático; revisar cada semestre)
+api/_lib/bis.js             BIS (sin clave): tasas de política WS_CBPOL y IPC WS_LONG_CPI (Perú, India)
 api/_lib/sources/<pais>.js  Un adaptador por país. Devuelve el "contrato de payload" (abajo)
 api/_lib/sources/usd.js     Crédito USD: EMBI por país (BCRD) + bonos soberanos en USD (onvista) vs Tesoro (FRED). Payload propio
 api/_lib/usd-bonds.json     Lista de ISINs en USD por emisor (la genera scripts/discover-usd-bonds.mjs)
@@ -147,6 +148,8 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 
 | 🇦🇷 | ✔ TAMAR (BCRA 44; sin tasa de política desde jul-25) y pases 1d (150) | ✔ INDEC vía BCRA (27 m/m, 28 a/a) | ✔ REM: 12m (BCRA 29, con historia) + planilla completa (inflación, TAMAR, TC, PIB, fiscal) | ✔ BADLAR; EMBI (BCRD); ❌ curva en pesos | ✔ A3500 + bandas | ✔ ARGT | ✔ IPC INDEC 15-dic-2026 |
 | 🇨🇱 | ✔ BDE F022.TPM | ✔ BDE IPC var. 12m | ✔ EEE (inflación 11/23m, TPM por plazo, PIB) y EOF (TPM e inflación 12m); ✔ BCP−BCU 10Y | ✔ BCP 2Y/10Y, BCU 10Y | ✔ dólar observado | ✔ ECH; IPSA mensual (BDE) | ✔ dic-2026; ❌ 2027 (publicado, no accesible) |
+| 🇵🇪 | ✔ BIS D.PE | ✔ BIS M.PE.771 (lag ~2 meses) | FMI WEO (dic/dic próximo año); ❌ encuesta BCRP (API bloqueada) | ✔ EMBI; ❌ curva en soles | ✔ Yahoo PEN=X | ✔ EPU; ❌ S&P/BVL sin historia en Yahoo | ❌ BCRP e INEI (sin calendario legible) |
+| 🇮🇳 | ✔ BIS D.IN (lag ~1 mes) | ✔ BIS M.IN.771 | FMI WEO (AF abr–mar); proxy 3M − repo | ✔ OCDE vía FRED: call, 3M, 10Y (mensual); ❌ G-sec 2Y | ✔ Yahoo INR=X | ✔ INDA/^NSEI | ✔ RBI MPC AF 26-27; MOSPI (previstas) |
 | 🇯🇵 | ✔ BoJ call O/N (STRDCLUCON) | ✔ BIS WS_LONG_CPI M.JP.771 | ✔ Tankan infl. 1a; proxy JGB 2Y − call | ✔ MOF JGB 2Y/10Y/30Y | ✔ Yahoo JPY=X | ✔ EWJ/^N225 | ✔ BoJ 2026–2027 |
 
 ### Notas de Crédito USD (onvista)
@@ -222,6 +225,16 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
   Se usa ER porque la tasa de política está en efectiva anual. TES: `IRGBRY{01,05,10}`, mensual, en decimal.
 - Variables opcionales para sobreescribir: `BANREP_FLOW_POLICY`, `BANREP_IBR_ON`, `BANREP_IBR_6M`.
 - `startPeriod` solo respeta el año; el filtro fino de fechas se hace del lado del cliente.
+
+### Notas de la Agenda
+- `calendar.js`: `POLICY_MEETINGS` (bancos centrales) y `DATA_RELEASES` (IPC y PIB) con la fuente de cada calendario;
+  `agendaEvents(id)` une ambos. En vivo: BR (API del IBGE, nombres completos: "Índice Nacional de Preços ao Consumidor Amplo" = IPCA,
+  "... Amplo 15" = IPCA-15), EE.UU. (FRED releases) y CO (vista mensual del DANE, `parseDaneMonth`).
+- Fuentes de las fechas estáticas: INDEC `ftp/cuadros/publicaciones/calendario_<N>sem<AAAA>.pdf`; INEGI
+  `contenidos/saladeprensa/doc/cal_<AAAA>.pdf`; BCE `press/calendars/statscal/ges/html/sthicp.en.html` (HICP flash/final);
+  StatCan "Next release" de cada comunicado de The Daily; MIC `stat.go.jp/english/data/cpi/1582.htm`; Cabinet Office
+  `esri.cao.go.jp/en/sna/kouhyou/kouhyou_top.html`; RBI `Scripts/Annualpolicy.aspx`; MOSPI Advance Release Calendar (PDF).
+- No se cargan fechas estimadas: si un calendario no se puede leer (BCRP, INEI, BCCh), queda vacío y anotado como pendiente.
 
 ## Pendientes priorizados
 
