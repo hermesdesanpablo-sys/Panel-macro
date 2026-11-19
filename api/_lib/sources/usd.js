@@ -49,7 +49,7 @@ export function parseEmbi(rows) {
   return { asOf, series, meta };
 }
 
-async function embi() {
+export async function embi() {
   const r = await fetch(EMBI_URL, { headers: { 'User-Agent': 'Mozilla/5.0 (macro-dashboard)' }, signal: AbortSignal.timeout(25000) });
   if (!r.ok) throw new Error(`HTTP ${r.status} en cdn.bancentral.gov.do`);
   return parseEmbi(readFirstSheet(Buffer.from(await r.arrayBuffer())));

@@ -265,7 +265,7 @@ function TrendsTable({ countries }) {
         </table>
       </div>
       <div className="card-foot">
-        <span>Expectativa de tasa: Focus (BR), futuros Fed funds (EE.UU.), forward 1Y AAA (EZ), Encuesta Banxico (MX), 2Y − overnight (CA), IBR 6M − política (CO), JGB 2Y − call (JP). Inflación esperada: Focus (BR), breakeven (EE.UU., CA), SPF (EZ), Encuesta Banxico (MX), Tankan (JP). Pasá el mouse sobre una celda para ver la serie usada. * FX: + = la moneda local se apreció vs USD.</span>
+        <span>Expectativa de tasa: TAMAR esperada REM (AR), Focus (BR), futuros Fed funds (EE.UU.), forward 1Y AAA (EZ), Encuesta Banxico (MX), 2Y − overnight (CA), IBR 6M − política (CO), JGB 2Y − call (JP). Inflación esperada: REM (AR), Focus (BR), breakeven (EE.UU., CA), SPF (EZ), Encuesta Banxico (MX), Tankan (JP). Pasá el mouse sobre una celda para ver la serie usada. * FX: + = la moneda local se apreció vs USD.</span>
       </div>
     </section>
   );
@@ -940,7 +940,7 @@ function reading(c) {
   }
   if (s.ca != null && s.fb != null) {
     out.push(`En ${s.year}, ${c.name} tuvo ${s.ca < 0 ? 'un déficit' : 'un superávit'} de cuenta corriente de ${fmtNum(Math.abs(s.ca), 1)}% del PBI: ` +
-      `el sector público ${s.fb < 0 ? 'desahorró' : 'ahorró'} ${fmtNum(Math.abs(s.fb), 1)}% (resultado fiscal) y el sector privado ${s.priv >= 0 ? 'ahorró' : 'desahorró'} en neto ${fmtNum(Math.abs(s.priv), 1)}%.` +
+      `el sector público ${s.fb < 0 ? 'desahorró' : 'ahorró'} ${fmtNum(Math.abs(s.fb), 1)}% (resultado del gobierno general según el FMI, con intereses devengados) y el sector privado ${s.priv >= 0 ? 'ahorró' : 'desahorró'} en neto ${fmtNum(Math.abs(s.priv), 1)}%.` +
       (s.ca < 0 ? ' Esa brecha externa se financia con ahorro del resto del mundo (deuda, inversión extranjera o caída de reservas).' : ' El país es acreedor neto del resto del mundo en ese año.'));
   }
   if (s.trade != null && s.tradeYear === s.year && s.ca != null) {

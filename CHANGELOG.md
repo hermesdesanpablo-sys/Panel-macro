@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0 — 2026-11-19 (Argentina + auditoría de Sostenibilidad)
+- **Argentina** (nuevo panel): TAMAR (sin tasa de política del BCRA desde jul-25), pases 1 día, BADLAR, inflación INDEC
+  mensual e interanual, REM (inflación 12m con historia, trayectoria mensual esperada, tabla con inflación/núcleo/TAMAR/TC/PIB/
+  resultado primario/desempleo), EMBI, A3500 con bandas, reservas, resultado fiscal SPN 12 meses (% PBI) y ARGT. Agenda: IPC 15-dic.
+- **Sostenibilidad – auditoría**: columnas de **dato oficial** con fecha y frecuencia (AR mensual, BR mensual, CL/EA/EE.UU.
+  trimestral o anual) junto al FMI, lectura con el dato oficial y gráficos mensuales/trimestrales. Hallazgos documentados:
+  AR resultado oficial 2025 +1,38% primario / +0,17% financiero (SPN base caja) vs −0,2% FMI (gobierno general, devengado);
+  BR deuda 83% (DBGG, BCB) vs 93% FMI (incluye títulos en cartera del BCB); el 105% era la proyección 2031 del FMI.
+
 ## 0.7.1 — 2026-11-19 (Sostenibilidad: rechequeo de datos)
 - Inflación del FMI (dic/dic y proyección del año siguiente) en el tablero, separada del **crecimiento del PBI nominal**
   (real + deflactor, promedio del año). En el mensaje anterior se rotuló mal como "inflación" el 45,5% de Argentina 2025:

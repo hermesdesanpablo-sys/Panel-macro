@@ -68,6 +68,12 @@ export function parseWeo(j) {
   return { data: out, updated };
 }
 
+/** Una serie anual del WEO para un país: { año: valor }. */
+export async function weoSeries(country, indicator) {
+  const j = await getJson(`https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.RES/WEO/+/${country}.${indicator}.A?startPeriod=2015`, { timeout: 25000 });
+  return parseWeo(j).data[country]?.[indicator] || {};
+}
+
 async function weo() {
   const key = `${COUNTRIES.map((c) => c.weo).join('+')}.${Object.values(WEO).join('+')}.A`;
   const j = await getJson(`https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.RES/WEO/+/${key}?startPeriod=${FIRST_YEAR - 1}`, { timeout: 30000 });
@@ -106,7 +112,7 @@ async function datosAr(ids, start) {
 }
 
 /** Argentina: Sector Público Nacional base caja (Hacienda), mensual → acumulado 12 meses en % del PBI. */
-async function officialAr(ngdp) {
+export async function officialAr(ngdp) {
   const [pbM, fbM] = await datosAr(['379.9_SUPERAVIT_017__23_94', '379.9_RESULTADO_017__18_38'], iso(daysAgo(365 * 4)).slice(0, 7) + '-01');
   // PBI de los 12 meses que terminan en el mes m: interpolación lineal del PBI nominal anual del FMI (en pesos).
   const gdp12 = (d) => {
