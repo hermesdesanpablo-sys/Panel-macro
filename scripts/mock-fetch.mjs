@@ -99,7 +99,7 @@ const VALET = {
   'BD.CDN.LONG.DQ.YLD': () => walk(3.9, 400, 0.006),
   'BD.CDN.RRB.DQ.YLD': () => walk(1.8, 400, 0.008),
 };
-const YLEVEL = { EWZ: 30, '^BVSP': 150000, EUSA: 110, '^GSPC': 6700, EZU: 58, '^STOXX50E': 5600, EWW: 64, '^MXX': 62000, EWC: 48, '^GSPTSE': 30000, ACWI: 140, URTH: 180, EEM: 52, ILF: 30, '^N225': 48000, '^VIX': 17, '^TNX': 4.2, '^IRX': 3.6, 'DX-Y.NYB': 99, 'EURUSD=X': 1.15, 'BRL=X': 5.4, 'MXN=X': 18.4, 'CAD=X': 1.39, 'BZ=F': 64, 'GC=F': 4000, 'HG=F': 5, 'ZS=F': 1100, COLO: 27, 'ICOLCAP.CL': 15000, 'COP=X': 3900, EWJ: 80, 'JPY=X': 150 };
+const YLEVEL = { EWZ: 30, '^BVSP': 150000, EUSA: 110, '^GSPC': 6700, EZU: 58, '^STOXX50E': 5600, EWW: 64, '^MXX': 62000, EWC: 48, '^GSPTSE': 30000, ACWI: 140, URTH: 180, EEM: 52, ILF: 30, '^N225': 48000, '^VIX': 17, '^TNX': 4.2, '^IRX': 3.6, 'DX-Y.NYB': 99, 'EURUSD=X': 1.15, 'BRL=X': 5.4, 'MXN=X': 18.4, 'CAD=X': 1.39, 'BZ=F': 64, 'GC=F': 4000, 'HG=F': 5, 'ZS=F': 1100, COLO: 27, 'ICOLCAP.CL': 15000, 'COP=X': 3900, EWJ: 80, 'JPY=X': 150, ECH: 30 };
 
 /** XLSX mínimo (ZIP sin compresión) con una hoja y textos compartidos, para imitar planillas reales. */
 function mockXlsx(rows) {
@@ -231,6 +231,23 @@ export async function mockFetch(input) {
     }
     else if (u.includes('DF_TRM')) body = ser('TRM', walk(3900, 400, 0.005));
     return text(`<message:GenericData><message:DataSet>${body}</message:DataSet></message:GenericData>`);
+  }
+  if (url.host === 'si3.bcentral.cl') {
+    // Cuadro de la BDE (HTML): encabezados con fechas ("17.Nov.2026" o "Nov.2026") y una fila por serie (data-serie).
+    const M = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const daily = /TPMyTASAS|DOLAR_OBS|EXE_EOF/.test(u);
+    const pts = daily ? walk(1, 300, 0) : walk(1, 40, 0, 'M');
+    const head = pts.map((p) => { const [y, m, d] = p.d.split('-'); return daily ? `${Number(d)}.${M[+m - 1]}.${y}` : `${M[+m - 1]}.${y}`; });
+    const y0 = new Date().getUTCFullYear();
+    const lv = (c) => (/TCO/.test(c) ? 950 : /IBC/.test(c) ? 9000 : /IMC\.IND/.test(c) ? 110 : /BUF/.test(c) ? 2.5 : /BCLP/.test(c) ? 5.5 : /TPM/.test(c) ? 4.5 : /PIB/.test(c) ? 2 : 3.5);
+    const codes = ['F022.TPM.TIN.D001.NO.Z.D', 'F022.BCLP.TIS.AN02.NO.Z.D', 'F022.BCLP.TIS.AN10.NO.Z.D', 'F022.BUF.TIS.AN10.UF.Z.D', 'F073.TCO.PRE.Z.D',
+      'F074.IPC.IND.Z.EP09.C.M', 'F013.IBC.IND.N.7.LAC.CL.CLP.BLO.M', 'F032.IMC.IND.Z.Z.EP18.Z.Z.0.M', 'F089.IPC.V12.14.M', 'F089.IPC.V12.15.M',
+      'F089.EOF.VII.12MS.D', 'F089.EOF.TPM.12MS.D', ...['11', '31', '26', '14', '30', '15', '35'].map((k) => `F089.TPM.TAS.${k}.M`),
+      ...[y0, y0 + 1].flatMap((y) => [`F089.IPC.V12.${y}.M`, `F089.PIB.V12.${y}.M`])];
+    const fmt = (v) => v.toFixed(2).replace('.', ',');
+    const rows = codes.map((c, k) => `<tr><td><input data-serie="${c}" /></td><td><span class="sname">${c}</span></td>` +
+      pts.map((p, i) => `<td class="ar col">${fmt(lv(c) * (1 + Math.sin(i / 15 + k) * 0.03))}</td>`).join('') + '</tr>').join('');
+    return text(`<table><tr><th>Sel.</th><th>Serie</th>${head.map((h) => `<th>${h}</th>`).join('')}</tr>${rows}</table>`);
   }
   if (url.host === 'cdn.bancentral.gov.do') {
     // Planilla EMBI del BCRD: misma estructura (título, fila "Fecha", fechas seriales de Excel, valores en pp, "N/A").

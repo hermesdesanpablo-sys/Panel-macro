@@ -1,6 +1,6 @@
 # Macro Monitor
 
-Panel por país (Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Japón) + vista Mundo + agenda consolidada.
+Panel por país (Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Chile, Japón) + Mundo + Crédito USD + Comparar + agenda.
 Cada indicador muestra su nivel y cómo se movió a 1/3/6/12 meses. **Para trabajar en el proyecto, leer `CLAUDE.md`.**
 Todo sale de fuentes oficiales gratuitas; los mercados, de Yahoo Finance.
 
@@ -71,6 +71,9 @@ scripts/test-parsers.mjs  → test offline con formatos simulados (+ genera dato
 | 🇺🇸 | Implícita futuros +12m (historia) | Yahoo | ZQ{mes}{aa}.CBT, 1 año |
 | 🇪🇺 | Forward 1Y (historia) | BCE | YC.B.U2.EUR.4F.G_N_A.SV_C_YM.IF_1Y |
 | todos | Proxy MSCI país (USD) + índice local | Yahoo | EWZ/^BVSP, EUSA/^GSPC, EZU/^STOXX50E, EWW/^MXX, EWC/^GSPTSE, COLO/ICOLCAP.CL, EWJ/^N225 |
+| 🇨🇱 | TPM, BCP 2Y/10Y, BCU 10Y, dólar observado, IPC, Imacec, IPSA, EEE, EOF | BCCh BDE (cuadros públicos) | ver `CUADROS` en `cl.js` |
+| Crédito USD | Spread EMBI por país (Global, LatAm y 16 países) | Banco Central de la Rep. Dominicana | Serie_Historica_Spread_del_EMBI.xlsx |
+| Crédito USD | Bonos soberanos en USD de AR, BR, CL, CO, EC, MX, PA, PE, UY (precio, TIR semestral, duration, spread vs UST) | onvista + FRED | `api/_lib/usd-bonds.json` |
 | Mundo | 56 activos: MSCI global y por país, índices de EE.UU., Europa, Asia y América, VIX, Treasuries, 11 monedas, commodities | Yahoo | ver `world.js` |
 
 ## Estado, pendientes y credenciales

@@ -55,6 +55,12 @@ export const POLICY_MEETINGS = {
     // dic-2026 verificado en banrep.gov.co (18-nov-2026). 2027: BanRep todavía no lo publicó.
     dates: ['2026-12-18'],
   },
+  cl: {
+    label: 'BCCh – Reunión de Política Monetaria',
+    src: 'https://www.bcentral.cl/web/banco-central/noticias-y-publicaciones/prensa/calendario-de-politica-monetaria-y-financiera',
+    // dic-2026 verificado en el calendario oficial. 2027: publicado el 30-sep-2026 pero la página bloquea consultas automáticas; PENDIENTE.
+    dates: ['2026-12-15'],
+  },
   jp: {
     label: 'BoJ – decisión de política monetaria',
     src: 'https://www.boj.or.jp/en/mopo/mpmsche_minu/index.htm',

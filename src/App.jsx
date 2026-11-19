@@ -11,12 +11,13 @@ const TABS = [
   { id: 'mx', label: 'México' },
   { id: 'ca', label: 'Canadá' },
   { id: 'co', label: 'Colombia' },
+  { id: 'cl', label: 'Chile' },
   { id: 'jp', label: 'Japón' },
   { id: 'usd', label: 'Crédito USD' },
   { id: 'compare', label: 'Comparar' },
   { id: 'agenda', label: 'Agenda' },
 ];
-const COUNTRIES = ['br', 'us', 'eu', 'mx', 'ca', 'co', 'jp'];
+const COUNTRIES = ['br', 'us', 'eu', 'mx', 'ca', 'co', 'cl', 'jp'];
 const MOCK = new URLSearchParams(location.search).has('mock');
 
 async function load(id) {

@@ -44,7 +44,7 @@ export function chgDir(v, unit = 'pb') {
 }
 
 // ISO-2 para las banderas SVG (los emoji de bandera no se ven en Windows).
-export const FLAG_ISO = { br: 'br', us: 'us', eu: 'eu', mx: 'mx', ca: 'ca', co: 'co', jp: 'jp' };
+export const FLAG_ISO = { br: 'br', us: 'us', eu: 'eu', mx: 'mx', ca: 'ca', co: 'co', cl: 'cl', jp: 'jp' };
 export const DIR_WORD = { up: 'sube', down: 'baja', flat: 'estable' };
 
 export const GROUPS = [
