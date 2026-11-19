@@ -232,6 +232,18 @@ export async function mockFetch(input) {
     else if (u.includes('DF_TRM')) body = ser('TRM', walk(3900, 400, 0.005));
     return text(`<message:GenericData><message:DataSet>${body}</message:DataSet></message:GenericData>`);
   }
+  if (url.host === 'apis.datos.gob.ar') {
+    // API de series de tiempo de Argentina: data = [[fecha, v1, v2, ...]] mensual.
+    const ids = url.searchParams.get('ids').split(',');
+    const rows = walk(1, 48, 0, 'M').map((p, i) => [p.d, ...ids.map((id, k) => (k === 0 ? 1.2e6 : 0.2e6) * 1.03 ** i * (1 + Math.sin(i / 3 + k) * 0.5))]);
+    return json({ data: rows, meta: [] });
+  }
+  if (url.host === 'ec.europa.eu') {
+    // Eurostat JSON-stat: dimension.time.category.index + value por posición.
+    const qs = ['2023-Q1', '2023-Q2', '2023-Q3', '2023-Q4', '2024-Q1', '2024-Q2', '2024-Q3', '2024-Q4', '2025-Q1', '2025-Q2'];
+    const isDebt = u.includes('ggdebt');
+    return json({ dimension: { time: { category: { index: Object.fromEntries(qs.map((q, i) => [q, i])) } } }, value: Object.fromEntries(qs.map((q, i) => [String(i), isDebt ? 88 + i * 0.1 : -3 + Math.sin(i) * 0.5])) });
+  }
   if (url.host === 'api.imf.org') {
     // SDMX-JSON 3.0 del WEO: dimensiones COUNTRY/INDICATOR/FREQUENCY y observaciones por índice de año.
     const key = decodeURIComponent(u.match(/WEO\/\+\/([^?]+)/)[1]).split('.');
