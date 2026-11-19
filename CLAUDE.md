@@ -5,7 +5,8 @@ Contexto para Claude Code. Leer entero antes de tocar código.
 ## Qué es
 
 Dashboard macro con un panel por país (Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Japón), una vista
-**Mundo** (tendencias y comparativo entre países + mercados globales) y una **Agenda** consolidada.
+**Mundo** (cuadros tipo terminal + panel lateral "Hoy", tendencias y comparativo entre países), una solapa
+**Comparar** (dos países lado a lado) y una **Agenda** consolidada.
 Dueño: Hermes (renta fija / mercado de capitales, Argentina). Idioma de la UI y de los comentarios: español.
 
 Objetivo de cada panel:
@@ -24,8 +25,9 @@ api/_lib/yahoo.js           Yahoo Finance: precios, perf, futuros Fed funds (ZQ)
 api/_lib/calendar.js        Fechas de reuniones de bancos centrales (estático, revisar 1 vez/año)
 api/_lib/sources/<pais>.js  Un adaptador por país. Devuelve el "contrato de payload" (abajo)
 src/App.jsx                 Tabs, carga en paralelo de todos los países, modo ?mock=1
-src/components/Panels.jsx   Kpi, Dynamics, CountryPanel, TrendsTable, WorldPanel, AgendaList
-src/components/Charts.jsx   TimeChart, PathChart, Spark (Recharts)
+src/components/Panels.jsx   Kpi, Dynamics, CountryPanel, TrendsTable, WorldPanel (MajorIndices, QuoteCard, BondTiles,
+                            MiniTiles, Watchlist), ComparePanel, AgendaList
+src/components/Charts.jsx   TimeChart, PathChart, Spark, AreaSpark (Recharts)
 src/components/Flag.jsx     Banderas SVG (flagcdn; los emoji de bandera no se ven en Windows)
 scripts/smoke.mjs           Prueba contra las APIs REALES (requiere .env)
 scripts/test-parsers.mjs    Test offline con fetch simulado + genera src/mock-data.json
@@ -184,6 +186,8 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 - Español en UI, comentarios y commits. Fechas ISO internas (`yyyy-mm-dd`); en UI `fmtDate`.
 - Series siempre `[{d, v}]` ordenadas asc (`clean()`).
 - Gráficos: **nunca dos ejes Y**. Máximo 3 series por gráfico (paleta validada para daltonismo: `--series-1..3`).
+- Colores de variación: en paneles de país, chips azul (baja) / rojo (sube) con flecha; en Mundo (precios), convención de
+  mercado verde (sube) / rojo (baja), siempre con signo. Nunca color solo.
 - Cada número muestra su fuente (`source` + `url`). Los cálculos propios se rotulan "Cálculo propio".
 - No inventar datos: si no hay fuente, KPI `n/d` con `source: 'Pendiente'` y nota de por qué.
 - Las claves solo en variables de entorno.
