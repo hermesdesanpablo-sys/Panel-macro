@@ -251,6 +251,11 @@ a.src:hover { color: var(--accent); }
 .sel-sm { background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--border-strong); border-radius: 8px; padding: 6px 10px; font: inherit; }
 
 @media (max-width: 1640px) { .actions .muted { display: none; } }
+.embi-aggs { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.range-cell { min-width: 120px; }
+.range { position: relative; display: block; height: 6px; border-radius: 3px; background: var(--surface-3); margin: 4px 0 2px; }
+.range-dot { position: absolute; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--text-primary); box-shadow: 0 0 0 2px var(--surface-1); }
+
 @media (max-width: 1180px) {
   .world-layout { grid-template-columns: 1fr; }
   .watch { position: static; max-height: none; }

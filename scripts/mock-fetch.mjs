@@ -53,6 +53,7 @@ const SGS = {
   1178: () => steps([14.9, 13.65], 400),
 };
 const FRED = {
+  ...Object.fromEntries(['DGS1MO', 'DGS3MO', 'DGS6MO', 'DGS1', 'DGS3', 'DGS5', 'DGS7', 'DGS20', 'DGS30'].map((id, i) => [id, () => walk(3.6 + i * 0.12, 20, 0.004)])),
   DFEDTARU: () => steps([4.5, 4.25, 4.0, 3.75], 1100),
   DFEDTARL: () => steps([4.25, 4.0, 3.75, 3.5], 1100),
   EFFR: () => steps([3.83, 3.64], 400),
@@ -99,6 +100,28 @@ const VALET = {
   'BD.CDN.RRB.DQ.YLD': () => walk(1.8, 400, 0.008),
 };
 const YLEVEL = { EWZ: 30, '^BVSP': 150000, EUSA: 110, '^GSPC': 6700, EZU: 58, '^STOXX50E': 5600, EWW: 64, '^MXX': 62000, EWC: 48, '^GSPTSE': 30000, ACWI: 140, URTH: 180, EEM: 52, ILF: 30, '^N225': 48000, '^VIX': 17, '^TNX': 4.2, '^IRX': 3.6, 'DX-Y.NYB': 99, 'EURUSD=X': 1.15, 'BRL=X': 5.4, 'MXN=X': 18.4, 'CAD=X': 1.39, 'BZ=F': 64, 'GC=F': 4000, 'HG=F': 5, 'ZS=F': 1100, COLO: 27, 'ICOLCAP.CL': 15000, 'COP=X': 3900, EWJ: 80, 'JPY=X': 150 };
+
+/** XLSX mínimo (ZIP sin compresión) con una hoja y textos compartidos, para imitar planillas reales. */
+function mockXlsx(rows) {
+  const strings = [];
+  const si = (t) => { let k = strings.indexOf(t); if (k < 0) { strings.push(t); k = strings.length - 1; } return k; };
+  const col = (i) => String.fromCharCode(65 + i);
+  const sheet = '<worksheet><sheetData>' + rows.map((r, ri) => `<row r="${ri + 1}">` + r.map((v, ci) =>
+    /^-?\d+(\.\d+)?$/.test(v) ? `<c r="${col(ci)}${ri + 1}"><v>${v}</v></c>` : `<c r="${col(ci)}${ri + 1}" t="s"><v>${si(v)}</v></c>`).join('') + '</row>').join('') + '</sheetData></worksheet>';
+  const sst = '<sst>' + strings.map((t) => `<si><t>${t}</t></si>`).join('') + '</sst>';
+  const files = [['xl/worksheets/sheet1.xml', sheet], ['xl/sharedStrings.xml', sst]].map(([n, c]) => [Buffer.from(n), Buffer.from(c)]);
+  const parts = [], central = [];
+  let off = 0;
+  for (const [name, data] of files) {
+    const lh = Buffer.alloc(30); lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt32LE(data.length, 18); lh.writeUInt32LE(data.length, 22); lh.writeUInt16LE(name.length, 26);
+    const ch = Buffer.alloc(46); ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt32LE(data.length, 20); ch.writeUInt32LE(data.length, 24); ch.writeUInt16LE(name.length, 28); ch.writeUInt32LE(off, 42);
+    parts.push(lh, name, data); central.push(ch, name);
+    off += 30 + name.length + data.length;
+  }
+  const cd = Buffer.concat(central);
+  const end = Buffer.alloc(22); end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(files.length, 8); end.writeUInt16LE(files.length, 10); end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(off, 16);
+  return Buffer.concat([...parts, cd, end]);
+}
 
 export async function mockFetch(input) {
   const url = new URL(typeof input === 'string' ? input : input.url);
@@ -208,6 +231,34 @@ export async function mockFetch(input) {
     }
     else if (u.includes('DF_TRM')) body = ser('TRM', walk(3900, 400, 0.005));
     return text(`<message:GenericData><message:DataSet>${body}</message:DataSet></message:GenericData>`);
+  }
+  if (url.host === 'cdn.bancentral.gov.do') {
+    // Planilla EMBI del BCRD: misma estructura (título, fila "Fecha", fechas seriales de Excel, valores en pp, "N/A").
+    const head = ['Fecha', 'Global', 'LATINO', 'REP DOM', 'Argentina', 'Brasil', 'Chile', 'Colombia', 'México', 'Perú', 'Venezuela'];
+    const lv = [2.0, 2.1, 1.9, 7.5, 2.0, 1.0, 2.3, 2.2, 1.2, 50];
+    const rows = [['EMBI Global Diversified Subindices'], head];
+    const n = 900;
+    for (let i = n; i >= 0; i--) {
+      const t = Date.now() - i * DAY;
+      if ([0, 6].includes(new Date(t).getUTCDay())) continue;
+      rows.push([String(Math.round((t - Date.UTC(1899, 11, 30)) / DAY)), ...lv.map((v, k) => (k === 9 && i > 600 ? 'N/A' : String(v * (1 + Math.sin(i / 40 + k) * 0.1))))]);
+    }
+    return new Response(mockXlsx(rows), { status: 200 });
+  }
+  if (url.host === 'api.onvista.de') {
+    // Snapshot de un bono soberano en USD: rendimiento creciente con el plazo según el ISIN (determinístico).
+    const isin = decodeURIComponent(u.match(/ISIN:([A-Z0-9]+)/)[1]);
+    const h = [...isin].reduce((a, c) => a + c.charCodeAt(0), 0);
+    const years = 1 + (h % 28);
+    const mat = new Date(Date.now() + years * 365.25 * DAY).toISOString();
+    const ytm = 5 + (h % 4) + years * 0.08;
+    return json({
+      bondsDetails: { officialName: `Bono ${isin}`, isoCurrency: 'USD', coupon: 5 + (h % 5), nameTypeCoupon: 'Fest' },
+      bondsBaseData: { datetimeMaturity: mat, perpetual: false, inDefault: false },
+      bondsIssuer: { isoCountry: 'XX', nameTypeIssuer: 'öffentlich' },
+      bondsFigures: { priceForCalculation: 95 + (h % 10), datetimePriceForCalculation: new Date(Date.now() - DAY).toISOString(), yieldToMaturity: ytm, modifyDuration: Math.min(years * 0.8, 15) },
+      quote: { last: 96 },
+    });
   }
   if (url.host === 'www.tesourotransparente.gov.br') {
     // CSV del Tesouro Direto: fechas de la más nueva a la más vieja (como el real), separador ';' y coma decimal.
