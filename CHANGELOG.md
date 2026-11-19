@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.1 — 2026-11-19 (Recargar)
+- Antes el CDN guardaba cada respuesta 30 min (+1 h stale): "Recargar" devolvía la copia. Ahora la caché depende del dato:
+  Mundo 60 s sin stale, países 5 min, Crédito USD 15 min, Sostenibilidad 6 h; "Recargar" agrega ?fresh=<ts> (siempre MISS).
+- Auto-actualización con la pestaña visible: Mundo cada minuto y la solapa abierta cada 5 minutos.
+- La hora de actualización vuelve a verse en el encabezado (hora local).
+- Verificado en vista previa: repetido → HIT; con ?fresh → MISS.
+
 ## 0.8.0 — 2026-11-19 (Argentina + auditoría de Sostenibilidad)
 - **Argentina** (nuevo panel): TAMAR (sin tasa de política del BCRA desde jul-25), pases 1 día, BADLAR, inflación INDEC
   mensual e interanual, REM (inflación 12m con historia, trayectoria mensual esperada, tabla con inflación/núcleo/TAMAR/TC/PIB/

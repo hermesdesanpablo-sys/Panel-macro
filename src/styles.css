@@ -251,7 +251,7 @@ a.src:hover { color: var(--accent); }
 .tbl tr.stale td { opacity: .55; }
 .sel-sm { background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--border-strong); border-radius: 8px; padding: 6px 10px; font: inherit; }
 
-@media (max-width: 1640px) { .actions .muted { display: none; } }
+.upd { white-space: nowrap; }
 .embi-aggs { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-bottom: 14px; }
 .range-cell { min-width: 120px; }
 .range { position: relative; display: block; height: 6px; border-radius: 3px; background: var(--surface-3); margin: 4px 0 2px; }

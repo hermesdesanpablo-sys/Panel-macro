@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { CountryPanel, WorldPanel, AgendaList, ComparePanel, UsdPanel, SustPanel } from './components/Panels.jsx';
 import { fmtDate } from './format.js';
 import { Flag } from './components/Flag.jsx';
@@ -22,12 +22,13 @@ const TABS = [
 const COUNTRIES = ['ar', 'br', 'us', 'eu', 'mx', 'ca', 'co', 'cl', 'jp'];
 const MOCK = new URLSearchParams(location.search).has('mock');
 
-async function load(id) {
+/** `fresh`: pide datos nuevos salteando la caché del CDN (botón Recargar). */
+async function load(id, fresh = false) {
   if (MOCK) {
     const all = (await import('./mock-data.json')).default;
     return all[id];
   }
-  const r = await fetch(`/api/country?c=${id}`);
+  const r = await fetch(`/api/country?c=${id}${fresh ? `&fresh=${Date.now()}` : ''}`, fresh ? { cache: 'no-store' } : undefined);
   const j = await r.json();
   if (!r.ok) throw new Error(j.error || r.statusText);
   return j;
@@ -45,21 +46,33 @@ export default function App() {
   const setCmpB = (v) => { setCmpBState(v); keep('cmpB', v); };
   const [state, setState] = useState({});
 
-  const fetchOne = useCallback(async (id) => {
+  const fetchOne = useCallback(async (id, fresh = false) => {
     setState((s) => ({ ...s, [id]: 'loading' }));
     try {
-      const p = await load(id);
+      const p = await load(id, fresh);
       setData((d) => ({ ...d, [id]: p }));
       setState((s) => ({ ...s, [id]: 'ok' }));
     } catch (e) {
       setState((s) => ({ ...s, [id]: String(e.message || e) }));
     }
   }, []);
-  const fetchAll = useCallback(() => ['world', ...COUNTRIES].forEach(fetchOne), [fetchOne]);
+  const fetchAll = useCallback((fresh = false) => ['world', ...COUNTRIES].forEach((id) => fetchOne(id, fresh)), [fetchOne]);
   // Crédito USD cotiza ~100 bonos: se pide solo al abrir la solapa (y con Recargar si ya estaba abierta).
   useEffect(() => { if (['usd', 'sust'].includes(tab) && !data[tab] && state[tab] !== 'loading') fetchOne(tab); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(fetchAll, [fetchAll]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+  // Actualización automática con la pestaña visible: precios de Mundo cada minuto; la solapa abierta cada 5 minutos.
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
+  useEffect(() => {
+    const visible = () => document.visibilityState === 'visible';
+    const w = setInterval(() => visible() && fetchOne('world'), 60_000);
+    const t = setInterval(() => {
+      const id = tabRef.current;
+      if (visible() && id !== 'world' && id !== 'agenda' && id !== 'compare') fetchOne(id);
+    }, 300_000);
+    return () => { clearInterval(w); clearInterval(t); };
+  }, [fetchOne]);
   useEffect(() => {
     const onHash = () => TABS.some((t) => t.id === location.hash.slice(1)) && setTab(location.hash.slice(1));
     window.addEventListener('hashchange', onHash);
@@ -95,8 +108,12 @@ export default function App() {
           ))}
         </nav>
         <div className="actions">
-          {updated && <span className="muted">Actualizado {fmtDate(updated.slice(0, 10))} {updated.slice(11, 16)} UTC</span>}
-          <button className="btn" onClick={() => { fetchAll(); ['usd', 'sust'].forEach((t) => data[t] && fetchOne(t)); }}>Recargar</button>
+          {updated && (
+            <span className="muted upd" title={`Datos generados ${new Date(updated).toLocaleString('es-AR')}`}>
+              Act. {new Date(updated).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+          <button className="btn" onClick={() => { fetchAll(true); ['usd', 'sust'].forEach((t) => data[t] && fetchOne(t, true)); }}>Recargar</button>
         </div>
       </header>
 
