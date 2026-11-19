@@ -32,6 +32,8 @@ const WEO = {
   inv: 'NID_NGDP', // inversión total, % PBI
   ngdp: 'NGDP', // PBI nominal en moneda local (para el crecimiento nominal)
   growth: 'NGDP_RPCH', // crecimiento real, %
+  cpiEop: 'PCPIEPCH', // inflación diciembre contra diciembre, %
+  cpiAvg: 'PCPIPCH', // inflación promedio anual, %
 };
 const WB = {
   trade: 'NE.RSB.GNFS.ZS', // balanza de bienes y servicios, % PBI
@@ -102,13 +104,14 @@ export function buildCountry(c, W, B, projFrom) {
       proj: y >= projFrom,
       ca: r2(ca), fb: r2(fb), pb: r2(pb), priv: ca != null && fb != null ? r2(ca - fb) : null,
       sav: r2(g(WEO.sav, ys)), inv: r2(g(WEO.inv, ys)), debt: r2(debt), growth: r2(g(WEO.growth, ys)),
+      cpiEop: r2(g(WEO.cpiEop, ys)), cpiAvg: r2(g(WEO.cpiAvg, ys)),
       gNom: gNom == null ? null : r2(gNom * 100), interest: r2(interest), iEff: iEff == null ? null : r2(iEff * 100),
       pbStar: r2(pbStar), pbGap: pb != null && pbStar != null ? r2(pb - pbStar) : null,
       trade: r2(B.trade?.[c.wb]?.[ys]), extDebt: r2(B.extDebt?.[c.wb]?.[ys]), resMonths: r2(B.resMonths?.[c.wb]?.[ys]), extService: r2(B.extService?.[c.wb]?.[ys]),
     };
   });
   const at = (y) => rows.find((r) => r.y === y) || {};
-  const lastActual = at(projFrom - 1), end = at(projFrom + 5);
+  const lastActual = at(projFrom - 1), end = at(projFrom + 5), y1 = at(projFrom - 2), y2 = at(projFrom - 3), next = at(projFrom);
   const avg = (key, from, to) => {
     const v = rows.filter((r) => r.y >= from && r.y <= to && r[key] != null).map((r) => r[key]);
     return v.length ? r2(v.reduce((a, b) => a + b, 0) / v.length) : null;
@@ -120,7 +123,10 @@ export function buildCountry(c, W, B, projFrom) {
     summary: {
       year: projFrom - 1, endYear: projFrom + 5,
       ca: lastActual.ca, fb: lastActual.fb, pb: lastActual.pb, priv: lastActual.priv,
-      debt: lastActual.debt, debtEnd: end.debt, debtChg: lastActual.debt != null && end.debt != null ? r2(end.debt - lastActual.debt) : null,
+      debt: lastActual.debt, debtEnd: end.debt,
+      // Evolución reciente de la deuda/PBI: dos años atrás, uno atrás, último y variación en 2 años (puntos del PBI).
+      debt2y: y2.debt ?? null, debt1y: y1.debt ?? null, debtChg2y: lastActual.debt != null && y2.debt != null ? r2(lastActual.debt - y2.debt) : null,
+      cpiEop: lastActual.cpiEop ?? null, cpiEopNext: next.cpiEop ?? null, cpiAvg: lastActual.cpiAvg ?? null, growth: lastActual.growth ?? null, debtChg: lastActual.debt != null && end.debt != null ? r2(end.debt - lastActual.debt) : null,
       interest: lastActual.interest, iEff: lastActual.iEff, gNom: lastActual.gNom,
       pbStar: lastActual.pbStar, pbGap: lastActual.pbGap,
       pbProj: avg('pb', projFrom, projFrom + 5), pbStarProj: avg('pbStar', projFrom, projFrom + 5),

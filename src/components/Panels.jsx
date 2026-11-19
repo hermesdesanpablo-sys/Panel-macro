@@ -936,12 +936,18 @@ function reading(c) {
   if (s.trade != null && s.tradeYear === s.year && s.ca != null) {
     out.push(`La balanza comercial de bienes y servicios fue ${pct(s.trade)} del PBI; la diferencia con la cuenta corriente (${pct(s.ca - s.trade)}) son rentas (intereses y utilidades) y transferencias.`);
   }
-  if (s.debt != null && s.debtEnd != null) {
-    out.push(`La deuda pública bruta pasa de ${lvl(s.debt, 0)} a ${lvl(s.debtEnd, 0)} del PBI en ${s.endYear} según el FMI (${s.debtChg > 0 ? 'sube' : 'baja'} ${fmtNum(Math.abs(s.debtChg), 0)} puntos).`);
+  if (s.debt != null && s.debt2y != null) {
+    out.push(`La deuda pública bruta (gobierno general) ${s.debtChg2y > 0 ? 'subió' : 'bajó'} ${fmtNum(Math.abs(s.debtChg2y), 0)} puntos del PBI en los últimos dos años: ` +
+      `${lvl(s.debt2y, 0)} en ${s.year - 2}, ${lvl(s.debt1y, 0)} en ${s.year - 1} y ${lvl(s.debt, 0)} en ${s.year}.` +
+      (s.debtEnd != null ? ` El FMI la proyecta en ${lvl(s.debtEnd, 0)} para ${s.endYear}.` : '') +
+      (c.id === 'ar' ? ' Ojo con 2023: la deuda a fin de año, ya devaluada en diciembre, se mide contra un PBI a precios promedio del año; por eso el ratio salta y parte de la baja posterior es ese mismo efecto de valuación.' : ''));
   }
   if (s.pbStar != null && s.pb != null) {
-    out.push(`Con una tasa implícita de ${lvl(s.iEff)} y un crecimiento nominal de ${lvl(s.gNom)}, el resultado primario que estabiliza la deuda es ${pct(s.pbStar)}; el efectivo fue ${pct(s.pb)} ` +
-      `(${s.pbGap >= 0 ? 'holgura' : 'faltante'} de ${fmtNum(Math.abs(s.pbGap), 1)} puntos).` + (HIGH_INFL.includes(c.id) ? ' Ojo: con inflación alta y deuda mayormente en dólares, esta fórmula en moneda local sobrestima la holgura (no incluye el efecto del tipo de cambio).' : ''));
+    out.push(`En ${s.year} la deuda pagó una tasa implícita de ${lvl(s.iEff)} y el PBI nominal creció ${lvl(s.gNom)} (${lvl(s.growth)} real` +
+      (s.cpiEop != null ? `; inflación ${lvl(s.cpiEop)} diciembre contra diciembre` : '') + `): con eso, el resultado primario que estabiliza la deuda es ${pct(s.pbStar)}; ` +
+      `el efectivo fue ${pct(s.pb)} (${s.pbGap >= 0 ? 'holgura' : 'faltante'} de ${fmtNum(Math.abs(s.pbGap), 1)} puntos).` +
+      (s.pbStarProj != null ? ` Con las proyecciones del FMI para ${s.year + 1}–${s.endYear}, el primario que estabiliza promedia ${pct(s.pbStarProj)} y el proyectado ${pct(s.pbProj)}.` : '') +
+      (HIGH_INFL.includes(c.id) ? ' Ojo: la fórmula en moneda local no incluye el efecto del tipo de cambio sobre la deuda en dólares; en un año de desinflación, el crecimiento nominal del año (promedio) licúa más de lo que va a licuar hacia adelante.' : ''));
   }
   return out;
 }
@@ -973,7 +979,7 @@ export function SustPanel({ data }) {
             <thead>
               <tr>
                 <th>País</th><th>Cuenta corriente</th><th>Resultado fiscal</th><th>Primario</th><th>Brecha privada (S−I)</th>
-                <th>Deuda/PBI {Y}</th><th>Deuda/PBI {E}</th><th>Tasa implícita</th><th>Crec. nominal</th><th>Primario que estabiliza</th><th>Holgura</th>
+                <th>Deuda/PBI {Y - 2}</th><th>{Y - 1}</th><th>{Y}</th><th>Δ 2 años</th><th>Deuda/PBI {E}</th><th>Inflación {Y} (dic/dic)</th><th>Tasa implícita</th><th>Crec. PBI nominal</th><th>Primario que estabiliza</th><th>Holgura</th>
                 <th>Balanza comercial</th><th>Reservas (meses imp.)</th>
               </tr>
             </thead>
@@ -987,11 +993,15 @@ export function SustPanel({ data }) {
                     <td className="num"><Signed v={s.fb} /></td>
                     <td className="num"><Signed v={s.pb} /></td>
                     <td className="num"><Signed v={s.priv} /></td>
+                    <td className="num">{lvl(s.debt2y, 0)}</td>
+                    <td className="num">{lvl(s.debt1y, 0)}</td>
                     <td className="num"><b>{lvl(s.debt, 0)}</b></td>
+                    <td className="num"><b><Signed v={s.debtChg2y} d={0} unit=" pts" invert /></b></td>
                     <td className="num">{lvl(s.debtEnd, 0)}{s.debtChg != null && <span className="sub"><Signed v={s.debtChg} d={0} unit=" pts" invert /></span>}</td>
+                    <td className="num">{lvl(s.cpiEop)}{s.cpiEopNext != null && <span className="sub">{Y + 1}: {lvl(s.cpiEopNext)}</span>}</td>
                     <td className="num">{lvl(s.iEff)}</td>
-                    <td className="num">{lvl(s.gNom)}</td>
-                    <td className="num">{pct(s.pbStar)}</td>
+                    <td className="num">{lvl(s.gNom)}{s.growth != null && <span className="sub">real {lvl(s.growth)}</span>}</td>
+                    <td className="num">{pct(s.pbStar)}{s.pbStarProj != null && <span className="sub">prom. {String(Y + 1).slice(2)}–{String(E).slice(2)}: {pct(s.pbStarProj)}</span>}</td>
                     <td className="num"><Signed v={s.pbGap} />{HIGH_INFL.includes(x.id) && s.pbGap != null && <span className="sub">ver nota</span>}</td>
                     <td className="num"><Signed v={s.trade} />{s.tradeYear && s.tradeYear !== Y && <span className="sub">{s.tradeYear}</span>}</td>
                     <td className="num">{s.resMonths == null ? '—' : fmtNum(s.resMonths, 1)}</td>
@@ -1003,6 +1013,9 @@ export function SustPanel({ data }) {
         </div>
         <div className="card-foot">
           <span>Cuenta corriente = resultado fiscal + brecha privada (identidad de las tres brechas). Resultado fiscal y primario: gobierno general.
+            Deuda: gobierno general según el FMI (incluye provincias y estados); puede diferir de la deuda de la Administración Central que publican
+            los ministerios (perímetro y PBI usado). Inflación: FMI, diciembre contra diciembre (debajo, la proyección del año siguiente).
+            Crec. PBI nominal = crecimiento real + deflactor del PBI, promedio del año (no es la inflación).
             Tasa implícita = intereses netos / deuda del año anterior. Primario que estabiliza = d·(i − g)/(1 + g); holgura = primario efectivo − el que estabiliza
             (verde: la deuda tiende a bajar sin esfuerzo adicional). Argentina: con inflación alta y deuda mayormente en dólares, la fórmula en pesos no incluye el efecto
             cambiario y sobrestima la holgura. Canadá: intereses netos negativos (activos de los fondos públicos). Eurozona: el FMI no publica PBI nominal del agregado.
