@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.14.0 — 2026-11-20 (Ranking de emisores soberanos)
+- Crédito USD: **Ranking de emisores** (AR, BR, CL, CO, MX, PE, UY, EC; `c=rank`, caché 1 h). Pilares y pesos acordados con Hermes:
+  fiscal 25% (deuda bruta, intereses/ingresos, resultado fiscal), composición 25% (% en moneda extranjera, % con acreedores externos,
+  vencimientos a 12 meses), externo 20% (cuenta corriente, reservas/PBI, deuda pública en ME/reservas), institucional 15% (promedio de
+  los 6 WGI) e historial 15% (años desde el último default comercial ≥ USD 1.000 M, tope 30; base BoC-BoE 2026; se excluyen atrasos con
+  acreedores oficiales). Cada indicador 0–100 contra el grupo (min–max); pilar = promedio; total ponderado (re-ponderado si falta un pilar).
+- **Solo datos 2025 o posteriores**: no se usa deuda externa de corto plazo/reservas (último dato 2024). Chile sin residencia del acreedor
+  (dato QPSD no creíble); Ecuador sin composición (no reporta a QPSD) → total sobre 75% de los pesos.
+- Comparación con el EMBI: ajuste log-lineal del spread contra el puntaje (R² 0,84 al 20-nov) → spread "justificado" y diferencia.
+  Gráfico de fundamentos vs spread (escala log) y tabla con el valor y el puntaje de cada indicador.
+- Resultado al 20-nov-2026: 1 Chile 71, 2 Perú 65, 3 Uruguay 63, 4 Colombia 55, 5 México 48, 6 Brasil 45, 7 Ecuador 43, 8 Argentina 28.
+  Brasil paga 123 pb menos que lo que justifican sus fundamentos; Ecuador 181 pb más; Argentina 81 pb más.
+- Tests: puntaje min–max, ajuste del spread, años sin default (umbral, acreedores oficiales), re-ponderación de Ecuador. `mockXlsx` acepta varias hojas.
+
 ## 0.13.0 — 2026-11-20 (Composición de la deuda pública)
 - Sostenibilidad: tabla **Composición de la deuda pública** (Banco Mundial, Quarterly Public Sector Debt, API fuente 20, trimestral):
   deuda en % del PBI, % en moneda extranjera, % con acreedores no residentes y lo que vence en 12 meses (corto plazo + cuotas de largo

@@ -106,14 +106,16 @@ const VALET = {
 const YLEVEL = { EWZ: 30, '^BVSP': 150000, EUSA: 110, '^GSPC': 6700, EZU: 58, '^STOXX50E': 5600, EWW: 64, '^MXX': 62000, EWC: 48, '^GSPTSE': 30000, ACWI: 140, URTH: 180, EEM: 52, ILF: 30, '^N225': 48000, '^VIX': 17, '^TNX': 4.2, '^IRX': 3.6, 'DX-Y.NYB': 99, 'EURUSD=X': 1.15, 'BRL=X': 5.4, 'MXN=X': 18.4, 'CAD=X': 1.39, 'BZ=F': 64, 'GC=F': 4000, 'HG=F': 5, 'ZS=F': 1100, COLO: 27, 'ICOLCAP.CL': 15000, 'COP=X': 3900, EWJ: 80, 'JPY=X': 150, ECH: 30, ARGT: 70 };
 
 /** XLSX mínimo (ZIP sin compresión) con una hoja y textos compartidos, para imitar planillas reales. */
-function mockXlsx(rows) {
+/** xlsx mínimo (sin compresión). Acepta varias hojas: mockXlsx(hoja1, hoja2, …), cada una un array de filas. */
+function mockXlsx(...sheets) {
   const strings = [];
   const si = (t) => { let k = strings.indexOf(t); if (k < 0) { strings.push(t); k = strings.length - 1; } return k; };
   const col = (i) => String.fromCharCode(65 + i);
-  const sheet = '<worksheet><sheetData>' + rows.map((r, ri) => `<row r="${ri + 1}">` + r.map((v, ci) =>
+  const sheetXml = (rows) => '<worksheet><sheetData>' + rows.map((r, ri) => `<row r="${ri + 1}">` + r.map((v, ci) =>
     /^-?\d+(\.\d+)?$/.test(v) ? `<c r="${col(ci)}${ri + 1}"><v>${v}</v></c>` : `<c r="${col(ci)}${ri + 1}" t="s"><v>${si(v)}</v></c>`).join('') + '</row>').join('') + '</sheetData></worksheet>';
+  const xmls = sheets.map(sheetXml);
   const sst = '<sst>' + strings.map((t) => `<si><t>${t}</t></si>`).join('') + '</sst>';
-  const files = [['xl/worksheets/sheet1.xml', sheet], ['xl/sharedStrings.xml', sst]].map(([n, c]) => [Buffer.from(n), Buffer.from(c)]);
+  const files = [...xmls.map((x, i) => [`xl/worksheets/sheet${i + 1}.xml`, x]), ['xl/sharedStrings.xml', sst]].map(([n, c]) => [Buffer.from(n), Buffer.from(c)]);
   const parts = [], central = [];
   let off = 0;
   for (const [name, data] of files) {
@@ -130,6 +132,23 @@ function mockXlsx(rows) {
 export async function mockFetch(input) {
   const url = new URL(typeof input === 'string' ? input : input.url);
   const u = url.toString();
+
+  if (url.host === 'www.bankofcanada.ca' && u.includes('BoC-BoE-Database')) {
+    // Base de defaults BoC-BoE: hoja 1 resumen, hoja 2 "Debt_2026.csv" con metadatos arriba y una fila por país y año.
+    // Columnas en el orden real hasta DEBT_LC_DEBT. AR: holdouts en default hasta 2025; EC: default 2020; PE: arrastre chico (bajo el umbral).
+    const H = ['k2', 'k3', 'DEBT_COUNTRY', 'DEBT_COUNTRY_GROUP', 'DEBT_YEAR', 'DEBT_TOTAL_2026', 'DEBT_IMF_2026', 'DEBT_IBRD_2026', 'DEBT_IDA_2026', 'DEBT_IADB_2026',
+      'DEBT_PARIS_CLUB_2026', 'DEBT_CHINA_2026', 'DEBT_OTHER_OFFICIAL_CREDITORS_2026', 'DEBT_PRIVATE_CREDITORS_2026', 'DEBT_FC_BANK_LOANS_2026', 'DEBT_FC_BONDS_2026', 'DEBT_LC_DEBT_2026'];
+    const rows = [['TERMS AND CONDITIONS'], ['OBSERVATIONS'], H];
+    const amt = { Argentina: (y) => (y >= 2001 ? 2350 : 0), Ecuador: (y) => (y === 2020 ? 17000 : y > 2020 ? 300 : 0), Peru: (y) => (y >= 2017 ? 60 : 0), Uruguay: (y) => (y === 2003 ? 4900 : 0) };
+    for (const c of ['Argentina', 'Brazil', 'Chile', 'Colombia', 'Mexico', 'Peru', 'Uruguay', 'Ecuador']) {
+      for (let y = 1995; y <= 2025; y++) {
+        const a = String((amt[c] || (() => 0))(y));
+        // Brasil: atraso con "otros oficiales" (no cuenta como default comercial).
+        rows.push([`X_${y}`, `X_${y}`, c, 'Emerging/frontier markets', String(y), a, '0', '0', '', '', '0', '', c === 'Brazil' && y === 2022 ? '12564' : '0', '0', '0', a, '0']);
+      }
+    }
+    return new Response(mockXlsx([['Database of Sovereign Defaults']], rows), { status: 200 });
+  }
 
   if (url.host === 'api.bcb.gov.br') {
     const code = Number(u.match(/sgs\.(\d+)/)[1]);
@@ -292,12 +311,12 @@ export async function mockFetch(input) {
     const codes = u.match(/country\/([^/]+)\/indicator/)[1].split(';');
     if (url.searchParams.get('source') === '20') {
       // QPSD trimestral (% del PBI): un dato por país (mrnev=1). Total 60; moneda extranjera 15; externos 20; corto plazo 3; largo que vence 6.
-      // India no reporta (como en la base real); el presupuestario central (BC) no tiene corto plazo (la API responde 400).
+      // India y Ecuador no reportan (como en la base real); el presupuestario central (BC) no tiene corto plazo (la API responde 400).
       const ind = u.match(/indicator\/([^?]+)/)[1];
       if (ind === 'DP.DOD.DSTC.CR.BC.Z1') return new Response('<?xml version="1.0"?><error/>', { status: 400 });
       const V = { DECT: 60, DECF: 15, DECN: 45, DECD: 40, DECX: 20, DSTC: 3, 'DLTC.CR.L1': 6 };
       const key = Object.keys(V).find((k) => ind.includes(`.${k}.`));
-      return json([{ page: 1 }, codes.filter((c) => c !== 'IND').map((c) => ({ countryiso3code: c, date: '2026Q2', value: V[key] }))]);
+      return json([{ page: 1 }, codes.filter((c) => !['IND', 'ECU'].includes(c)).map((c) => ({ countryiso3code: c, date: '2026Q2', value: V[key] }))]);
     }
     const rows = codes.flatMap((c, i) => Array.from({ length: 21 }, (_, k) => ({ countryiso3code: c, date: String(2005 + k), value: 2 + Math.sin(k / 4 + i) * 3 })));
     return json([{ page: 1, lastupdated: '2026-11-11' }, rows]);

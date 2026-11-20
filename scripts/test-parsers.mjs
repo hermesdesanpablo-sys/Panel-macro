@@ -54,6 +54,20 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
     fails += problems.length;
     continue;
   }
+  if (id === 'rank') {
+    const byId = Object.fromEntries(p.countries.map((c) => [c.id, c]));
+    if (p.countries.length !== 8) problems.push(`ranking: ${p.countries.length} países (esperados 8)`);
+    if (p.countries.some((c) => c.total == null || c.total < 0 || c.total > 100)) problems.push('ranking: total fuera de 0–100');
+    if (byId.ar?.raw.yearsNoDefault !== 0 || byId.ec?.raw.yearsNoDefault !== 5 || byId.uy?.raw.yearsNoDefault !== 22 || byId.pe?.raw.yearsNoDefault !== 30 || byId.br?.raw.yearsNoDefault !== 30)
+      problems.push('ranking: años sin default mal calculados (umbral o acreedores oficiales)');
+    if (byId.cl?.raw.extShare != null) problems.push('ranking: Chile no debería usar la residencia del acreedor');
+    if (!(byId.ec?.coverage < 100) || byId.ec?.pillars.comp != null) problems.push('ranking: Ecuador sin composición debería re-ponderar');
+    if (!p.fit || p.countries.some((c) => c.spread != null && c.spreadFit == null)) problems.push('ranking: falta el ajuste contra el spread');
+    console.log(`${problems.length ? '✗' : '✓'} rank: ${p.countries.map((c) => `${c.rank}.${c.id}`).join(' ')}`);
+    problems.forEach((x) => console.log('    ' + x));
+    fails += problems.length;
+    continue;
+  }
   if (id === 'usd') {
     const withCurve = p.issuers.filter((i) => i.summary.n > 0);
     if (withCurve.length < 3) problems.push(`solo ${withCurve.length} emisores con curva`);
@@ -150,6 +164,15 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   const young = wpeQuality({ etf: 'XLC', date: '2026-11-19', history: months(240, (i) => 10 + Math.sin(i)) });
   assert.ok(young.y5.ok && !young.y10.ok && young.y10.preLaunch, 'ventana anterior al lanzamiento no detectada');
   console.log('✓ wpeQuality');
+}
+// Ranking: puntaje min-max contra el grupo y ajuste del spread.
+{
+  const { scoreIndicator, fitSpreads } = await import('../api/_lib/sources/rank.js');
+  assert.deepEqual(scoreIndicator({ a: 10, b: 20, c: 30 }, 'low'), { a: 100, b: 50, c: 0 });
+  assert.deepEqual(scoreIndicator({ a: 10, b: 20 }, 'high'), {}, 'con menos de 3 países no se puntúa');
+  const f = fitSpreads([0, 25, 50, 75, 100].map((x, i) => ({ id: String(i), score: x, spread: 1000 * Math.exp(-0.03 * x) })));
+  assert.ok(Math.abs(f.b + 0.03) < 1e-9 && Math.abs(f.r2 - 1) < 1e-9, 'fitSpreads');
+  console.log('✓ scoreIndicator / fitSpreads');
 }
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);

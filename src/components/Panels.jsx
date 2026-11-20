@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TimeChart, PathChart, Spark, AreaSpark, CurveChart, YearChart, PeBandChart } from './Charts.jsx';
+import { TimeChart, PathChart, Spark, AreaSpark, CurveChart, YearChart, PeBandChart, ScoreSpreadChart } from './Charts.jsx';
 import { fmtNum, fmtDate, daysUntil, kpiByKey, fmtChg, ARROW, DIR_WORD, GROUPS, chgDir } from '../format.js';
 import { Flag } from './Flag.jsx';
 import { CmdIcon } from './CmdIcon.jsx';
@@ -1558,5 +1558,133 @@ export function ValPanel({ data }) {
       </p>
       {view === 'countries' ? <CountryVal data={data} /> : <SectorVal data={data} />}
     </div>
+  );
+}
+
+// ---------- Ranking de emisores (Crédito USD) ----------
+const RANK_FLAG = { ar: 'ar', br: 'br', cl: 'cl', co: 'co', mx: 'mx', pe: 'pe', uy: 'uy', ec: 'ec' };
+/** Puntaje 0–100 como barra con el número (más es mejor). */
+const ScoreBar = ({ v, strong }) => (v == null || !Number.isFinite(v) ? <span className="chg na" title="Sin datos 2025 o posteriores">n/d</span> : (
+  <span className="share compact">
+    <span className="share-track"><span className="share-fill" style={{ width: `${Math.max(2, v)}%`, opacity: strong ? 1 : 0.75 }} /></span>
+    <span className="share-num">{fmtNum(v, 0)}</span>
+  </span>
+));
+const fmtRaw = (I, v) => {
+  if (v == null || !Number.isFinite(v)) return '—';
+  if (I.key === 'fxDebtRes') return `${fmtNum(v, 2)}×`;
+  if (I.key === 'wgi') return sign(v, 2);
+  if (I.key === 'yearsNoDefault') return fmtNum(v, 0);
+  return `${I.key === 'fb' || I.key === 'ca' ? sign(v, 1) : fmtNum(v, 1)}`;
+};
+
+export function RankPanel({ data, state }) {
+  if (!data) return <section className="card"><h3>Ranking de emisores</h3><div className="empty">{state && state !== 'loading' ? `Error: ${state}` : 'Cargando ranking…'}</div></section>;
+  const C = data.countries || [];
+  const P = data.pillars || [];
+  const pts = C.filter((c) => c.total != null && c.spread != null).map((c) => ({ name: c.name, score: c.total, spread: c.spread }));
+  return (
+    <>
+      <Errors errors={data.errors} />
+      <section className="card" id="rank">
+        <h3>Ranking de emisores soberanos (América Latina, EMBI)</h3>
+        <p className="lead small">
+          Puntaje 0–100 por pilar contra el grupo (100 = el mejor de los 8, 0 = el peor) y total ponderado: {P.map((p) => `${p.label.toLowerCase()} ${p.weight}%`).join(', ')}.
+          Solo datos {data.year} o posteriores: si un país no tiene dato reciente, el indicador queda vacío (no se rellena con datos viejos).
+          Al lado, el spread EMBI y el que "justifican" los fundamentos según la relación entre puntaje y spread de los 8 países.
+        </p>
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th className="num">#</th><th>País</th><th>Total</th>
+                {P.map((p) => <th key={p.key}>{p.label} <span className="muted">{p.weight}%</span></th>)}
+                <th className="num">Spread EMBI (pb)</th><th className="num">Justificado (pb)</th><th className="num">Diferencia (pb)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {C.map((c) => (
+                <tr key={c.id}>
+                  <td className="num">{c.rank ?? '—'}</td>
+                  <td><span className="cell-flag"><Flag id={RANK_FLAG[c.id]} /> {c.name}{c.coverage < 100 ? ' ‡' : ''}</span></td>
+                  <td><ScoreBar v={c.total} strong /></td>
+                  {P.map((p) => <td key={p.key}><ScoreBar v={c.pillars[p.key]} /></td>)}
+                  <td className="num">{c.spread == null ? '—' : fmtNum(c.spread, 0)}</td>
+                  <td className="num muted">{c.spreadFit == null ? '—' : fmtNum(c.spreadFit, 0)}</td>
+                  <td className={`num ${c.spreadGap == null ? '' : c.spreadGap > 0 ? 'mk-pos' : 'mk-neg'}`}>
+                    {c.spreadGap == null ? '—' : `${sign(c.spreadGap, 0)}`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="card-foot">
+          <span>
+            Diferencia = spread actual − spread que justifican los fundamentos (ajuste log-lineal del spread contra el puntaje de los 8 países;
+            R² {data.fit?.r2 != null ? fmtNum(data.fit.r2, 2) : 'n/d'}). Positiva (verde): paga más de lo que justifican sus fundamentos (relativamente barato);
+            negativa (rojo): paga menos (caro). Es orientativo: con 8 países la relación es frágil y no incluye calificaciones, liquidez ni factores políticos.
+            {C.some((c) => c.coverage < 100) ? ` ‡ ${C.filter((c) => c.coverage < 100).map((c) => `${c.name}: total sobre ${c.coverage}% de los pesos (falta ${P.filter((p) => c.pillars[p.key] == null).map((p) => p.label.toLowerCase()).join(', ')})`).join('; ')}.` : ''}
+          </span>
+          <Source source="Cálculo propio" url={data.sources?.embi} />
+        </div>
+      </section>
+
+      <section className="card" id="rank-scatter">
+        <h3>Fundamentos vs spread</h3>
+        <ScoreSpreadChart points={pts} fit={data.fit} height={340} />
+        <div className="card-foot">
+          <span>Puntos por encima de la línea punteada: pagan más spread del que justifican sus fundamentos. Spread en escala logarítmica. EMBI al {fmtDate(C.find((c) => c.spreadDate)?.spreadDate)}.</span>
+          <Source source="J.P. Morgan EMBI vía BCRD" url={data.sources?.embi} />
+        </div>
+      </section>
+
+      <section className="card" id="rank-detail">
+        <h3>Indicadores de cada pilar</h3>
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Indicador</th><th>Unidad</th>
+                {C.map((c) => <th key={c.id} className="num"><span className="cell-flag"><Flag id={RANK_FLAG[c.id]} /> {c.name}</span></th>)}
+              </tr>
+            </thead>
+            {P.map((p) => (
+              <tbody key={p.key}>
+                <tr className="tbl-sub"><td colSpan={2 + C.length}>{p.label} ({p.weight}%)</td></tr>
+                {data.indicators.filter((I) => I.pillar === p.key).map((I) => (
+                  <tr key={I.key} title={`${I.src}. ${I.better === 'low' ? 'Menos es mejor' : 'Más es mejor'}.`}>
+                    <td>{I.label} <span className="muted">({I.better === 'low' ? '↓ mejor' : '↑ mejor'})</span></td>
+                    <td className="muted">{I.unit}</td>
+                    {C.map((c) => (
+                      <td key={c.id} className="num">
+                        {fmtRaw(I, c.raw[I.key])}
+                        {c.scores[I.key] != null && <span className="sub"> {fmtNum(c.scores[I.key], 0)}</span>}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            ))}
+          </table>
+        </div>
+        <div className="card-foot">
+          <span>
+            Valor del indicador y, en chico, su puntaje 0–100 dentro del grupo. Fuentes: FMI WEO {data.year} (deuda, intereses = primario − resultado
+            total, sobre ingresos; resultado fiscal; cuenta corriente); Banco Mundial QPSD (composición, último trimestre {data.year}+, gobierno
+            central; Chile: presupuestario central y sin residencia del acreedor por dato no creíble; Ecuador no reporta); Banco Mundial
+            (reservas {data.year}); WGI {data.year} (promedio de efectividad del gobierno, Estado de derecho, control de la corrupción, calidad
+            regulatoria, estabilidad política y voz); BoC-BoE Sovereign Default Database 2026: años desde el último año con más de
+            USD {fmtNum(data.defaultThreshold, 0)} M en default con acreedores comerciales (bonos, bancos, deuda local), tope 30. Argentina figura
+            en default en 2025 por los holdouts de 2001 todavía impagos (USD {fmtNum(C.find((c) => c.id === 'ar')?.meta.lastDefaultAmount ?? 0, 0)} M).
+            No se usa la deuda externa de corto plazo / reservas porque el último dato es 2024.
+          </span>
+          <span>
+            <Source source="FMI WEO" url={data.sources?.weo} /> · <Source source="Banco Mundial QPSD" url={data.sources?.qpsd} /> ·{' '}
+            <Source source="WGI" url={data.sources?.wgi} /> · <Source source="BoC-BoE" url={data.sources?.boc} />
+          </span>
+        </div>
+      </section>
+    </>
   );
 }
