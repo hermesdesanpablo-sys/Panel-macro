@@ -40,7 +40,12 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
     const ms = p.rows.filter((r) => r.msci?.peFwd > 0);
     if (ms.length !== p.rows.filter((r) => r.cid !== 'latam').length) problems.push(`MSCI: solo ${ms.length} con P/E forward`);
     if (p.rows.find((r) => r.cid === 'em')?.msci?.peFwd !== 12.1) problems.push('MSCI: fila de Emerging Markets mal asignada');
-    console.log(`${problems.length ? '✗' : '✓'} val: ${p.funds.length} ETF, ${wpe.length} con historia de P/E, ${ms.length} con P/E fwd MSCI`);
+    const sec = p.sectors?.rows || [];
+    if (sec.length !== 12) problems.push(`sectores: ${sec.length} de 12`);
+    if (sec.some((r) => r.ssga?.peFwd == null || r.wpe?.stats?.y5 == null || r.flows?.m1 == null)) problems.push('sectores: falta P/E fwd, historia o flujos');
+    if (sec.filter((r) => r.siblis?.pe != null).length !== 11) problems.push('Siblis: no están los 11 sectores');
+    if (sec.find((r) => r.cid === 'XLRE')?.siblis?.pe !== 20) problems.push('Siblis: fila de Real Estate mal leída');
+    console.log(`${problems.length ? '✗' : '✓'} val: ${p.funds.length} ETF, ${sec.length} sectores, ${wpe.length} con historia de P/E, ${ms.length} con P/E fwd MSCI`);
     problems.forEach((x) => console.log('    ' + x));
     fails += problems.length;
     continue;

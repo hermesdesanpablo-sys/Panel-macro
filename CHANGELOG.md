@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.12.0 — 2026-11-20 (Valuación: países y sectores de EE.UU.)
+- Valuación con dos subsolapas: **Países** (lo anterior) y **Sectores de EE.UU.** (11 sectores del S&P 500 + S&P 500 de referencia).
+- Sectores, datos directos: planilla diaria de productos de State Street (`spdr-product-data-us-en.xlsx`): P/E FY1 (forward),
+  P/B, crecimiento esperado del EPS 3-5 años, dividendo del índice, SEC 30d, holdings y capitalización promedio. Siblis Research
+  (mensual, con *): P/E trailing y forward, crecimiento implícito y crecimiento de las ganancias a 1/3/5 años.
+- Sectores, historia: worldperatio (`/sector/sp-500-<sector>` e `/index/sp-500`), misma tabla y gráfico con bandas que países.
+- Sectores, flujos: histórico de NAV y cuotas de cada SPDR (`navhist-us-en-<ticker>.xlsx`).
+- El gráfico de P/E histórico tiene su propio selector de ventana (5/10/20 años, arranca en 5) independiente de la tabla.
+- Verificado en vivo: 12 ETF de sectores con SSGA, worldperatio y flujos; 11 sectores en Siblis; sin errores (solapa en ~6 s, caché 1 h).
+
 ## 0.11.1 — 2026-11-20 (Valuación: datos directos primero)
 - Primera tabla con los datos de quienes arman índices y fondos: iShares (P/E y P/B del ETF diarios; dividendo 12m, SEC 30d,
   beta y volatilidad 3 años mensuales) y MSCI (P/E, P/E forward, P/BV y dividendo del índice país, mensual). Asterisco en todo
