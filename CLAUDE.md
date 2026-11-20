@@ -8,7 +8,7 @@ Dashboard macro con un panel por país (Argentina, Brasil, EE.UU., Eurozona, Mé
 **Mundo** (cuadros tipo terminal + panel lateral "Hoy", tendencias y comparativo entre países), una solapa
 **Comparar** (dos países lado a lado), una solapa **Crédito USD** (spread EMBI de América Latina y curvas de los
 bonos soberanos en dólares), una solapa **Sostenibilidad** (tres brechas, deuda/PBI y primario que estabiliza la deuda),
-una solapa **Valuación** (P/E, P/B y flujos de los ETF por país) y una **Agenda** consolidada (económica y política).
+una solapa **Valuación** (subsolapas Países y Sectores de EE.UU.: ratios, P/E contra su historia y flujos de ETF) y una **Agenda** consolidada (económica y política).
 Dueño: Hermes (renta fija / mercado de capitales, Argentina). Idioma de la UI y de los comentarios: español.
 
 Objetivo de cada panel:
@@ -32,6 +32,8 @@ api/_lib/usd-bonds.json     Lista de ISINs en USD por emisor (la genera scripts/
 api/_lib/sources/val.js     Valuación: worldperatio (P/E e historia con desvíos) + MSCI (P/E fwd) + iShares (flujos = Δcuotas × NAV)
 api/_lib/worldpe.js         Lector de worldperatio.com (P/E diario, serie mensual detailPE_data, tabla de estadísticas por ventana)
 api/_lib/msci.js            Lector del factsheet mensual de MSCI (PDF, con unpdf): Div Yld, P/E, P/E Fwd, P/BV
+api/_lib/ssga.js            State Street: planilla de productos SPDR (P/E FY1, P/B, crec. EPS…) y NAV/cuotas diarias por ETF
+api/_lib/siblis.js          Siblis Research: P/E trailing/forward y crecimiento de ganancias de los sectores de EE.UU. (mensual)
 api/_lib/sources/sust.js    Sostenibilidad: FMI WEO (API SDMX) + Banco Mundial (WDI). Payload propio: countries[].rows por año
 api/_lib/xlsx.js            Lector mínimo de .xlsx sin dependencias (zlib), usado para la planilla del EMBI
 src/App.jsx                 Tabs, carga en paralelo de todos los países, modo ?mock=1
@@ -254,6 +256,14 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
   `detailPE_data` (Highcharts) y tabla "Last NY" con μ, σ, desvío y lectura (Fair/Overvalued/Expensive/Undervalued/Cheap).
   No tiene Eurozona (se usa Europa) ni ACWI. Su P/E difiere del de MSCI (ETF vs índice, fecha): se muestran ambos.
 - Términos de iShares: datos para uso personal y no comercial.
+
+### Notas de Valuación – Sectores de EE.UU.
+- State Street (sin clave): `ssga.com/library-content/products/fund-data/etfs/us/spdr-product-data-us-en.xlsx` (una fila por SPDR;
+  columnas por nombre de encabezado) y `.../navhist-us-en-<ticker>.xlsx` (Date, NAV, Shares Outstanding, Total Net Assets; más nuevo primero).
+  Página de cada fondo: `ssga.com/us/en/intermediary/etfs/state-street-<sector>-select-sector-spdr-etf-<ticker>`.
+- Siblis Research: `siblisresearch.com/data/sector-pe-earnings/` (tabla "U.S. sectors: what they cost…", fin de mes). Su API gratis
+  (`/api/v1/<TICKER>/pe-trailing`, tickers US-INFO, US-FINA…) solo trae 9 fotos trimestrales; la historia diaria es paga.
+- worldperatio: `/sector/sp-500-<sector>` (base XLK, XLF…) e `/index/sp-500` (SPY), mismo formato que países.
 
 ## Pendientes priorizados
 

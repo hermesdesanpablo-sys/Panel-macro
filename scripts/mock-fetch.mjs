@@ -418,6 +418,35 @@ export async function mockFetch(input) {
     pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${off.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
     return new Response(Buffer.from(pdf, 'latin1'), { status: 200, headers: { 'content-type': 'application/pdf' } });
   }
+  if (url.host === 'www.ssga.com') {
+    const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const t = new Date(Date.now() - DAY);
+    if (u.includes('spdr-product-data')) {
+      // Planilla de productos: aviso, encabezado (con columnas reales) y una fila por ETF con valores formateados ("$", " M", "%").
+      const H = ['As of** ', 'Ticker', 'Name', 'NAV', 'Shares Outstanding', 'Total Net Assets', '30 Day SEC Yield', 'Index Dividend Yield',
+        'Est 3-5 Year EPS Growth', 'Number of Holdings', 'Price/Book Ratio', 'Price/Earnings Ratio FY1', 'Weighted Average Market Cap'];
+      const asOf = `${M[t.getUTCMonth()]} ${t.getUTCDate()} ${t.getUTCFullYear()}`;
+      const tk = ['XLK', 'XLC', 'XLY', 'XLP', 'XLE', 'XLF', 'XLV', 'XLI', 'XLB', 'XLRE', 'XLU', 'SPY', 'GLD'];
+      return new Response(mockXlsx([['Past performance is not a reliable indicator...'], H,
+        ...tk.map((x, i) => [asOf, `${x}®`, `State Street® ${x} ETF`, `$${(50 + i * 7).toFixed(2)}`, `${(100 + i * 9).toFixed(2)} M`, `$${(9000 + i * 900).toFixed(2)} M`,
+          `${(1 + i / 10).toFixed(2)}%`, `${(1.2 + i / 8).toFixed(2)}%`, `${(6 + i).toFixed(2)}%`, String(30 + i * 4), (2 + i / 3).toFixed(2), x === 'GLD' ? '-' : (14 + i).toFixed(2), `$${(200000 + i * 1e4).toFixed(2)} M`])]), { status: 200 });
+    }
+    // Histórico de NAV: fondo, ticker, encabezado y filas de la más nueva a la más vieja (fechas dd-Mmm-aaaa, números en notación E).
+    const tick = u.match(/navhist-us-en-([a-z]+)\.xlsx/)[1].toUpperCase();
+    let so = 1.5e8 + tick.length * 1e6;
+    const hist = walk(60, 420, 0.01).map((p, i) => ({ ...p, so: (so += (i % 8 === 0 ? 1 : i % 5 === 0 ? -1 : 0) * 0.5e6) })).reverse();
+    const dmy = (d) => `${d.slice(8)}-${M[+d.slice(5, 7) - 1]}-${d.slice(0, 4)}`;
+    return new Response(mockXlsx([['Fund Name:', `State Street® ${tick}`], ['Ticker Symbol:', tick], ['Date', 'NAV', 'Shares Outstanding', 'Total Net Assets'],
+      ...hist.map((p) => [dmy(p.d), p.v.toFixed(6), p.so.toExponential(8).replace('e+', 'E'), (p.so * p.v).toExponential(12).replace('e+', 'E')])]), { status: 200 });
+  }
+  if (url.host === 'siblisresearch.com') {
+    // Tabla de sectores de EE.UU. con la misma secuencia de celdas que la página real (Real Estate con nota, signo menos unicode).
+    const S = ['Real Estate', 'Information Technology', 'Industrials', 'Health Care', 'Consumer Staples', 'Consumer Discretionary', 'Materials', 'Energy', 'Utilities', 'Financials', 'Communication Services'];
+    const cell = (x) => `<td>${x}</td>`;
+    return text(`<html><p>Data through <b>31 October 2026</b></p><h2>U.S. sectors: what they cost and what they earn</h2><table>`
+      + S.map((n, i) => `<tr>${cell(n)}${n === 'Real Estate' ? cell('P/E is a poor measure here, see note') : ''}${cell((20 + i).toFixed(2))}${cell((16 + i).toFixed(2))}${cell('+' + (5 + i) + '.0%')}${cell(i % 2 ? '&#8722;1.3%' : '+4.0%')}${cell('+' + i + '.5%')}${cell('n/a')}</tr>`).join('')
+      + `</table><p>Implied</p><p>is the earnings growth</p></html>`);
+  }
   if (url.host === 'www.dane.gov.co') {
     // Vista mensual del calendario: links icalrepeat.detail/AAAA/MM/DD/<id>/-/<slug> con el título en <strong>.
     const [, y, m] = u.match(/month\.calendar\/(\d{4})\/(\d{2})/);

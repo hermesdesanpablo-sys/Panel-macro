@@ -6,6 +6,8 @@
 import { getJson, clean, iso, settle } from '../util.js';
 import { worldPe, WPE_URL } from '../worldpe.js';
 import { msciFundamentals, MSCI_PDF } from '../msci.js';
+import { ssgaProducts, ssgaNavHist, SSGA_PRODUCT } from '../ssga.js';
+import { siblisSectors, SIBLIS_URL } from '../siblis.js';
 
 const BLK = 'https://www.blackrock.com/varnish-api/blk-one01-product-data/product-data/api';
 const Q = 'appType=PRODUCT_PAGE&appSubType=ISHARES&targetSite=us-ishares&locale=en_US&userType=individual';
@@ -119,6 +121,46 @@ export function computeFlows(hist) {
   return { asOf: last.d, aum: aum / 1e6, shares: s.at(-1)?.v, flows, pct, cum };
 }
 
+// Sectores de EE.UU.: Select Sector SPDR (State Street) + worldperatio (P/E e historia) + Siblis (trailing/forward mensual).
+export const SECTORS = [
+  { id: 'XLK', name: 'Tecnología', siblis: 'Information Technology', wpe: 'sector/sp-500-information-technology', slug: 'technology' },
+  { id: 'XLC', name: 'Comunicaciones', siblis: 'Communication Services', wpe: 'sector/sp-500-communication-services', slug: 'communication-services' },
+  { id: 'XLY', name: 'Consumo discrecional', siblis: 'Consumer Discretionary', wpe: 'sector/sp-500-consumer-discretionary', slug: 'consumer-discretionary' },
+  { id: 'XLP', name: 'Consumo básico', siblis: 'Consumer Staples', wpe: 'sector/sp-500-consumer-staples', slug: 'consumer-staples' },
+  { id: 'XLE', name: 'Energía', siblis: 'Energy', wpe: 'sector/sp-500-energy', slug: 'energy' },
+  { id: 'XLF', name: 'Financiero', siblis: 'Financials', wpe: 'sector/sp-500-financials', slug: 'financial' },
+  { id: 'XLV', name: 'Salud', siblis: 'Health Care', wpe: 'sector/sp-500-health-care', slug: 'health-care' },
+  { id: 'XLI', name: 'Industrial', siblis: 'Industrials', wpe: 'sector/sp-500-industrials', slug: 'industrial' },
+  { id: 'XLB', name: 'Materiales', siblis: 'Materials', wpe: 'sector/sp-500-materials', slug: 'materials' },
+  { id: 'XLRE', name: 'Real estate', siblis: 'Real Estate', wpe: 'sector/sp-500-real-estate', slug: 'real-estate' },
+  { id: 'XLU', name: 'Servicios públicos', siblis: 'Utilities', wpe: 'sector/sp-500-utilities', slug: 'utilities' },
+  { id: 'SPY', name: 'S&P 500', wpe: 'index/sp-500', agg: true },
+];
+const ssgaPage = (x) => `https://www.ssga.com/us/en/intermediary/etfs/${x.slug ? `state-street-${x.slug}-select-sector-spdr-etf` : 'state-street-spdr-sp-500-etf-trust'}-${x.id.toLowerCase()}`;
+
+/** Bloque de sectores: misma estructura de filas que países (wpe, flujos) más los ratios de SSGA y Siblis. */
+async function sectorsBlock(errors) {
+  const tasks = { 'SSGA planilla de productos': ssgaProducts, 'Siblis sectores': siblisSectors };
+  for (const x of SECTORS) {
+    tasks[`worldperatio ${x.id}`] = () => worldPe(x.wpe);
+    tasks[`SSGA ${x.id} flujos`] = async () => computeFlows(await ssgaNavHist(x.id));
+  }
+  const d = await settle(tasks, errors);
+  const P = d['SSGA planilla de productos'] || {};
+  const S = d['Siblis sectores'];
+  const rows = SECTORS.map((x) => {
+    const W = d[`worldperatio ${x.id}`];
+    return {
+      cid: x.id, name: x.name, agg: !!x.agg, ticker: x.id, url: ssgaPage(x),
+      ssga: P[x.id] || null,
+      siblis: x.siblis && S?.sectors[x.siblis] ? { ...S.sectors[x.siblis], asOf: S.asOf } : null,
+      wpe: W && { pe: W.pe, date: W.date, etf: W.etf, stats: W.stats, url: WPE_URL(x.wpe), history: W.history.filter((p) => p.d >= HIST_FROM) },
+      ...(d[`SSGA ${x.id} flujos`] || { flows: null, pct: null, cum: [] }),
+    };
+  });
+  return { rows, ssgaAsOf: Object.values(P)[0]?.asOf || null, siblisAsOf: S?.asOf || null, sources: { ssga: SSGA_PRODUCT, siblis: SIBLIS_URL } };
+}
+
 const HIST_FROM = '2006-01-01'; // historia mensual para el gráfico: 20 años alcanzan para la ventana más larga
 
 export default async function valuation() {
@@ -132,7 +174,7 @@ export default async function valuation() {
     if (c.wpe) tasks[`worldperatio ${c.cid}`] = () => worldPe(c.wpe);
     if (c.msci) tasks[`MSCI ${c.msci}`] = () => msciFundamentals(c.msci);
   }
-  const d = await settle(tasks, errors);
+  const [d, sectors] = await Promise.all([settle(tasks, errors), sectorsBlock(errors)]);
   const msciRow = (c) => {
     if (c.msci) { const m = d[`MSCI ${c.msci}`]; return m && { asOf: m.asOf, name: m.rows[0]?.name, ...m.rows[0], url: MSCI_PDF(c.msci) }; }
     if (c.msciFrom) {
@@ -174,6 +216,7 @@ export default async function valuation() {
     name: 'Valuación y flujos',
     funds: rows.filter((r) => r.ticker),
     rows,
+    sectors,
     pending: PENDING,
     source: 'worldperatio.com (P/E e historia), MSCI (factsheets) e iShares (flujos)',
     errors,
