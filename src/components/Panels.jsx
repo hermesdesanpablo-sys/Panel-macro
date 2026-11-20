@@ -1145,7 +1145,7 @@ export function SustPanel({ data }) {
 }
 
 // ---------- Valuación: países y sectores de EE.UU. ----------
-const VAL_NAMES = { br: 'Brasil', us: 'EE.UU.', eu: 'Eurozona', mx: 'México', ca: 'Canadá', cl: 'Chile', pe: 'Perú', jp: 'Japón', in: 'India', latam: 'América Latina', em: 'Emergentes', world: 'Mundo (ACWI)', ar: 'Argentina', co: 'Colombia' };
+const VAL_NAMES = { br: 'Brasil', us: 'EE.UU.', eu: 'Eurozona', mx: 'México', ca: 'Canadá', cl: 'Chile', pe: 'Perú', jp: 'Japón', in: 'India', cn: 'China', latam: 'América Latina', em: 'Emergentes', world: 'Mundo (ACWI)', ar: 'Argentina', co: 'Colombia' };
 const VAL_WIN = [['w1', '1 sem'], ['m1', '1 mes'], ['m3', '3 meses'], ['ytd', 'En el año'], ['y1', '12 meses']];
 const valFlag = (cid) => (['latam', 'em', 'world'].includes(cid) ? 'world' : cid);
 const LECTURA = { Cheap: 'Muy barato', Undervalued: 'Barato', Fair: 'Neutral', Overvalued: 'Caro', Expensive: 'Muy caro' };
@@ -1244,7 +1244,7 @@ function PeHistory({ rows, label, refLabel, defaultSel }) {
             motivo. A 5 años pasan todas las series; a 10 y 20 años fallan varias, sobre todo los sectores.{' '}
             P/E diario al {fmtDate(wpeDate)} calculado por worldperatio sobre el ETF base (12 meses hacia atrás). Promedio y desvío excluyen el 10% de
             valores extremos de cada lado. Lectura: dentro de ±1 desvío neutral; entre 1 y 2 barato/caro; más de 2 muy barato/muy caro.
-            {rows.some((r) => r.wpe?.note) ? ' † Eurozona: worldperatio publica Europa (VGK).' : ''} Úsese para comparar contra la propia historia.
+            {rows.some((r) => r.wpe?.note) ? ' † Eurozona: worldperatio publica Europa (VGK); China: sobre FXI (FTSE China 50).' : ''} Úsese para comparar contra la propia historia.
           </span>
           <Source source="worldperatio.com" url="https://worldperatio.com/" />
         </div>
@@ -1395,7 +1395,8 @@ function CountryVal({ data }) {
             iShares: P/E y P/B del ETF diarios, al {fmtDate(isharesDate)}. <b>*</b> Se publica una vez por mes (tiene atraso): rendimientos, beta y
             volatilidad de iShares al {fmtDate(isharesMonthly)}; MSCI (índice país, factsheet mensual) al {fmtDate(msciDate)}. Div. 12m = dividendo
             de los últimos 12 meses; SEC 30d = rendimiento estandarizado SEC; volatilidad = desvío estándar anual de 3 años. Argentina y Colombia:
-            sin ETF de iShares (solo MSCI). Emergentes y ACWI de MSCI salen de las filas de comparación de los factsheets.
+            sin ETF de iShares (solo MSCI). China: solo valuación y flujos, sin panel macro. Emergentes y ACWI de MSCI salen de las filas de
+            comparación de los factsheets.
           </span>
           <span>
             <Source source="iShares (BlackRock)" url="https://www.ishares.com/us/products/etf-investments" /> · <Source source="MSCI factsheets" url="https://www.msci.com/indexes" />
