@@ -29,7 +29,9 @@ api/_lib/bis.js             BIS (sin clave): tasas de política WS_CBPOL y IPC W
 api/_lib/sources/<pais>.js  Un adaptador por país. Devuelve el "contrato de payload" (abajo)
 api/_lib/sources/usd.js     Crédito USD: EMBI por país (BCRD) + bonos soberanos en USD (onvista) vs Tesoro (FRED). Payload propio
 api/_lib/usd-bonds.json     Lista de ISINs en USD por emisor (la genera scripts/discover-usd-bonds.mjs)
-api/_lib/sources/val.js     Valuación y flujos: ETF iShares por país (P/E, P/B, flujos = Δcuotas × NAV). Payload propio
+api/_lib/sources/val.js     Valuación: worldperatio (P/E e historia con desvíos) + MSCI (P/E fwd) + iShares (flujos = Δcuotas × NAV)
+api/_lib/worldpe.js         Lector de worldperatio.com (P/E diario, serie mensual detailPE_data, tabla de estadísticas por ventana)
+api/_lib/msci.js            Lector del factsheet mensual de MSCI (PDF, con unpdf): Div Yld, P/E, P/E Fwd, P/BV
 api/_lib/sources/sust.js    Sostenibilidad: FMI WEO (API SDMX) + Banco Mundial (WDI). Payload propio: countries[].rows por año
 api/_lib/xlsx.js            Lector mínimo de .xlsx sin dependencias (zlib), usado para la planilla del EMBI
 src/App.jsx                 Tabs, carga en paralelo de todos los países, modo ?mock=1
@@ -245,11 +247,12 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
   Historical, Performance, Distributions; ~3 MB, se lee solo el principio de Historical). IDs en `FUNDS` (val.js), del buscador
   `ishares.com/us/product-screener/product-screener-v3.1.jsn`.
 - Algunos ETF pasan semanas sin creaciones ni rescates (p.ej. EEM): flujo 0 es dato real, no error.
-- P/E forward: el factsheet mensual de MSCI (`msci.com/documents/10199/255599/msci-<pais>-index-net.pdf`; México:
-  `msci-mexico-index-usd-net.pdf`) trae Div Yld, P/E, P/E Fwd y P/BV a fin de mes del país, de MSCI EM/World y de MSCI ACWI.
-  Leerlo requiere un lector de PDF (pdf.js); pendiente de aprobar la dependencia.
-- Historia del P/E: no hay fuente gratuita con series largas (MSCI la vende; el Internet Archive solo tiene factsheets desde 2026).
-  Opciones: LSEG/Datastream (I/B/E/S, P/E forward 12m por índice MSCI país) o acumular fotos mensuales desde ahora.
+- P/E forward: factsheet mensual de MSCI (`msci.com/documents/10199/255599/msci-<pais>-index-net.pdf`; México:
+  `msci-mexico-index-usd-net.pdf`; EM: `msci-emerging-markets-index-usd-net.pdf`) con Div Yld, P/E, P/E Fwd y P/BV a fin de mes del
+  país y de dos comparables. Se lee con `unpdf`; si cambia el formato, `parseMsciText` falla con un error claro.
+- Historia del P/E: worldperatio.com (`/area/<pais>`): P/E diario sobre un ETF (EWZ, VTI, VGK, EWW…), serie mensual desde 1995 en
+  `detailPE_data` (Highcharts) y tabla "Last NY" con μ, σ, desvío y lectura (Fair/Overvalued/Expensive/Undervalued/Cheap).
+  No tiene Eurozona (se usa Europa) ni ACWI. Su P/E difiere del de MSCI (ETF vs índice, fecha): se muestran ambos.
 - Términos de iShares: datos para uso personal y no comercial.
 
 ## Pendientes priorizados
@@ -261,7 +264,7 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 3. México: Bono M de mercado secundario diario (hoy: subasta primaria).
 4. Colombia: Encuesta mensual de expectativas de BanRep (la página tiene captcha → carga manual o LSEG). TES diario (hoy: promedio mensual).
    Argentina: Merval sin historia en Yahoo/Stooq (solo ARGT en Mundo).
-5. Valuación: P/E forward MSCI (lector de PDF), historia del P/E, ARGT/COLO (Global X).
+5. Valuación: flujos de ARGT/COLO (Global X responde 429); historia del P/E forward (solo LSEG/Datastream).
 6. Persistir snapshots diarios (p.ej. Vercel KV / Postgres + cron) para tener historia propia de variables
    que la fuente no guarda (strip de futuros completo, forwards por plazo, encuestas).
 7. Si se conecta LSEG: adaptador `lseg` para DI futuro, OIS (USD/EURCAD), swaps TIIE/IBR y TES/Mbono.

@@ -34,7 +34,12 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   if (id === 'val') {
     const ok = p.funds.filter((f) => f.pe != null && f.flows?.m1 != null && f.cum.length > 100);
     if (ok.length !== p.funds.length) problems.push(`solo ${ok.length}/${p.funds.length} ETF completos`);
-    console.log(`${problems.length ? '✗' : '✓'} val: ${p.funds.length} ETF, ${p.pending.length} pendientes`);
+    const wpe = p.rows.filter((r) => r.wpe?.pe != null && r.wpe.stats?.y10?.sd > 0 && r.wpe.history.length > 100);
+    if (wpe.length !== p.rows.filter((r) => r.cid !== 'world').length) problems.push(`worldperatio: solo ${wpe.length} países completos`);
+    const ms = p.rows.filter((r) => r.msci?.peFwd > 0);
+    if (ms.length !== p.rows.filter((r) => r.cid !== 'latam').length) problems.push(`MSCI: solo ${ms.length} con P/E forward`);
+    if (p.rows.find((r) => r.cid === 'em')?.msci?.peFwd !== 12.1) problems.push('MSCI: fila de Emerging Markets mal asignada');
+    console.log(`${problems.length ? '✗' : '✓'} val: ${p.funds.length} ETF, ${wpe.length} con historia de P/E, ${ms.length} con P/E fwd MSCI`);
     problems.forEach((x) => console.log('    ' + x));
     fails += problems.length;
     continue;

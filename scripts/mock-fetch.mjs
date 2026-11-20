@@ -387,6 +387,35 @@ export async function mockFetch(input) {
       + `<ss:Worksheet ss:Name="Historical"><ss:Table>${row(['As Of', 'NAV per Share', 'Ex-Dividends', 'Shares Outstanding', 'Non-FV NAV'])}`
       + hist.map((p) => row([us(p.d), p.v.toFixed(4), '--', String(p.so), p.v.toFixed(4)])).join('') + `</ss:Table></ss:Worksheet></ss:Workbook>`);
   }
+  if (url.host === 'worldperatio.com') {
+    // Misma estructura que la página real: título, P/E y fecha, ETF, serie mensual (Highcharts) y tabla de estadísticas.
+    const LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const now = new Date(Date.now() - DAY);
+    const date = `${now.getUTCDate()} ${LONG[now.getUTCMonth()]} ${now.getUTCFullYear()}`;
+    const hist = walk(12, 260, 0.04, 'M');
+    const pe = hist.at(-1).v;
+    const row = (y, avg, sd) => `<tr><td><b>Last ${y}Y</b></td><td>${avg}</td><td>${sd}</td><td>[${(avg - 2 * sd).toFixed(2)} · <font>${(avg - sd).toFixed(2)} , ${(avg + sd).toFixed(2)}</font> · ${(avg + 2 * sd).toFixed(2)}]</td>`
+      + `<td><div class="pe-range"></div></td><td>${((pe - avg) / sd >= 0 ? '+' : '') + ((pe - avg) / sd).toFixed(2)} &sigma;</td><td><div class="w3-tag">Fair</div></td></tr>`;
+    return text(`<html><h1>Test Stock Market: current P/E Ratio</h1><a>Homepage</a><h2>Test Stock Market: current P/E Ratio</h2><span>Test Stock Market</span>`
+      + `<span>P/E Ratio</span><span>${pe.toFixed(2)}</span><span>${date}</span><p>P/E Ratio is calculated on the <b>ETF</b> Etf</p>`
+      + `<script>detailPE_data = [${hist.map((p) => `[Date.UTC(${p.d.slice(0, 4)}, ${+p.d.slice(5, 7) - 1}, 1),${p.v.toFixed(4)}]`).join(',')}];</script>`
+      + `<table>${row(1, 12.5, 0.9)}${row(5, 11.8, 1.6)}${row(10, 12.1, 1.9)}${row(20, 12.4, 2.1)}</table></html>`);
+  }
+  if (url.host === 'www.msci.com') {
+    // PDF mínimo válido (fuente Helvetica, texto sin comprimir) con la leyenda y la sección FUNDAMENTALS del factsheet real.
+    const lines = ['CUMULATIVE INDEX PERFORMANCE — NET RETURNS (USD)', '(OCT 2011 – OCT 2026)', 'MSCI Test', 'MSCI Emerging Markets', 'MSCI ACWI', 'ANNUAL PERFORMANCE (%)',
+      'FUNDAMENTALS (OCT 30, 2026)', 'Div Yld (%) P/E P/E Fwd P/BV', '5.80 8.89 7.58 1.71', '2.19 13.68 12.10 2.20', '1.61 20.82 15.64 3.71', 'INDEX RISK AND RETURN CHARACTERISTICS'];
+    const esc = (x) => x.replace(/[—–]/g, '-').replace(/([()\\])/g, '\\$1');
+    const content = `BT /F1 10 Tf 14 TL 40 760 Td ${lines.map((l) => `(${esc(l)}) Tj T*`).join(' ')} ET`;
+    const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+      `<< /Length ${content.length} >>\nstream\n${content}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+    let pdf = '%PDF-1.4\n';
+    const off = objs.map((o, i) => { const at = pdf.length; pdf += `${i + 1} 0 obj\n${o}\nendobj\n`; return at; });
+    const xref = pdf.length;
+    pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${off.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+    return new Response(Buffer.from(pdf, 'latin1'), { status: 200, headers: { 'content-type': 'application/pdf' } });
+  }
   if (url.host === 'www.dane.gov.co') {
     // Vista mensual del calendario: links icalrepeat.detail/AAAA/MM/DD/<id>/-/<slug> con el título en <strong>.
     const [, y, m] = u.match(/month\.calendar\/(\d{4})\/(\d{2})/);

@@ -252,6 +252,10 @@ a.src:hover { color: var(--accent); }
 .cell-flag { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
 .tbl-sub td { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); font-weight: 600; padding-top: 16px; }
 .row-pending td { color: var(--text-muted); }
+.val-tag { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 6px; white-space: nowrap; background: var(--surface-3); color: var(--text-secondary); }
+.val-cheap, .val-undervalued { color: #cfe0f8; background: rgba(57, 135, 229, 0.22); }
+.val-overvalued, .val-expensive { color: #f6d3d6; background: rgba(240, 97, 109, 0.22); }
+.val-cheap, .val-expensive { font-weight: 700; }
 .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
 .seg button { background: none; border: 0; color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 500; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
 .seg button.on { background: var(--surface-3); color: var(--text-primary); }

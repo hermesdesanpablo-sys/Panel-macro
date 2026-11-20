@@ -1149,40 +1149,145 @@ const VAL_NAMES = { br: 'Brasil', us: 'EE.UU.', eu: 'Eurozona', mx: 'México', c
 const VAL_WIN = [['w1', '1 sem'], ['m1', '1 mes'], ['m3', '3 meses'], ['ytd', 'En el año'], ['y1', '12 meses']];
 const valFlag = (cid) => (['latam', 'em', 'world'].includes(cid) ? 'world' : cid);
 
+const LECTURA = { Cheap: 'Muy barato', Undervalued: 'Barato', Fair: 'Neutral', Overvalued: 'Caro', Expensive: 'Muy caro' };
+const lecturaOf = (z) => (z == null || !Number.isFinite(z) ? null : z < -2 ? 'Cheap' : z < -1 ? 'Undervalued' : z <= 1 ? 'Fair' : z <= 2 ? 'Overvalued' : 'Expensive');
+const VAL_WINDOWS = [['y5', '5 años', 5], ['y10', '10 años', 10], ['y20', '20 años', 20]];
+const isoDate = (d) => d.toISOString().slice(0, 10);
+
 export function ValPanel({ data }) {
-  const funds = data?.funds || [];
+  const rows = data?.rows || data?.funds || [];
+  const funds = rows.filter((f) => f.ticker);
   const [unit, setUnit] = useState('usd');
+  const [win, setWin] = useState('y10');
+  const [peSel, setPeSel] = useState('br');
   const [sel, setSel] = useState(['br', 'mx', 'in']);
-  if (!funds.length) return <div className="empty big">Sin datos de iShares</div>;
+  if (!rows.length) return <div className="empty big">Sin datos de valuación</div>;
   const toggle = (id) => setSel((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= 3 ? [...cur.slice(1), id] : [...cur, id]));
+  const [, winLabel, winYears] = VAL_WINDOWS.find((w) => w[0] === win);
+
+  // Flujo acumulado 12 meses (hasta 3 países).
   const chosen = sel.map((id) => funds.find((f) => f.cid === id)).filter((f) => f?.cum?.length);
   const byDate = new Map();
   chosen.forEach((f, k) => f.cum.forEach((p) => { const r = byDate.get(p.d) || { d: p.d }; r[`k${k}`] = p.v; byDate.set(p.d, r); }));
-  const chart = {
-    title: 'Flujo acumulado 12 meses (USD millones)',
-    unit: '',
+  const flowChart = {
+    title: 'Flujo acumulado 12 meses (USD millones)', unit: '',
     lines: chosen.map((f, k) => ({ key: `k${k}`, label: `${VAL_NAMES[f.cid]} (${f.ticker})` })),
     data: [...byDate.values()].sort((a, b) => (a.d < b.d ? -1 : 1)),
   };
+
+  // P/E histórico del país elegido con la banda μ ± σ de la ventana.
+  const peRow = rows.find((r) => r.cid === peSel && r.wpe?.history?.length) || rows.find((r) => r.wpe?.history?.length);
+  const st = peRow?.wpe?.stats?.[win];
+  const from = peRow ? isoDate(new Date(Date.UTC(Number(peRow.wpe.date.slice(0, 4)) - winYears, Number(peRow.wpe.date.slice(5, 7)) - 1, 1))) : '';
+  const peChart = peRow && {
+    title: `P/E de ${VAL_NAMES[peRow.cid]}`, unit: '',
+    lines: [{ key: 'pe', label: 'P/E' }, ...(st ? [{ key: 'hi', label: 'μ + σ' }, { key: 'lo', label: 'μ − σ' }] : [])],
+    data: [...peRow.wpe.history.filter((p) => p.d >= from), { d: peRow.wpe.date, v: peRow.wpe.pe }]
+      .map((p) => ({ d: p.d, pe: p.v, ...(st && { hi: st.avg + st.sd, lo: st.avg - st.sd }) })),
+  };
+
   const asOf = funds.find((f) => f.asOf)?.asOf;
-  const peAsOf = funds.find((f) => f.peAsOf)?.peAsOf;
+  const wpeDate = rows.find((r) => r.wpe?.date)?.wpe.date;
+  const msciDate = rows.find((r) => r.msci?.asOf)?.msci.asOf;
+  const num = (v, d = 1) => (v == null || !Number.isFinite(v) ? '—' : fmtNum(v, d));
   const flowCell = (f, k) => {
     const v = unit === 'usd' ? f.flows?.[k] : f.pct?.[k];
     if (v == null) return <td key={k} className="num"><span className="chg na">—</span></td>;
     return <td key={k} className={`num ${pn(v)}`}>{sign(v, unit === 'usd' ? 0 : 1)}{unit === 'pct' ? '%' : ''}</td>;
   };
-  const rows = (agg) => funds.filter((f) => !!f.agg === agg);
+  const group = (list, render, cols) => [false, true].map((agg) => (
+    <tbody key={String(agg)}>
+      {agg && <tr className="tbl-sub"><td colSpan={cols}>Referencias regionales</td></tr>}
+      {list.filter((r) => !!r.agg === agg).map(render)}
+    </tbody>
+  ));
+  const countryCell = (r) => <td><span className="cell-flag"><Flag id={valFlag(r.cid)} /> {VAL_NAMES[r.cid]}</span></td>;
+
   return (
     <div className="panel">
       <Errors errors={data?.errors} />
       <p className="lead">
-        Valuación y flujos de inversores en el ETF de iShares de cada país (vehículo de referencia para inversores del exterior). El <b>P/E</b> es el
-        del ETF sobre utilidades de los últimos 12 meses; difiere del P/E del índice MSCI por método y fecha. El <b>flujo</b> es la creación o el
-        rescate neto de cuotas: variación diaria de cuotas en circulación × valor cuotaparte.
+        Valuación de la bolsa de cada país contra su propia historia y flujos de inversores del exterior. El <b>P/E</b> diario y su historia
+        son de worldperatio (calculados sobre el ETF del país); el promedio <b>μ</b> y el desvío <b>σ</b> excluyen el 10% de valores extremos de cada
+        lado. "Desvío" = cuántos σ está el P/E actual del promedio. El <b>P/E forward</b> es el del índice MSCI a fin de mes.
       </p>
+
       <section className="card" id="val-table">
         <div className="card-head">
-          <h3>Valuación y flujos por país</h3>
+          <h3>Valuación contra la historia</h3>
+          <div className="seg" role="group" aria-label="Ventana histórica">
+            {VAL_WINDOWS.map(([k, l]) => <button key={k} className={win === k ? 'on' : ''} aria-pressed={win === k} onClick={() => setWin(k)}>{l}</button>)}
+          </div>
+        </div>
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>País</th><th>ETF</th><th className="num">P/E</th><th className="num">Promedio {winLabel}</th><th className="num">Desvío est.</th>
+                <th className="num">Rango ±1 desvío</th><th className="num">Hoy vs promedio</th><th>Lectura</th>
+                <th className="num off-col">P/E fwd MSCI</th><th className="num">P/E MSCI</th><th className="num">P/BV</th><th className="num">Div. %</th>
+              </tr>
+            </thead>
+            {group(rows, (r) => {
+              const S = r.wpe?.stats?.[win];
+              const lec = lecturaOf(S?.z);
+              return (
+                <tr key={r.cid}>
+                  {countryCell(r)}
+                  <td>{r.wpe ? <a href={r.wpe.url} target="_blank" rel="noreferrer" title={r.wpe.note || undefined}>{r.wpe.etf}{r.wpe.note ? ' *' : ''}</a> : '—'}</td>
+                  <td className="num"><b>{num(r.wpe?.pe)}</b></td>
+                  <td className="num">{num(S?.avg)}</td>
+                  <td className="num">{num(S?.sd, 2)}</td>
+                  <td className="num">{S ? `${fmtNum(S.avg - S.sd, 1)} – ${fmtNum(S.avg + S.sd, 1)}` : '—'}</td>
+                  <td className="num">{S?.z == null ? '—' : `${sign(S.z, 2)} σ`}</td>
+                  <td>{lec ? <span className={`val-tag val-${lec.toLowerCase()}`}>{LECTURA[lec]}</span> : '—'}</td>
+                  <td className="num off-col"><b>{num(r.msci?.peFwd)}</b></td>
+                  <td className="num">{num(r.msci?.pe)}</td>
+                  <td className="num">{num(r.msci?.pbv, 2)}</td>
+                  <td className="num">{num(r.msci?.dy)}</td>
+                </tr>
+              );
+            }, 12)}
+          </table>
+        </div>
+        <div className="card-foot">
+          <span>
+            P/E y estadísticas al {fmtDate(wpeDate)} (worldperatio); MSCI al {fmtDate(msciDate)} (factsheet mensual). Lectura: dentro de μ ± σ neutral;
+            ±1 a 2 σ barato/caro; más de 2 σ muy barato/muy caro. * Eurozona: worldperatio publica Europa (VGK). El P/E de worldperatio
+            (sobre el ETF) y el de MSCI (sobre el índice) difieren por método y fecha.
+          </span>
+          <span>
+            <Source source="worldperatio.com" url="https://worldperatio.com/area/" /> · <Source source="MSCI factsheets" url="https://www.msci.com/indexes" />
+          </span>
+        </div>
+      </section>
+
+      {peChart && (
+        <section className="card" id="val-pe">
+          <div className="card-head">
+            <h3>P/E histórico y banda μ ± σ ({winLabel})</h3>
+          </div>
+          <div className="chips" role="group" aria-label="País">
+            {rows.filter((r) => r.wpe?.history?.length).map((r) => (
+              <button key={r.cid} className={`chip ${peRow.cid === r.cid ? 'on' : ''}`} aria-pressed={peRow.cid === r.cid} onClick={() => setPeSel(r.cid)}>
+                <Flag id={valFlag(r.cid)} /> {VAL_NAMES[r.cid]}
+              </button>
+            ))}
+          </div>
+          <TimeChart chart={peChart} height={280} />
+          <div className="card-foot">
+            <span>
+              Mensual; último punto al {fmtDate(peRow.wpe.date)}.{st ? ` μ = ${fmtNum(st.avg, 1)}, σ = ${fmtNum(st.sd, 2)}; hoy ${sign(st.z, 2)} σ.` : ''}
+              {peRow.wpe.note ? ` ${peRow.wpe.note}.` : ''}
+            </span>
+            <Source source={`worldperatio (${peRow.wpe.etf})`} url={peRow.wpe.url} />
+          </div>
+        </section>
+      )}
+
+      <section className="card" id="val-flows">
+        <div className="card-head">
+          <h3>Flujos de inversores (ETF iShares)</h3>
           <div className="seg" role="group" aria-label="Unidad de los flujos">
             <button className={unit === 'usd' ? 'on' : ''} aria-pressed={unit === 'usd'} onClick={() => setUnit('usd')}>USD millones</button>
             <button className={unit === 'pct' ? 'on' : ''} aria-pressed={unit === 'pct'} onClick={() => setUnit('pct')}>% de los activos</button>
@@ -1192,43 +1297,26 @@ export function ValPanel({ data }) {
           <table className="tbl">
             <thead>
               <tr>
-                <th>País</th><th>ETF</th><th className="num">P/E</th><th className="num">P/B</th><th className="num">Div. 12m</th><th className="num">Activos (USD M)</th>
+                <th>País</th><th>ETF</th><th className="num">P/E ETF</th><th className="num">P/B ETF</th><th className="num">Activos (USD M)</th>
                 {VAL_WIN.map(([k, l]) => <th key={k} className="num">Flujo {l}</th>)}
               </tr>
             </thead>
-            {[false, true].map((agg) => (
-              <tbody key={String(agg)}>
-                {agg && <tr className="tbl-sub"><td colSpan={6 + VAL_WIN.length}>Referencias regionales</td></tr>}
-                {rows(agg).map((f) => (
-                  <tr key={f.ticker}>
-                    <td><span className="cell-flag"><Flag id={valFlag(f.cid)} /> {VAL_NAMES[f.cid]}</span></td>
-                    <td><a href={f.url} target="_blank" rel="noreferrer">{f.ticker}</a></td>
-                    <td className="num">{f.pe == null ? '—' : fmtNum(f.pe, 1)}</td>
-                    <td className="num">{f.pb == null ? '—' : fmtNum(f.pb, 2)}</td>
-                    <td className="num">{f.divYield == null ? '—' : `${fmtNum(f.divYield, 1)}%`}</td>
-                    <td className="num">{f.aum == null ? '—' : fmtNum(f.aum, 0)}</td>
-                    {VAL_WIN.map(([k]) => flowCell(f, k))}
-                  </tr>
-                ))}
-                {!agg && (data.pending || []).map((f) => (
-                  <tr key={f.ticker} className="row-pending">
-                    <td><span className="cell-flag"><Flag id={f.cid} /> {VAL_NAMES[f.cid]}</span></td>
-                    <td>{f.ticker}</td>
-                    <td colSpan={4 + VAL_WIN.length} className="muted">Pendiente: {f.note}</td>
-                  </tr>
-                ))}
-              </tbody>
-            ))}
+            {group([...funds, ...(data.pending || []).map((p) => ({ ...p, pendingRow: true }))], (f) => f.pendingRow ? (
+              <tr key={f.ticker} className="row-pending">
+                {countryCell(f)}<td>{f.ticker}</td><td colSpan={3 + VAL_WIN.length} className="muted">Pendiente: {f.note}</td>
+              </tr>
+            ) : (
+              <tr key={f.ticker}>
+                {countryCell(f)}
+                <td><a href={f.url} target="_blank" rel="noreferrer">{f.ticker}</a></td>
+                <td className="num">{num(f.pe)}</td>
+                <td className="num">{num(f.pb, 2)}</td>
+                <td className="num">{f.aum == null ? '—' : fmtNum(f.aum, 0)}</td>
+                {VAL_WIN.map(([k]) => flowCell(f, k))}
+              </tr>
+            ), 5 + VAL_WIN.length)}
           </table>
         </div>
-        <div className="card-foot">
-          <span>P/E y P/B al {fmtDate(peAsOf)}; activos y flujos al {fmtDate(asOf)}. P/E forward del índice MSCI: pendiente.</span>
-          <Source source="iShares (BlackRock)" url="https://www.ishares.com/us/products/etf-investments" />
-        </div>
-      </section>
-
-      <section className="card" id="val-flows">
-        <h3>Flujo acumulado en 12 meses</h3>
         <div className="chips" role="group" aria-label="Países (hasta 3)">
           {funds.filter((f) => f.cum?.length).map((f) => (
             <button key={f.ticker} className={`chip ${sel.includes(f.cid) ? 'on' : ''}`} aria-pressed={sel.includes(f.cid)} onClick={() => toggle(f.cid)}>
@@ -1236,10 +1324,10 @@ export function ValPanel({ data }) {
             </button>
           ))}
         </div>
-        <TimeChart chart={chart} height={280} />
+        <TimeChart chart={flowChart} height={260} />
         <div className="card-foot">
-          <span>USD millones acumulados desde hace 12 meses. Hasta 3 países.</span>
-          <Source source="iShares: NAV y cuotas en circulación diarias" url="https://www.ishares.com/us/products/etf-investments" />
+          <span>Flujo = variación diaria de cuotas en circulación × valor cuotaparte. Al {fmtDate(asOf)}. Gráfico: USD millones acumulados en 12 meses (hasta 3 países).</span>
+          <Source source="iShares (BlackRock)" url="https://www.ishares.com/us/products/etf-investments" />
         </div>
       </section>
     </div>

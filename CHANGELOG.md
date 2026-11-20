@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.0 — 2026-11-20 (P/E histórico con desvíos y P/E forward)
+- **Valuación contra la historia** (worldperatio.com, sin clave): P/E diario por país (calculado sobre el ETF), historia mensual
+  desde 1995 y, por ventana de 5/10/20 años, promedio, desvío estándar (excluyendo el 10% extremo de cada lado), rango ±1 desvío,
+  cuántos desvíos está hoy del promedio y lectura (muy barato / barato / neutral / caro / muy caro). Gráfico del P/E con la banda
+  ±1 desvío. Eurozona: worldperatio solo publica Europa (VGK), se avisa. Argentina y Colombia incluidos (ARGT, COLO).
+- **P/E forward MSCI**: factsheet mensual en PDF leído con `unpdf` (nueva dependencia, pdf.js empaquetado para serverless):
+  dividend yield, P/E, P/E forward y P/BV del índice país; EM y ACWI salen de las filas de comparación. Verificado contra el
+  factsheet propio de MSCI EM (P/E 13,68, forward 8,70 al 30-oct-2026: es lo que publica MSCI).
+- Solapa reorganizada en tres bloques: valuación, P/E histórico y flujos (iShares). Verificado en vivo: 13 países con worldperatio,
+  13 con MSCI, 12 ETF con flujos, sin errores. Test offline con página simulada de worldperatio y un PDF mínimo real.
+
 ## 0.10.0 — 2026-11-20 (Valuación y flujos + agenda política)
 - **Valuación** (solapa nueva, `c=val`, caché 1 h): por país, el ETF de iShares de referencia con P/E (12 meses), P/B y dividendo
   12m (API de producto de BlackRock, diarios) y **flujos netos** 1 sem / 1 mes / 3 meses / año / 12 meses en USD millones o % de

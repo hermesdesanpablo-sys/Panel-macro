@@ -1,30 +1,36 @@
-// Valuación y flujos por país, con los ETF de iShares (BlackRock) como vehículo de referencia.
-//  - P/E y P/B del ETF (diarios): API de datos de producto de BlackRock, componente "fundamentalsAndRisk".
-//  - Flujos: planilla del fondo (SpreadsheetML), hoja "Historical" con NAV y cuotas en circulación diarias.
-//    Flujo del día t = (cuotas_t − cuotas_t−1) × NAV_t (USD). Es la medida estándar de creaciones/rescates netos.
-// Argentina (ARGT) y Colombia (COLO) son de Global X, que responde 429 a consultas automáticas: pendientes.
-// P/E forward: lo publica MSCI en el factsheet mensual (PDF); pendiente de sumar el lector de PDF.
+// Valuación y flujos por país. Tres fuentes, cada una con lo que mejor cubre:
+//  - worldperatio.com: P/E diario sobre el ETF de referencia, historia mensual desde 1995 y μ/σ por ventana (5/10/20 años).
+//  - MSCI (factsheet mensual en PDF): P/E, P/E forward, P/BV y dividendo del índice país a fin de mes.
+//  - iShares (BlackRock): P/E y P/B diarios del ETF y flujos = (cuotas_t − cuotas_t−1) × NAV_t, de la planilla del fondo.
+// Argentina (ARGT) y Colombia (COLO) son de Global X, que responde 429 a consultas automáticas: sin flujos.
 import { getJson, clean, iso, settle } from '../util.js';
+import { worldPe, WPE_URL } from '../worldpe.js';
+import { msciFundamentals, MSCI_PDF } from '../msci.js';
 
 const BLK = 'https://www.blackrock.com/varnish-api/blk-one01-product-data/product-data/api';
 const Q = 'appType=PRODUCT_PAGE&appSubType=ISHARES&targetSite=us-ishares&locale=en_US&userType=individual';
 const pageUrl = (pid) => `https://www.ishares.com/us/products/${pid}/`;
 
-// Un ETF por país (iShares US). portfolioId del buscador de productos de iShares.
-export const FUNDS = [
-  { cid: 'br', ticker: 'EWZ', pid: 239612, name: 'iShares MSCI Brazil' },
-  { cid: 'us', ticker: 'IVV', pid: 239726, name: 'iShares Core S&P 500' },
-  { cid: 'eu', ticker: 'EZU', pid: 239644, name: 'iShares MSCI Eurozone' },
-  { cid: 'mx', ticker: 'EWW', pid: 239670, name: 'iShares MSCI Mexico' },
-  { cid: 'ca', ticker: 'EWC', pid: 239615, name: 'iShares MSCI Canada' },
-  { cid: 'cl', ticker: 'ECH', pid: 239618, name: 'iShares MSCI Chile' },
-  { cid: 'pe', ticker: 'EPU', pid: 239606, name: 'iShares MSCI Peru and Global Exposure' },
-  { cid: 'jp', ticker: 'EWJ', pid: 239665, name: 'iShares MSCI Japan' },
-  { cid: 'in', ticker: 'INDA', pid: 239659, name: 'iShares MSCI India' },
-  { cid: 'latam', ticker: 'ILF', pid: 239761, name: 'iShares Latin America 40', agg: true },
-  { cid: 'em', ticker: 'EEM', pid: 239637, name: 'iShares MSCI Emerging Markets', agg: true },
-  { cid: 'world', ticker: 'ACWI', pid: 239600, name: 'iShares MSCI ACWI', agg: true },
+// Por país: ETF de iShares para flujos (pid = portfolioId del buscador de iShares), página de worldperatio y factsheet MSCI.
+// worldperatio no tiene Eurozona: se usa Europa (VGK), y se avisa. EE.UU. en worldperatio = VTI (mercado total).
+export const COUNTRIES = [
+  { cid: 'ar', wpe: 'area/argentina', msci: 'argentina-index-net' },
+  { cid: 'br', ticker: 'EWZ', pid: 239612, wpe: 'area/brazil', msci: 'brazil-index-net' },
+  { cid: 'us', ticker: 'IVV', pid: 239726, wpe: 'area/united-states', msci: 'usa-index-net' },
+  { cid: 'eu', ticker: 'EZU', pid: 239644, wpe: 'area/europe', wpeNote: 'P/E e historia de Europa (VGK): worldperatio no publica la Eurozona', msci: 'emu-index-net' },
+  { cid: 'mx', ticker: 'EWW', pid: 239670, wpe: 'area/mexico', msci: 'mexico-index-usd-net' },
+  { cid: 'ca', ticker: 'EWC', pid: 239615, wpe: 'area/canada', msci: 'canada-index-net' },
+  { cid: 'co', wpe: 'area/colombia', msci: 'colombia-index-net' },
+  { cid: 'cl', ticker: 'ECH', pid: 239618, wpe: 'area/chile', msci: 'chile-index-net' },
+  { cid: 'pe', ticker: 'EPU', pid: 239606, wpe: 'area/peru', msci: 'peru-index-net' },
+  { cid: 'jp', ticker: 'EWJ', pid: 239665, wpe: 'area/japan', msci: 'japan-index-net' },
+  { cid: 'in', ticker: 'INDA', pid: 239659, wpe: 'area/india', msci: 'india-index-net' },
+  { cid: 'latam', ticker: 'ILF', pid: 239761, wpe: 'area/latin-america', agg: true },
+  { cid: 'em', ticker: 'EEM', pid: 239637, wpe: 'area/emerging-markets', agg: true, msciFrom: ['brazil-index-net', 'MSCI Emerging Markets'] },
+  { cid: 'world', ticker: 'ACWI', pid: 239600, agg: true, msciFrom: ['brazil-index-net', 'MSCI ACWI'] },
 ];
+// Compatibilidad: los ETF con flujos.
+export const FUNDS = COUNTRIES.filter((c) => c.pid);
 export const PENDING = [
   { cid: 'ar', ticker: 'ARGT', name: 'Global X MSCI Argentina', note: 'Global X responde 429 a consultas automáticas' },
   { cid: 'co', ticker: 'COLO', name: 'Global X MSCI Colombia', note: 'Global X responde 429 a consultas automáticas' },
@@ -113,33 +119,58 @@ export function computeFlows(hist) {
   return { asOf: last.d, aum: aum / 1e6, shares: s.at(-1)?.v, flows, pct, cum };
 }
 
+const HIST_FROM = '2006-01-01'; // historia mensual para el gráfico: 20 años alcanzan para la ventana más larga
+
 export default async function valuation() {
   const errors = [];
   const tasks = {};
-  for (const f of FUNDS) {
-    tasks[`iShares ${f.ticker} fundamentales`] = async () => parseFundamentals(await getJson(`${BLK}/v2/get-product-data?${Q}&portfolioId=${f.pid}&component=fundamentalsAndRisk`, { timeout: 20000 }));
-    tasks[`iShares ${f.ticker} flujos`] = async () => computeFlows(await fundHistory(f.pid));
+  for (const c of COUNTRIES) {
+    if (c.pid) {
+      tasks[`iShares ${c.ticker} fundamentales`] = async () => parseFundamentals(await getJson(`${BLK}/v2/get-product-data?${Q}&portfolioId=${c.pid}&component=fundamentalsAndRisk`, { timeout: 20000 }));
+      tasks[`iShares ${c.ticker} flujos`] = async () => computeFlows(await fundHistory(c.pid));
+    }
+    if (c.wpe) tasks[`worldperatio ${c.cid}`] = () => worldPe(c.wpe);
+    if (c.msci) tasks[`MSCI ${c.msci}`] = () => msciFundamentals(c.msci);
   }
   const d = await settle(tasks, errors);
-  const funds = FUNDS.map((f) => {
-    const F = d[`iShares ${f.ticker} fundamentales`] || {};
+  const msciRow = (c) => {
+    if (c.msci) { const m = d[`MSCI ${c.msci}`]; return m && { asOf: m.asOf, name: m.rows[0]?.name, ...m.rows[0], url: MSCI_PDF(c.msci) }; }
+    if (c.msciFrom) {
+      const m = d[`MSCI ${c.msciFrom[0]}`];
+      const r = m?.rows.find((x) => x.name === c.msciFrom[1]);
+      return r && { asOf: m.asOf, ...r, url: MSCI_PDF(c.msciFrom[0]) };
+    }
+    return null;
+  };
+  const rows = COUNTRIES.map((c) => {
+    const F = c.pid ? d[`iShares ${c.ticker} fundamentales`] || {} : {};
+    const W = c.wpe ? d[`worldperatio ${c.cid}`] : null;
     return {
-      ...f,
-      url: pageUrl(f.pid),
+      cid: c.cid,
+      agg: !!c.agg,
+      ticker: c.ticker || null,
+      url: c.pid ? pageUrl(c.pid) : null,
+      // worldperatio: P/E diario, historia y estadísticas.
+      wpe: W && {
+        pe: W.pe, date: W.date, etf: W.etf, stats: W.stats, url: WPE_URL(c.wpe), note: c.wpeNote || null,
+        history: W.history.filter((p) => p.d >= HIST_FROM),
+      },
+      msci: msciRow(c),
+      // iShares: P/E y P/B del ETF y flujos.
       pe: F.priceEarnings?.v ?? null,
       pb: F.priceBook?.v ?? null,
       peAsOf: F.priceEarnings?.d ?? null,
       divYield: F.twelveMonTrlYld?.v ?? null,
-      holdings: F.numHoldings?.v ?? null,
-      ...(d[`iShares ${f.ticker} flujos`] || { flows: null, pct: null, cum: [] }),
+      ...(c.pid ? d[`iShares ${c.ticker} flujos`] || { flows: null, pct: null, cum: [] } : { flows: null, pct: null, cum: [] }),
     };
   });
   return {
     id: 'val',
     name: 'Valuación y flujos',
-    funds,
+    funds: rows.filter((r) => r.ticker),
+    rows,
     pending: PENDING,
-    source: 'iShares (BlackRock): características del fondo y planilla diaria de NAV y cuotas en circulación',
+    source: 'worldperatio.com (P/E e historia), MSCI (factsheets) e iShares (flujos)',
     errors,
   };
 }
