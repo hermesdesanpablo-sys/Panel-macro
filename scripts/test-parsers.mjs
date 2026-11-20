@@ -58,6 +58,22 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
     fails += problems.length;
     continue;
   }
+  if (id === 'news') {
+    const it = p.items, byT = (re) => it.find((i) => re.test(i.title));
+    if (it.length !== 13) problems.push(`noticias: ${it.length} titulares (esperados 13: sin duplicado ni el de hace 60 h)`);
+    if (it.some((x, i) => i && x.time > it[i - 1].time)) problems.push('noticias: no están ordenadas de la más nueva a la más vieja');
+    const ar = byT(/riesgo país/);
+    if (ar?.source !== 'Ámbito' || ar?.via !== 'Google Noticias' || ar?.title.includes(' - ') || !ar?.countries.includes('ar')) problems.push('noticias: medio de Google Noticias o país');
+    if (!byT(/Lagarde/)?.tags.includes('cb') || !byT(/approval of application/)?.tags.includes('cb')) problems.push('noticias: comunicados de bancos centrales sin etiqueta');
+    if (!byT(/Brazil inflation/)?.tags.includes('data') || !byT(/Brazil inflation/)?.countries.includes('br')) problems.push('noticias: etiqueta de dato o país (Brasil)');
+    if (!byT(/Milei/)?.tags.includes('pol')) problems.push('noticias: etiqueta de política');
+    const fj = p.sources.find((s) => s.key === 'fj');
+    if (fj?.ok !== false || p.errors.length) problems.push('noticias: una fuente caída debe quedar "no disponible" sin error del panel');
+    console.log(`${problems.length ? '✗' : '✓'} news: ${it.length} titulares, ${p.sources.filter((s) => s.ok).length}/${p.sources.length} fuentes`);
+    problems.forEach((x) => console.log('    ' + x));
+    fails += problems.length;
+    continue;
+  }
   if (id === 'rank') {
     const byId = Object.fromEntries(p.countries.map((c) => [c.id, c]));
     if (p.countries.length !== 8) problems.push(`ranking: ${p.countries.length} países (esperados 8)`);
@@ -191,6 +207,20 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   assert.ok(b.every((p) => p.src === 'Yahoo'));
   await assert.rejects(ustCurve({ fredFn: down, yahooFn: async () => [], wait: 1 }), /incompleta/);
   console.log('✓ ustCurve (reintento y respaldo)');
+}
+// Noticias: clasificación por palabras clave y prefijo de FinancialJuice.
+{
+  const { classify, mergeNews, parseRss } = await import('../api/_lib/sources/news.js');
+  const c = classify('Powell says the Fed will cut rates; let us see');
+  assert.ok(c.tags.includes('cb') && c.countries.includes('us'));
+  assert.ok(!classify('Tell us more about the plan').countries.includes('us'), '"us" pronombre no es EE.UU.');
+  assert.deepEqual(classify('Petrobras sube y el real se aprecia').countries, ['br']);
+  const now = Date.parse('2026-11-20T12:00:00Z');
+  const items = parseRss('<rss><channel><item><title>FinancialJuice: US CPI &amp; core beat</title><pubDate>Fri, 20 Nov 2026 11:58:00 GMT</pubDate></item></channel></rss>');
+  const m = mergeNews([{ feed: { key: 'fj', label: 'FinancialJuice', strip: /^FinancialJuice:\s*/i }, items }], now);
+  assert.equal(m[0].title, 'US CPI & core beat');
+  assert.ok(m[0].tags.includes('data'));
+  console.log('✓ classify / mergeNews');
 }
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);
