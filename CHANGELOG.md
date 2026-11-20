@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.1 — 2026-11-20 (Valuación: datos directos primero)
+- Primera tabla con los datos de quienes arman índices y fondos: iShares (P/E y P/B del ETF diarios; dividendo 12m, SEC 30d,
+  beta y volatilidad 3 años mensuales) y MSCI (P/E, P/E forward, P/BV y dividendo del índice país, mensual). Asterisco en todo
+  lo que se publica una vez por mes, con la fecha de cada fuente.
+- Segunda tabla: worldperatio contra la propia historia (rangos ±1 y ±2 desvíos). Gráfico del P/E con bandas sombreadas de
+  ±1 y ±2 desvíos y el promedio punteado (las bandas son áreas, no series: una sola línea de datos).
+
 ## 0.11.0 — 2026-11-20 (P/E histórico con desvíos y P/E forward)
 - **Valuación contra la historia** (worldperatio.com, sin clave): P/E diario por país (calculado sobre el ETF), historia mensual
   desde 1995 y, por ventana de 5/10/20 años, promedio, desvío estándar (excluyendo el 10% extremo de cada lado), rango ±1 desvío,

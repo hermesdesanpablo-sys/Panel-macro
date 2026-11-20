@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TimeChart, PathChart, Spark, AreaSpark, CurveChart, YearChart } from './Charts.jsx';
+import { TimeChart, PathChart, Spark, AreaSpark, CurveChart, YearChart, PeBandChart } from './Charts.jsx';
 import { fmtNum, fmtDate, daysUntil, kpiByKey, fmtChg, ARROW, DIR_WORD, GROUPS, chgDir } from '../format.js';
 import { Flag } from './Flag.jsx';
 import { CmdIcon } from './CmdIcon.jsx';
@@ -1179,16 +1179,13 @@ export function ValPanel({ data }) {
   const peRow = rows.find((r) => r.cid === peSel && r.wpe?.history?.length) || rows.find((r) => r.wpe?.history?.length);
   const st = peRow?.wpe?.stats?.[win];
   const from = peRow ? isoDate(new Date(Date.UTC(Number(peRow.wpe.date.slice(0, 4)) - winYears, Number(peRow.wpe.date.slice(5, 7)) - 1, 1))) : '';
-  const peChart = peRow && {
-    title: `P/E de ${VAL_NAMES[peRow.cid]}`, unit: '',
-    lines: [{ key: 'pe', label: 'P/E' }, ...(st ? [{ key: 'hi', label: 'μ + σ' }, { key: 'lo', label: 'μ − σ' }] : [])],
-    data: [...peRow.wpe.history.filter((p) => p.d >= from), { d: peRow.wpe.date, v: peRow.wpe.pe }]
-      .map((p) => ({ d: p.d, pe: p.v, ...(st && { hi: st.avg + st.sd, lo: st.avg - st.sd }) })),
-  };
+  const peData = peRow ? [...peRow.wpe.history.filter((p) => p.d >= from), { d: peRow.wpe.date, v: peRow.wpe.pe }].map((p) => ({ d: p.d, pe: p.v })) : [];
 
   const asOf = funds.find((f) => f.asOf)?.asOf;
   const wpeDate = rows.find((r) => r.wpe?.date)?.wpe.date;
   const msciDate = rows.find((r) => r.msci?.asOf)?.msci.asOf;
+  const isharesDate = rows.find((r) => r.ishares?.pe?.d)?.ishares.pe.d;
+  const isharesMonthly = rows.find((r) => r.ishares?.div12m?.d)?.ishares.div12m.d;
   const num = (v, d = 1) => (v == null || !Number.isFinite(v) ? '—' : fmtNum(v, d));
   const flowCell = (f, k) => {
     const v = unit === 'usd' ? f.flows?.[k] : f.pct?.[k];
@@ -1207,14 +1204,61 @@ export function ValPanel({ data }) {
     <div className="panel">
       <Errors errors={data?.errors} />
       <p className="lead">
-        Valuación de la bolsa de cada país contra su propia historia y flujos de inversores del exterior. El <b>P/E</b> diario y su historia
-        son de worldperatio (calculados sobre el ETF del país); el promedio <b>μ</b> y el desvío <b>σ</b> excluyen el 10% de valores extremos de cada
-        lado. "Desvío" = cuántos σ está el P/E actual del promedio. El <b>P/E forward</b> es el del índice MSCI a fin de mes.
+        Primero, los datos de quienes arman los índices y los fondos: <b>iShares</b> (ratios del ETF de cada país) y <b>MSCI</b> (índice país,
+        con P/E forward). Después, cada bolsa contra su propia historia con <b>worldperatio</b> (P/E diario e historia mensual desde 1995,
+        con promedio y desvíos). Al final, los flujos de inversores en los ETF.
       </p>
+
+      <section className="card" id="val-direct">
+        <h3>Valuación: datos de iShares y MSCI</h3>
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>País</th><th>ETF</th>
+                <th className="num">P/E ETF</th><th className="num">P/B ETF</th><th className="num">Div. 12m*</th><th className="num">SEC 30d*</th>
+                <th className="num">Beta 3a*</th><th className="num">Volat. 3a*</th>
+                <th className="num off-col">P/E MSCI*</th><th className="num off-col">P/E fwd MSCI*</th><th className="num off-col">P/BV MSCI*</th><th className="num off-col">Div. MSCI*</th>
+              </tr>
+            </thead>
+            {group(rows, (r) => {
+              const I = r.ishares || {};
+              const pct = (x) => (x?.v == null ? '—' : `${fmtNum(x.v, 1)}%`);
+              return (
+                <tr key={r.cid}>
+                  {countryCell(r)}
+                  <td>{r.url ? <a href={r.url} target="_blank" rel="noreferrer">{r.ticker}</a> : <span className="muted" title="Sin ETF de iShares para este país">—</span>}</td>
+                  <td className="num"><b>{num(I.pe?.v)}</b></td>
+                  <td className="num">{num(I.pb?.v, 2)}</td>
+                  <td className="num">{pct(I.div12m)}</td>
+                  <td className="num">{pct(I.sec30)}</td>
+                  <td className="num">{num(I.beta3y?.v, 2)}</td>
+                  <td className="num">{pct(I.vol3y)}</td>
+                  <td className="num off-col">{r.msci?.url ? <a href={r.msci.url} target="_blank" rel="noreferrer">{num(r.msci.pe)}</a> : num(r.msci?.pe)}</td>
+                  <td className="num off-col"><b>{num(r.msci?.peFwd)}</b></td>
+                  <td className="num off-col">{num(r.msci?.pbv, 2)}</td>
+                  <td className="num off-col">{r.msci?.dy == null ? '—' : `${fmtNum(r.msci.dy, 1)}%`}</td>
+                </tr>
+              );
+            }, 12)}
+          </table>
+        </div>
+        <div className="card-foot">
+          <span>
+            iShares: P/E y P/B del ETF diarios, al {fmtDate(isharesDate)}. <b>*</b> Se publica una vez por mes (tiene atraso): rendimientos, beta y
+            volatilidad de iShares al {fmtDate(isharesMonthly)}; MSCI (índice país, factsheet mensual) al {fmtDate(msciDate)}. Div. 12m = dividendo
+            de los últimos 12 meses; SEC 30d = rendimiento estandarizado SEC; volatilidad = desvío estándar anual de 3 años. Argentina y Colombia:
+            sin ETF de iShares (solo MSCI). Emergentes y ACWI de MSCI salen de las filas de comparación de los factsheets.
+          </span>
+          <span>
+            <Source source="iShares (BlackRock)" url="https://www.ishares.com/us/products/etf-investments" /> · <Source source="MSCI factsheets" url="https://www.msci.com/indexes" />
+          </span>
+        </div>
+      </section>
 
       <section className="card" id="val-table">
         <div className="card-head">
-          <h3>Valuación contra la historia</h3>
+          <h3>Contra su propia historia (worldperatio)</h3>
           <div className="seg" role="group" aria-label="Ventana histórica">
             {VAL_WINDOWS.map(([k, l]) => <button key={k} className={win === k ? 'on' : ''} aria-pressed={win === k} onClick={() => setWin(k)}>{l}</button>)}
           </div>
@@ -1223,50 +1267,42 @@ export function ValPanel({ data }) {
           <table className="tbl">
             <thead>
               <tr>
-                <th>País</th><th>ETF</th><th className="num">P/E</th><th className="num">Promedio {winLabel}</th><th className="num">Desvío est.</th>
-                <th className="num">Rango ±1 desvío</th><th className="num">Hoy vs promedio</th><th>Lectura</th>
-                <th className="num off-col">P/E fwd MSCI</th><th className="num">P/E MSCI</th><th className="num">P/BV</th><th className="num">Div. %</th>
+                <th>País</th><th>ETF base</th><th className="num">P/E</th><th className="num">Promedio {winLabel}</th><th className="num">Desvío est.</th>
+                <th className="num">Rango ±1 desvío</th><th className="num">Rango ±2 desvíos</th><th className="num">Hoy vs promedio</th><th>Lectura</th>
               </tr>
             </thead>
-            {group(rows, (r) => {
+            {group(rows.filter((r) => r.wpe), (r) => {
               const S = r.wpe?.stats?.[win];
               const lec = lecturaOf(S?.z);
               return (
                 <tr key={r.cid}>
                   {countryCell(r)}
-                  <td>{r.wpe ? <a href={r.wpe.url} target="_blank" rel="noreferrer" title={r.wpe.note || undefined}>{r.wpe.etf}{r.wpe.note ? ' *' : ''}</a> : '—'}</td>
-                  <td className="num"><b>{num(r.wpe?.pe)}</b></td>
+                  <td><a href={r.wpe.url} target="_blank" rel="noreferrer" title={r.wpe.note || undefined}>{r.wpe.etf}{r.wpe.note ? ' †' : ''}</a></td>
+                  <td className="num"><b>{num(r.wpe.pe)}</b></td>
                   <td className="num">{num(S?.avg)}</td>
                   <td className="num">{num(S?.sd, 2)}</td>
                   <td className="num">{S ? `${fmtNum(S.avg - S.sd, 1)} – ${fmtNum(S.avg + S.sd, 1)}` : '—'}</td>
+                  <td className="num">{S ? `${fmtNum(Math.max(0, S.avg - 2 * S.sd), 1)} – ${fmtNum(S.avg + 2 * S.sd, 1)}` : '—'}</td>
                   <td className="num">{S?.z == null ? '—' : `${sign(S.z, 2)} σ`}</td>
                   <td>{lec ? <span className={`val-tag val-${lec.toLowerCase()}`}>{LECTURA[lec]}</span> : '—'}</td>
-                  <td className="num off-col"><b>{num(r.msci?.peFwd)}</b></td>
-                  <td className="num">{num(r.msci?.pe)}</td>
-                  <td className="num">{num(r.msci?.pbv, 2)}</td>
-                  <td className="num">{num(r.msci?.dy)}</td>
                 </tr>
               );
-            }, 12)}
+            }, 9)}
           </table>
         </div>
         <div className="card-foot">
           <span>
-            P/E y estadísticas al {fmtDate(wpeDate)} (worldperatio); MSCI al {fmtDate(msciDate)} (factsheet mensual). Lectura: dentro de μ ± σ neutral;
-            ±1 a 2 σ barato/caro; más de 2 σ muy barato/muy caro. * Eurozona: worldperatio publica Europa (VGK). El P/E de worldperatio
-            (sobre el ETF) y el de MSCI (sobre el índice) difieren por método y fecha.
+            P/E diario al {fmtDate(wpeDate)} calculado por worldperatio sobre el ETF base. Promedio y desvío excluyen el 10% de valores extremos de
+            cada lado. Lectura: dentro de ±1 desvío neutral; entre 1 y 2 barato/caro; más de 2 muy barato/muy caro. † Eurozona: worldperatio
+            publica Europa (VGK). Difiere del P/E de iShares/MSCI por método y fecha: úsese para comparar contra la propia historia.
           </span>
-          <span>
-            <Source source="worldperatio.com" url="https://worldperatio.com/area/" /> · <Source source="MSCI factsheets" url="https://www.msci.com/indexes" />
-          </span>
+          <Source source="worldperatio.com" url="https://worldperatio.com/area/" />
         </div>
       </section>
 
-      {peChart && (
+      {peRow && (
         <section className="card" id="val-pe">
-          <div className="card-head">
-            <h3>P/E histórico y banda μ ± σ ({winLabel})</h3>
-          </div>
+          <h3>P/E histórico con bandas de ±1 y ±2 desvíos ({winLabel})</h3>
           <div className="chips" role="group" aria-label="País">
             {rows.filter((r) => r.wpe?.history?.length).map((r) => (
               <button key={r.cid} className={`chip ${peRow.cid === r.cid ? 'on' : ''}`} aria-pressed={peRow.cid === r.cid} onClick={() => setPeSel(r.cid)}>
@@ -1274,11 +1310,11 @@ export function ValPanel({ data }) {
               </button>
             ))}
           </div>
-          <TimeChart chart={peChart} height={280} />
+          <PeBandChart data={peData} stats={st} height={300} title={`P/E de ${VAL_NAMES[peRow.cid]}`} />
           <div className="card-foot">
             <span>
-              Mensual; último punto al {fmtDate(peRow.wpe.date)}.{st ? ` μ = ${fmtNum(st.avg, 1)}, σ = ${fmtNum(st.sd, 2)}; hoy ${sign(st.z, 2)} σ.` : ''}
-              {peRow.wpe.note ? ` ${peRow.wpe.note}.` : ''}
+              P/E mensual (línea) y su promedio de {winLabel} (μ, punteada); banda oscura ±1 desvío, banda clara ±2 desvíos. Último punto al {fmtDate(peRow.wpe.date)}.
+              {st ? ` μ = ${fmtNum(st.avg, 1)}, desvío = ${fmtNum(st.sd, 2)}; hoy ${sign(st.z, 2)} σ.` : ''}{peRow.wpe.note ? ` ${peRow.wpe.note}.` : ''}
             </span>
             <Source source={`worldperatio (${peRow.wpe.etf})`} url={peRow.wpe.url} />
           </div>

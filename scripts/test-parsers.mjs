@@ -34,6 +34,7 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   if (id === 'val') {
     const ok = p.funds.filter((f) => f.pe != null && f.flows?.m1 != null && f.cum.length > 100);
     if (ok.length !== p.funds.length) problems.push(`solo ${ok.length}/${p.funds.length} ETF completos`);
+    if (p.funds.some((f) => f.ishares?.beta3y?.v == null || f.ishares?.sec30?.v == null)) problems.push('iShares: faltan ratios (beta, SEC)');
     const wpe = p.rows.filter((r) => r.wpe?.pe != null && r.wpe.stats?.y10?.sd > 0 && r.wpe.history.length > 100);
     if (wpe.length !== p.rows.filter((r) => r.cid !== 'world').length) problems.push(`worldperatio: solo ${wpe.length} países completos`);
     const ms = p.rows.filter((r) => r.msci?.peFwd > 0);

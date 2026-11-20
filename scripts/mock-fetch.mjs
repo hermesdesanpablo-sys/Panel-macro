@@ -373,9 +373,11 @@ export async function mockFetch(input) {
     const pid = Number(url.searchParams.get('portfolioId'));
     if (u.includes('get-product-data')) {
       // Componente fundamentalsAndRisk: objetos { name, formattedValue, value, asOfDate } anidados.
-      const f = (name, value) => ({ name, visible: true, formattedValue: String(value), value, asOfDate: Number(iso(Date.now() - DAY).replace(/-/g, '')) });
+      const f = (name, value, monthly = false) => ({ name, visible: true, formattedValue: String(value), value,
+        asOfDate: Number((monthly ? iso(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 0)) : iso(Date.now() - DAY)).replace(/-/g, '')) });
       return json({ productId: pid, componentsByNameMap: { fundamentalsAndRisk: { containersByNameMap: { default: { attributesByNameMap: {
-        priceEarnings: f('priceEarnings', 10 + (pid % 17)), priceBook: f('priceBook', 1 + (pid % 7) / 3), twelveMonTrlYld: f('twelveMonTrlYld', 2 + (pid % 5) / 2), numHoldings: f('numHoldings', 50) } } } } } });
+        priceEarnings: f('priceEarnings', 10 + (pid % 17)), priceBook: f('priceBook', 1 + (pid % 7) / 3), twelveMonTrlYld: f('twelveMonTrlYld', 2 + (pid % 5) / 2, true), numHoldings: f('numHoldings', 50),
+        thirtyDaySecYield: f('thirtyDaySecYield', 1.5 + (pid % 4) / 3, true), beta3Yr: f('beta3Yr', 0.6 + (pid % 5) / 10, true), standardDeviation3Yr: f('standardDeviation3Yr', 15 + (pid % 9), true) } } } } } });
     }
     // Planilla SpreadsheetML: hoja Holdings y luego Historical (de la fecha más nueva a la más vieja).
     const row = (cells) => `<ss:Row>${cells.map((c) => `<ss:Cell><ss:Data ss:Type="String">${c}</ss:Data></ss:Cell>`).join('')}</ss:Row>`;

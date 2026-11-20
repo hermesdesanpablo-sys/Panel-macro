@@ -161,6 +161,11 @@ export default async function valuation() {
       pb: F.priceBook?.v ?? null,
       peAsOf: F.priceEarnings?.d ?? null,
       divYield: F.twelveMonTrlYld?.v ?? null,
+      // Todos los ratios del ETF con su fecha (P/E y P/B diarios; rendimientos, beta y volatilidad a fin de mes).
+      ishares: c.pid ? {
+        pe: F.priceEarnings || null, pb: F.priceBook || null, div12m: F.twelveMonTrlYld || null, sec30: F.thirtyDaySecYield || null,
+        beta3y: F.beta3Yr || null, vol3y: F.standardDeviation3Yr || null, holdings: F.numHoldings || null,
+      } : null,
       ...(c.pid ? d[`iShares ${c.ticker} flujos`] || { flows: null, pct: null, cum: [] } : { flows: null, pct: null, cum: [] }),
     };
   });
