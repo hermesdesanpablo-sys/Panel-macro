@@ -50,7 +50,10 @@ export function parseEmbi(rows) {
 }
 
 export async function embi() {
-  const r = await fetch(EMBI_URL, { headers: { 'User-Agent': 'Mozilla/5.0 (macro-dashboard)' }, signal: AbortSignal.timeout(25000) });
+  // El CDN del BCRD guarda copias por URL: sin un parámetro distinto, el nodo que atiende a Vercel devolvía la planilla del día
+  // anterior (verificado el 20-nov-2026: producción al 18-nov, origen al 19-nov). El propio sitio usa `?v=` en sus links.
+  const url = `${EMBI_URL}?v=${Date.now()}`;
+  const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (macro-dashboard)', 'Cache-Control': 'no-cache', Pragma: 'no-cache' }, cache: 'no-store', signal: AbortSignal.timeout(25000) });
   if (!r.ok) throw new Error(`HTTP ${r.status} en cdn.bancentral.gov.do`);
   return parseEmbi(readFirstSheet(Buffer.from(await r.arrayBuffer())));
 }

@@ -28,6 +28,10 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
     if (p.countries.some((c) => c.summary.debt == null)) problems.push('país sin deuda/PBI');
     const comp = p.countries.filter((c) => c.composition);
     if (comp.length !== p.countries.length - 2) problems.push(`composición de la deuda: ${comp.length} países (esperados todos menos EZ e IN)`);
+    const ec = p.countries.find((c) => c.id === 'ec')?.composition;
+    // 68.000 M de deuda, 52.000 M externa, PIB 136.000 M; vencimientos: 12 meses × 500 M = 6.000 M (sin las columnas de totales).
+    if (!ec || ec.quarter !== '2026-08' || ec.asOf !== '2026-08-31' || Math.abs(ec.total - 50) > 1e-9 || Math.abs(ec.extShare - 52 / 68 * 100) > 1e-9
+      || Math.abs(ec.due12m - 6000 / 136000 * 100) > 1e-9 || ec.fxShare !== 100) problems.push('composición de Ecuador (último mes, totales o vencimientos)');
     const ar = p.countries.find((c) => c.id === 'ar')?.composition;
     if (!ar || ar.fxShare !== 25 || Math.abs(ar.extShare - 100 / 3) > 1e-9 || ar.due12m !== 9 || ar.asOf !== '2026-06-30') problems.push('composición: cálculo de participaciones o fecha');
     if (p.countries.find((c) => c.id === 'cl')?.composition?.sector !== 'BC') problems.push('composición: Chile debería usar el presupuestario central');
@@ -61,7 +65,7 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
     if (byId.ar?.raw.yearsNoDefault !== 0 || byId.ec?.raw.yearsNoDefault !== 5 || byId.uy?.raw.yearsNoDefault !== 22 || byId.pe?.raw.yearsNoDefault !== 30 || byId.br?.raw.yearsNoDefault !== 30)
       problems.push('ranking: años sin default mal calculados (umbral o acreedores oficiales)');
     if (byId.cl?.raw.extShare != null) problems.push('ranking: Chile no debería usar la residencia del acreedor');
-    if (!(byId.ec?.coverage < 100) || byId.ec?.pillars.comp != null) problems.push('ranking: Ecuador sin composición debería re-ponderar');
+    if (byId.ec?.raw.fxShare !== 100 || byId.ec?.coverage !== 100) problems.push('ranking: Ecuador debería usar su dato propio (dolarizado = 100% en ME)');
     if (!p.fit || p.countries.some((c) => c.spread != null && c.spreadFit == null)) problems.push('ranking: falta el ajuste contra el spread');
     console.log(`${problems.length ? '✗' : '✓'} rank: ${p.countries.map((c) => `${c.rank}.${c.id}`).join(' ')}`);
     problems.forEach((x) => console.log('    ' + x));

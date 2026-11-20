@@ -37,6 +37,7 @@ api/_lib/sources/sust.js    Sostenibilidad: FMI WEO (API SDMX) + Banco Mundial (
 api/_lib/xlsx.js            Lector mínimo de .xlsx sin dependencias (zlib): readFirstSheet / readSheet(buf, n)
 api/_lib/sources/rank.js    Ranking de emisores (8 de LatAm): 5 pilares ponderados, solo datos 2025+, vs spread EMBI
 api/_lib/debtcomp.js        Composición de la deuda pública (Banco Mundial QPSD): moneda, residencia del acreedor, vencimientos a 12 meses
+api/_lib/ecdebt.js          Ecuador: composición de la deuda con el Boletín de Deuda Pública del Ministerio de Economía (no reporta a QPSD)
 src/App.jsx                 Tabs, carga en paralelo de todos los países, modo ?mock=1
 src/components/Panels.jsx   Kpi, Dynamics, CountryPanel, TrendsTable, WorldPanel (MajorIndices, QuoteCard, BondTiles,
                             MiniTiles, Watchlist), ComparePanel, AgendaList
@@ -165,7 +166,7 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
   En step-up (AR, EC) contrastar la TIR con la fuente local. Spread = TIR − Tesoro de EE.UU. interpolado al plazo (FRED DGS*).
 - La búsqueda (`/instruments/query`) devuelve como máximo 10 resultados: el script refina el prefijo del ISIN (CUSIP del emisor).
   Se excluyen los globales en moneda local pagaderos en USD ("RB/DL", "KP/DL") y se deduplica 144A/Reg S por (vencimiento, cupón).
-- EMBI: planilla diaria del Banco Central de la Rep. Dominicana (`EMBI_URL` en usd.js, URL fija sin el `?v=`; ~1 MB,
+- EMBI: planilla diaria del Banco Central de la Rep. Dominicana (`EMBI_URL` en usd.js + `?v=<timestamp>`: sin eso el CDN le sirve a Vercel la copia del día anterior; ~1 MB,
   historia desde 2007, columnas Global, LATINO, REP DOM y 16 países). Valores en puntos porcentuales → pb. Sin API: se baja
   la planilla en cada request (cache 30 min). Si cambia el encabezado, `parseEmbi` falla con un error claro.
 
@@ -197,7 +198,11 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 - QPSD (Banco Mundial, `api.worldbank.org/v2/country/<ISO3;…>/indicator/DP.DOD.<X>.CR.<SECTOR>.Z1?source=20&mrnev=1`): X = DECT total,
   DECF moneda extranjera, DECN moneda local, DECD acreedores residentes, DECX no residentes, DSTC corto plazo, y `DLTC.CR.L1` (largo plazo
   que vence en ≤1 año). SECTOR: GG / CG / BC. Se usa CG; Chile solo tiene BC. Un indicador inexistente para un sector responde 400.
-  Solo se combinan componentes del mismo trimestre que el total. Sin datos: India, Ecuador (no reportan), Eurozona (sin agregado).
+  Solo se combinan componentes del mismo trimestre que el total. Sin datos: India (no reporta), Eurozona (sin agregado).
+- Ecuador (`ecdebt.js`): página `finanzas.gob.ec/deuda-publica-nueva-metodologia/` → links `download.php?id=` ("Base de Datos Boletín de Deuda
+  <Mes> <Año>" y "Perfil Vencimientos CP Externa Interna <Mes> <Año>"; redirigen a economicoproductivo.gob.ec). Base: hoja "1." (sheet2,
+  miles de USD: Total Deuda Externa / Interna, DEUDA PÚBLICA TOTAL, PIB NOMINAL). Perfil CP: hoja "16." (sheet17), fila "CAPITAL DEUDA
+  EXTERNA + INTERNA", se suman los 12 primeros meses. ~2 meses de atraso; ~12 s de descarga. Dolarizado → 100% "moneda extranjera".
 - Otras fuentes confirmadas para el ranking (20-nov-2026): WGI `GOV_WGI_<GE|RL|CC|RQ|PV|VA>.EST?source=3` (2025); IDS
   `DT.DOD.DSTC.IR.ZS` (deuda externa de corto plazo / reservas, solo emergentes, 2024; sin Chile ni Uruguay); FMI WEO `GGR_NGDP`
   (ingresos) para intereses/recaudación; BoC-BoE Sovereign Default Database (`bankofcanada.ca/wp-content/uploads/2026/10/BoC-BoE-Database-2026.xlsx`,
