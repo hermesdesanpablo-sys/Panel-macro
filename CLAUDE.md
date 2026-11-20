@@ -153,12 +153,12 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 | 🇪🇺 | ✔ DFR | ✔ HICP (dataset `HICP`, proveedor `4D0`) | ✔ forwards AAA `IF_*`; ✔ SPF LT | ✔ AAA 2Y/10Y | ✔ | ✔ EZU/^STOXX50E | ✅ BCE |
 | 🇲🇽 | ✔ SF61745 | ✔ SP30578 | ✔ Encuesta Banxico (trayectoria de tasa, infl. 12m, tabla) | ✔ Cetes/TIIE; ✔ Bono M 3Y/10Y (subasta) | ✔ FIX | ✔ EWW/^MXX | ✔ dic-2026; ❌ 2027 (no publicado) |
 | 🇨🇦 | ✔ V39079 | ✔ V41690973; ✔ CPI-trim/median | proxy 2Y − overnight; ✔ breakeven LP (LONG − RRB) | ✔ GoC 2Y/10Y | ✔ | ✔ EWC/^GSPTSE | ✅ BoC |
-| 🇨🇴 | ✔ DF_CBR_DAILY_HIST | ✔ IPC derivado de la UVR (DF_UVR_DAILY_HIST); fallback FRED OCDE | proxy IBR 6M − política; ❌ Encuesta BanRep (captcha) | ✔ IBR ON/6M (efectiva); ✔ TES 2Y (interp. 1Y–5Y) y 10Y, mensual | ✔ datos.gov.co 32sa-8pi3; fallback BanRep | ✔ COLO / ICOLCAP.CL | ✔ dic-2026; ❌ 2027 (no publicado) |
+| 🇨🇴 | ✔ DF_CBR_DAILY_HIST | ✔ IPC derivado de la UVR (DF_UVR_DAILY_HIST); fallback FRED OCDE | proxy IBR 6M − política; ❌ Encuesta BanRep (captcha) | ✔ IBR ON/6M (efectiva); ✔ TES 2Y (interp. 1Y–5Y) y 10Y diarios (curva cero cupón, Suameca; respaldo: promedio mensual SDMX) | ✔ datos.gov.co 32sa-8pi3; fallback BanRep | ✔ COLO / ICOLCAP.CL | ✔ dic-2026; ❌ 2027 (no publicado) |
 
 | 🇦🇷 | ✔ TAMAR (BCRA 44; sin tasa de política desde jul-25) y pases 1d (150) | ✔ INDEC vía BCRA (27 m/m, 28 a/a) | ✔ REM: 12m (BCRA 29, con historia) + planilla completa (inflación, TAMAR, TC, PIB, fiscal) | ✔ BADLAR; EMBI (BCRD); ❌ curva en pesos | ✔ A3500 + bandas | ✔ ARGT | ✔ IPC INDEC 15-dic-2026 |
 | 🇨🇱 | ✔ BDE F022.TPM | ✔ BDE IPC var. 12m | ✔ EEE (inflación 11/23m, TPM por plazo, PIB) y EOF (TPM e inflación 12m); ✔ BCP−BCU 10Y | ✔ BCP 2Y/10Y, BCU 10Y | ✔ dólar observado | ✔ ECH; IPSA mensual (BDE) | ✔ dic-2026; ❌ 2027 (publicado, no accesible) |
 | 🇵🇪 | ✔ BIS D.PE | ✔ BIS M.PE.771 (lag ~2 meses) | FMI WEO (dic/dic próximo año); ❌ encuesta BCRP (API bloqueada) | ✔ EMBI; ❌ curva en soles | ✔ Yahoo PEN=X | ✔ EPU; ❌ S&P/BVL sin historia en Yahoo | ❌ BCRP e INEI (sin calendario legible) |
-| 🇮🇳 | ✔ BIS D.IN (lag ~1 mes) | ✔ BIS M.IN.771 | FMI WEO (AF abr–mar); proxy 3M − repo | ✔ OCDE vía FRED: call, 3M, 10Y (mensual); ❌ G-sec 2Y | ✔ Yahoo INR=X | ✔ INDA/^NSEI | ✔ RBI MPC AF 26-27; MOSPI (previstas) |
+| 🇮🇳 | ✔ BIS D.IN (lag ~1 mes) | ✔ BIS M.IN.771 | FMI WEO (AF abr–mar); proxy 3M − repo | ✔ OCDE vía FRED: call, 3M, 10Y (mensual); ❌ G-sec 10Y diario (CCIL, FBIL, CNBC y Stooq bloquean consultas automáticas; RBI solo fin de mes); ❌ G-sec 2Y | ✔ Yahoo INR=X | ✔ INDA/^NSEI | ✔ RBI MPC AF 26-27; MOSPI (previstas) |
 | 🇯🇵 | ✔ BoJ call O/N (STRDCLUCON) | ✔ BIS WS_LONG_CPI M.JP.771 | ✔ Tankan infl. 1a; proxy JGB 2Y − call | ✔ MOF JGB 2Y/10Y/30Y | ✔ Yahoo JPY=X | ✔ EWJ/^N225 | ✔ BoJ 2026–2027 |
 
 ### Notas de Crédito USD (onvista)
@@ -252,6 +252,10 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
   coincide con el DANE). La UVR se publica con ~1 mes de adelanto, así que el IPC sale apenas lo publica el DANE.
 - Claves: `CO.<SUBJECT>._Z._Z._Z.<UNIDAD>.<FREQ>`. IBR: `IRIBRM{00,01,03,06}` × `ER` (efectiva anual) / `NR` (nominal).
   Se usa ER porque la tasa de política está en efectiva anual. TES: `IRGBRY{01,05,10}`, mensual, en decimal.
+- TES diario: Suameca (`api/_lib/suameca.js`), API REST pública del BanRep: `.../estadisticaEconomicaRestService/consultaInformacionSerie?idSerie=<id>`.
+  Curva cero cupón en pesos 15272 (1Y), 15273 (5Y), 15274 (10Y); UVR 15275–15277. Se carga una vez por semana (~1 semana de atraso).
+  El servidor no manda el certificado intermedio (GeoTrust EV RSA CA G2): se agrega ese intermedio público en el código (vence 2-jul-2030).
+  En un entorno con proxy, probar con `NODE_USE_ENV_PROXY=1`.
 - Variables opcionales para sobreescribir: `BANREP_FLOW_POLICY`, `BANREP_IBR_ON`, `BANREP_IBR_6M`.
 - `startPeriod` solo respeta el año; el filtro fino de fechas se hace del lado del cliente.
 
@@ -298,7 +302,7 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
    https://www.banxico.org.mx/publicaciones-y-prensa/calendario-de-publicaciones.html ·
    https://www.banrep.gov.co/es/calendario-junta-directiva (la JDBR decide al final de ene, mar, abr, jun, jul, sep, oct y dic).
 3. México: Bono M de mercado secundario diario (hoy: subasta primaria).
-4. Colombia: Encuesta mensual de expectativas de BanRep (la página tiene captcha → carga manual o LSEG). TES diario (hoy: promedio mensual).
+4. Colombia: Encuesta mensual de expectativas de BanRep (la página tiene captcha → carga manual o LSEG). TES de mercado intradiario (hoy: curva cero cupón diaria del BanRep, con ~1 semana de atraso).
    Argentina: Merval sin historia en Yahoo/Stooq (solo ARGT en Mundo).
 5. Valuación: flujos de ARGT/COLO (Global X responde 429); historia del P/E forward (solo LSEG/Datastream).
 6. Persistir snapshots diarios (p.ej. Vercel KV / Postgres + cron) para tener historia propia de variables

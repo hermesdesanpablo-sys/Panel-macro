@@ -8,6 +8,7 @@ import { getText, getJson, clean, iso, daysAgo, settle, kpi, merge, thin, last, 
 import { equityBlock } from '../yahoo.js';
 import { agendaEvents } from '../calendar.js';
 import { fred } from './us.js';
+import { suameca, SUAMECA_PAGE } from '../suameca.js';
 
 const SDMX = 'https://totoro.banrep.gov.co/nsi-jax-ws/rest';
 
@@ -169,6 +170,14 @@ export default async function colombia() {
         const pct = (re, label) => pick(all, re, label).series.map((p) => ({ d: p.d, v: p.v < 1 ? p.v * 100 : p.v })); // decimal → %
         return { y1: pct(SERIES_PICK.tes1, 'TES 1Y'), y5: pct(SERIES_PICK.tes5, 'TES 5Y'), y10: pct(SERIES_PICK.tes10, 'TES 10Y') };
       },
+      // Curva cero cupón de TES (Nelson-Siegel sobre operaciones del SEN y el MEC), diaria. BanRep la carga una vez por semana
+      // (~1 semana de atraso), pero es mejor que el promedio mensual del SDMX, que queda de respaldo.
+      'BanRep TES diario (Suameca)': async () => {
+        const [y1, y5, y10] = await Promise.all([15272, 15273, 15274].map((id) => suameca(id)));
+        const from = iso(daysAgo(800));
+        const cut = (r) => r.series.filter((p) => p.d >= from);
+        return { y1: cut(y1), y5: cut(y5), y10: cut(y10) };
+      },
       // GXG pasó a llamarse COLO. ICOLCAP.CL es la cotización en la BVC (Yahoo usa el sufijo .CL para Colombia).
       'Yahoo COLO/COLCAP': () => equityBlock('COLO', 'Global X MSCI Colombia (COLO, USD)', 'ICOLCAP.CL', 'iShares MSCI COLCAP (ICOLCAP)'),
     },
@@ -219,12 +228,15 @@ export default async function colombia() {
   }
   const slope = spreadSeries(ibr6, policy);
   // TES 2Y: interpolación lineal entre el 1Y y el 5Y (BanRep no publica el nodo de 2 años).
-  const tes = d['BanRep TES'] || { y1: [], y5: [], y10: [] };
+  const daily = d['BanRep TES diario (Suameca)'];
+  const tes = daily?.y10?.length ? daily : d['BanRep TES'] || { y1: [], y5: [], y10: [] };
+  const tesTag = daily?.y10?.length ? 'cero cupón' : 'prom. mensual';
   const tes2 = tes.y1.map((p) => {
     const q = tes.y5.find((x) => x.d === p.d);
     return q ? { d: p.d, v: p.v + (q.v - p.v) / 4 } : null;
   }).filter(Boolean);
   const bsrc = (flow) => ({ source: `BanRep SDMX ${flow}`, url: BANREP_URL });
+  const tesSrc = daily?.y10?.length ? { source: 'BanRep Suameca, curva cero cupón TES (series 15272–15274)', url: SUAMECA_PAGE(640001, 'deuda_publica_tasas_cero_cupon_tes') } : bsrc(BANREP_FLOWS.tes);
 
   return {
     id: 'co',
@@ -238,8 +250,9 @@ export default async function colombia() {
       kpi({ key: 'exp_rate', group: 'expectations', label: 'IBR 6M − tasa de política', series: slope, note: 'Proxy de mercado: >0 descuenta subas; <0, bajas', source: 'Cálculo propio (BanRep IBR)', url: BANREP_URL }),
       // Encuesta mensual de BanRep (EME): sin fuente automatizable (la página tiene captcha). Ver CLAUDE.md.
       kpi({ key: 'ibr6', group: 'market', label: 'IBR 6M', series: ibr6, decimals: 3, ...bsrc(BANREP_FLOWS.ibr) }),
-      kpi({ key: 'y2', group: 'market', label: 'TES 2Y (prom. mensual)', series: tes2, changeDays: 365, note: 'Interpolado entre TES 1Y y 5Y', source: `Cálculo propio (BanRep ${BANREP_FLOWS.tes})`, url: BANREP_URL }),
-      kpi({ key: 'y10', group: 'market', label: 'TES 10Y (prom. mensual)', series: tes.y10, changeDays: 365, ...bsrc(BANREP_FLOWS.tes) }),
+      kpi({ key: 'y2', group: 'market', label: `TES 2Y (${tesTag})`, series: tes2, changeDays: 365, note: 'Interpolado entre TES 1Y y 5Y', source: `Cálculo propio (${tesSrc.source})`, url: tesSrc.url }),
+      kpi({ key: 'y10', group: 'market', label: `TES 10Y (${tesTag})`, series: tes.y10, changeDays: 365, ...tesSrc,
+        note: daily?.y10?.length ? 'Curva cero cupón diaria del BanRep; se carga una vez por semana (~1 semana de atraso)' : 'Promedio mensual (respaldo: Suameca no respondió)' }),
       kpi({ key: 'fx', group: 'fx', label: 'USDCOP (TRM)', series: trm, unit: '', decimals: 2, changeDays: 365, ...trmSrc }),
     ],
     equity: d['Yahoo COLO/COLCAP'],

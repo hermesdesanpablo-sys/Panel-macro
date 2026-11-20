@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.15.2 — 2026-11-20 (Colombia: TES diario)
+- Colombia: TES 10Y y 2Y pasan del promedio mensual (SDMX) a la curva cero cupón **diaria** del BanRep, leída de Suameca, su API de estadísticas
+  (`api/_lib/suameca.js`). BanRep la carga una vez por semana: al 20-nov, el último dato es del 13-nov (12,94%). El promedio mensual queda de respaldo.
+  - El servidor de Suameca no envía el certificado intermedio: se agrega el intermedio público de DigiCert y la cadena se verifica completa.
+- India: sin fuente diaria utilizable para el G-sec 10Y. CCIL (Akamai), FBIL (reCAPTCHA), CNBC (403) y Stooq (verificación con JavaScript)
+  bloquean consultas automáticas, y el RBI publica solo datos de fin de mes. Sigue el promedio mensual de la OCDE.
+- Verificado: `npm test` OK (mock de Suameca y test de fecha diaria); datos reales sin errores; `npm run build` OK.
+
 ## 0.15.1 — 2026-11-20 (Bonos a 10 años: tipo de dato y fecha)
 - Mundo, "Bonos a 10 años": cada cuadro muestra qué tipo de dato es y de qué fecha (Mercado / Cierre / Subasta / Prom. mensual).
   Antes no se veía y se mezclaban cierres oficiales del día anterior, una subasta y promedios mensuales.
