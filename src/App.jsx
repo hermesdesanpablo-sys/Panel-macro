@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { CountryPanel, WorldPanel, AgendaPanel, ComparePanel, UsdPanel, SustPanel, ValPanel } from './components/Panels.jsx';
+import { CountryPanel, WorldPanel, AgendaPanel, ComparePanel, UsdPanel, SustPanel, ValPanel, RankPanel } from './components/Panels.jsx';
 import { POLITICAL_UNDATED } from '../api/_lib/calendar.js';
 import { fmtDate } from './format.js';
 import { Flag } from './components/Flag.jsx';
@@ -62,7 +62,11 @@ export default function App() {
   }, []);
   const fetchAll = useCallback((fresh = false) => ['world', ...COUNTRIES].forEach((id) => fetchOne(id, fresh)), [fetchOne]);
   // Crédito USD cotiza ~100 bonos: se pide solo al abrir la solapa (y con Recargar si ya estaba abierta).
-  useEffect(() => { if (['usd', 'sust', 'val'].includes(tab) && !data[tab] && state[tab] !== 'loading') fetchOne(tab); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (['usd', 'sust', 'val'].includes(tab) && !data[tab] && state[tab] !== 'loading') fetchOne(tab);
+    // El ranking de emisores se muestra en Crédito USD: se pide junto con esa solapa.
+    if (tab === 'usd' && !data.rank && state.rank !== 'loading') fetchOne('rank');
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
   // Actualización automática con la pestaña visible: precios de Mundo cada minuto; la solapa abierta cada 5 minutos.
@@ -117,7 +121,7 @@ export default function App() {
               Act. {new Date(updated).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
-          <button className="btn" onClick={() => { fetchAll(true); ['usd', 'sust', 'val'].forEach((t) => data[t] && fetchOne(t, true)); }}>Recargar</button>
+          <button className="btn" onClick={() => { fetchAll(true); ['usd', 'sust', 'val', 'rank'].forEach((t) => data[t] && fetchOne(t, true)); }}>Recargar</button>
         </div>
       </header>
 
@@ -136,7 +140,10 @@ export default function App() {
         ) : tab === 'val' && current ? (
           <ValPanel data={current} />
         ) : tab === 'usd' && current ? (
-          <UsdPanel data={current} />
+          <>
+            <RankPanel data={data.rank} state={state.rank} />
+            <UsdPanel data={current} />
+          </>
         ) : tab === 'agenda' ? (
           <section className="card" id="agenda-all">
             <h2 className="title"><Flag id="agenda" /> Agenda consolidada</h2>

@@ -21,7 +21,7 @@ Objetivo de cada panel:
 ## Arquitectura
 
 ```
-api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val  (función serverless Vercel, cache edge 30 min)
+api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val|rank  (función serverless Vercel, cache edge 30 min)
 api/_lib/util.js            HTTP, fechas, series, kpi(), trend(), spreadSeries(), settle()
 api/_lib/yahoo.js           Yahoo Finance: precios, perf, futuros Fed funds (ZQ)
 api/_lib/calendar.js        Reuniones de bancos centrales + publicaciones de IPC/PIB con fecha oficial (estático; revisar cada semestre)
@@ -35,6 +35,7 @@ api/_lib/msci.js            Lector del factsheet mensual de MSCI (PDF, con unpdf
 api/_lib/ssga.js            State Street: planilla de productos SPDR (P/E FY1, P/B, crec. EPS…) y NAV/cuotas diarias por ETF
 api/_lib/sources/sust.js    Sostenibilidad: FMI WEO (API SDMX) + Banco Mundial (WDI). Payload propio: countries[].rows por año
 api/_lib/xlsx.js            Lector mínimo de .xlsx sin dependencias (zlib): readFirstSheet / readSheet(buf, n)
+api/_lib/sources/rank.js    Ranking de emisores (8 de LatAm): 5 pilares ponderados, solo datos 2025+, vs spread EMBI
 api/_lib/debtcomp.js        Composición de la deuda pública (Banco Mundial QPSD): moneda, residencia del acreedor, vencimientos a 12 meses
 src/App.jsx                 Tabs, carga en paralelo de todos los países, modo ?mock=1
 src/components/Panels.jsx   Kpi, Dynamics, CountryPanel, TrendsTable, WorldPanel (MajorIndices, QuoteCard, BondTiles,
@@ -202,6 +203,11 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
   (ingresos) para intereses/recaudación; BoC-BoE Sovereign Default Database (`bankofcanada.ca/wp-content/uploads/2026/10/BoC-BoE-Database-2026.xlsx`,
   hoja 2 "Debt_2026.csv": monto en default en USD M por país, año y acreedor; usar umbral de monto: Perú arrastra montos chicos de la era Brady).
 - Sin fuente gratuita: calificaciones crediticias (pagas); base de tenedores del FMI (Arslanalp-Tsuda) sin descarga actualizada.
+- Ranking (`rank.js`): universo AR BR CL CO MX PE UY EC; pesos fiscal 25 / composición 25 / externo 20 / institucional 15 / historial 15
+  (Hermes, 20-nov-2026). **Regla: solo datos con fecha ≥ 2025** (`MIN_YEAR`); sin dato reciente el indicador queda vacío. Min–max contra el
+  grupo (≥3 países con dato). Historial: años desde el último año con ≥ USD 1.000 M en default comercial (bonos, préstamos, deuda local, otros
+  privados), tope 30; los atrasos con "otros acreedores oficiales" no cuentan (BR 2022, MX 2024 no son defaults de mercado).
+  La URL de la base BoC-BoE cambia cada año (`BOC_URL`): actualizarla con cada edición (sale en octubre).
 
 ### Notas de Chile (BCCh BDE)
 - Fuente principal: API oficial `SieteRestWS.ashx?token=<BCCH_API_TOKEN>&function=GetSeries&timeseries=<código>&firstdate=aaaa-mm-dd`

@@ -224,3 +224,37 @@ export function PeBandChart({ data, stats, height = 300, title }) {
     </ResponsiveContainer>
   );
 }
+
+/**
+ * Puntaje de fundamentos (eje X, 0–100) contra spread EMBI (eje Y, escala logarítmica) con la curva ajustada.
+ * Cada punto lleva el nombre del país (no depende del color). Por encima de la curva: paga más de lo que justifican los fundamentos.
+ */
+export function ScoreSpreadChart({ points, fit, height = 320 }) {
+  if (!points?.length) return <div className="empty">Sin datos</div>;
+  const curve = fit ? Array.from({ length: 21 }, (_, i) => ({ score: i * 5, fit: Math.exp(fit.a + fit.b * i * 5) })) : [];
+  const ys = [...points.map((p) => p.spread), ...curve.map((c) => c.fit)].filter((v) => v > 0);
+  const lo = Math.max(10, Math.min(...ys) * 0.8), hi = Math.max(...ys) * 1.2;
+  const Label = ({ cx, cy, payload }) => (
+    <g>
+      <circle cx={cx} cy={cy} r={5} fill="var(--series-1)" />
+      <text x={cx + 8} y={cy + 4} fill="var(--text-secondary)" fontSize={12}>{payload.name}</text>
+    </g>
+  );
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <ComposedChart margin={{ top: 10, right: 30, bottom: 18, left: 0 }}>
+        <CartesianGrid stroke="var(--grid)" />
+        <XAxis type="number" dataKey="score" domain={[0, 100]} ticks={[0, 20, 40, 60, 80, 100]} tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+          label={{ value: 'Puntaje de fundamentos (100 = mejor del grupo)', position: 'insideBottom', offset: -10, fill: 'var(--text-muted)', fontSize: 11 }} />
+        <YAxis type="number" dataKey="spread" scale="log" domain={[lo, hi]} allowDataOverflow width={56} tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+          tickFormatter={(v) => `${fmtNum(v, 0)}`} label={{ value: 'Spread EMBI (pb)', angle: -90, position: 'insideLeft', fill: 'var(--text-muted)', fontSize: 11 }} />
+        <Tooltip cursor={{ strokeDasharray: '3 3' }} content={({ active, payload }) => {
+          const p = active && payload?.find((x) => x.payload?.name)?.payload;
+          return p ? <div className="tip"><div className="tip-date">{p.name}</div><div className="tip-row">Puntaje {fmtNum(p.score, 0)} · spread {fmtNum(p.spread, 0)} pb</div></div> : null;
+        }} />
+        {fit && <Line data={curve} dataKey="fit" type="monotone" stroke="var(--text-muted)" strokeDasharray="5 4" dot={false} isAnimationActive={false} name="Spread que justifican los fundamentos" />}
+        <Scatter data={points} dataKey="spread" shape={<Label />} isAnimationActive={false} />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}

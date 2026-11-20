@@ -320,3 +320,6 @@ a.src:hover { color: var(--accent); }
 @media (max-width: 420px) {
   .kpis { grid-template-columns: 1fr; }
 }
+.lead.small { font-size: 13.5px; margin: 0 0 14px; }
+.share.compact { min-width: 96px; gap: 6px; }
+.share.compact .share-track { min-width: 54px; }
