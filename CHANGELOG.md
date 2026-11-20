@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.2 — 2026-11-20 (China en Valuación; monedas en Mundo)
+- Valuación – Países: China (sin panel macro) con iShares MCHI (ratios y flujos), MSCI China (factsheet en USD: P/E 11,96,
+  forward 9,32 al 30-oct) y worldperatio (P/E sobre FXI, FTSE China 50; pasa el control de calidad a 5 y 10 años).
+- Mundo: USDPEN y USDINR (faltaban desde que se sumaron Perú e India). USDCNY, MCHI y Shanghai ya estaban.
+  No se suman CSI 300 ni USDCNH: Yahoo solo devuelve el último dato, sin historia.
+
 ## 0.12.1 — 2026-11-20 (Sectores sin Siblis; control de calidad de la historia)
 - Sectores: se saca Siblis (mensual) y quedan solo datos directos y diarios de State Street; se suma el PEG (P/E FY1 ÷ crecimiento
   esperado, cálculo propio).

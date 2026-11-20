@@ -26,6 +26,8 @@ export const COUNTRIES = [
   { cid: 'pe', ticker: 'EPU', pid: 239606, wpe: 'area/peru', msci: 'peru-index-net' },
   { cid: 'jp', ticker: 'EWJ', pid: 239665, wpe: 'area/japan', msci: 'japan-index-net' },
   { cid: 'in', ticker: 'INDA', pid: 239659, wpe: 'area/india', msci: 'india-index-net' },
+  // China: solo valuación y flujos (sin panel macro). worldperatio calcula su P/E sobre FXI (FTSE China 50), no sobre MCHI.
+  { cid: 'cn', ticker: 'MCHI', pid: 239619, wpe: 'area/china', wpeNote: 'P/E e historia sobre FXI (FTSE China 50, solo grandes empresas)', msci: 'china-index-usd-net' },
   { cid: 'latam', ticker: 'ILF', pid: 239761, wpe: 'area/latin-america', agg: true },
   { cid: 'em', ticker: 'EEM', pid: 239637, wpe: 'area/emerging-markets', agg: true, msciFrom: ['brazil-index-net', 'MSCI Emerging Markets'] },
   { cid: 'world', ticker: 'ACWI', pid: 239600, agg: true, msciFrom: ['brazil-index-net', 'MSCI ACWI'] },
@@ -163,7 +165,7 @@ const HIST_FROM = '2006-01-01';
 // Lanzamiento de cada ETF base de worldperatio (mes). Antes de esa fecha la serie es una reconstrucción que el sitio no documenta.
 export const ETF_LAUNCH = {
   ARGT: '2011-03', EWZ: '2000-07', VTI: '2001-05', VGK: '2005-03', EWW: '1996-03', EWC: '1996-03', COLO: '2009-02', ECH: '2007-11',
-  EPU: '2009-06', EWJ: '1996-03', INDA: '2012-02', FLLA: '2018-06', EEM: '2003-04', SPY: '1993-01',
+  EPU: '2009-06', EWJ: '1996-03', INDA: '2012-02', FXI: '2004-10', FLLA: '2018-06', EEM: '2003-04', SPY: '1993-01',
   XLK: '1998-12', XLY: '1998-12', XLP: '1998-12', XLE: '1998-12', XLF: '1998-12', XLV: '1998-12', XLI: '1998-12', XLB: '1998-12', XLU: '1998-12',
   XLC: '2018-06', XLRE: '2015-10',
 };
