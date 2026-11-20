@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.0 — 2026-11-20 (Valuación y flujos + agenda política)
+- **Valuación** (solapa nueva, `c=val`, caché 1 h): por país, el ETF de iShares de referencia con P/E (12 meses), P/B y dividendo
+  12m (API de producto de BlackRock, diarios) y **flujos netos** 1 sem / 1 mes / 3 meses / año / 12 meses en USD millones o % de
+  los activos, más el flujo acumulado de 12 meses (hasta 3 países). Flujo diario = Δ cuotas en circulación × NAV, de la hoja
+  "Historical" de la planilla del fondo (se lee en streaming y se corta en ~300 días). Verificado: 12 ETF sin errores;
+  ej. EWZ −54 M de cuotas desde el 22-oct (≈ −USD 1.600 M en el mes).
+  - Pendiente: ARGT y COLO (Global X responde 429); P/E forward del índice MSCI (factsheet mensual en PDF: falta OK para
+    sumar un lector de PDF); historia del P/E (ver CLAUDE.md).
+- **Agenda política** (`POLITICAL_EVENTS`, kind `pol`): AR (PASO 8-ago, generales 24-oct, eventual balotaje 21-nov-2027),
+  BR (asunción 5-ene, Congreso 1-feb), MX (intermedia 6-jun), CO (territoriales 31-oct), Francia (presidencial 18-abr y 2-may,
+  previsto), Japón (locales unificadas 11 y 25-abr, previsto). Sin fecha: España, Italia, estaduales de India.
+  Botones **Todo / Económico / Político** en la Agenda (se recuerda la elección); etiqueta "Político" en color propio.
+
 ## 0.9.0 — 2026-11-19 (Perú, India, agenda completa y orden de solapas)
 - **Orden de solapas**: Mundo, Crédito USD, Sostenibilidad, Comparar, Agenda y después los países (AR, BR, EE.UU., EZ, MX,
   CA, CO, CL, PE, JP, IN). La barra pasa a dos filas en pantallas anchas (scroll horizontal en celular).

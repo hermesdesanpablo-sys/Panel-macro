@@ -7,8 +7,8 @@ Contexto para Claude Code. Leer entero antes de tocar código.
 Dashboard macro con un panel por país (Argentina, Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Chile, Perú, Japón, India), una vista
 **Mundo** (cuadros tipo terminal + panel lateral "Hoy", tendencias y comparativo entre países), una solapa
 **Comparar** (dos países lado a lado), una solapa **Crédito USD** (spread EMBI de América Latina y curvas de los
-bonos soberanos en dólares), una solapa **Sostenibilidad** (tres brechas, deuda/PBI y primario que estabiliza la deuda)
-y una **Agenda** consolidada.
+bonos soberanos en dólares), una solapa **Sostenibilidad** (tres brechas, deuda/PBI y primario que estabiliza la deuda),
+una solapa **Valuación** (P/E, P/B y flujos de los ETF por país) y una **Agenda** consolidada (económica y política).
 Dueño: Hermes (renta fija / mercado de capitales, Argentina). Idioma de la UI y de los comentarios: español.
 
 Objetivo de cada panel:
@@ -21,7 +21,7 @@ Objetivo de cada panel:
 ## Arquitectura
 
 ```
-api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust  (función serverless Vercel, cache edge 30 min)
+api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val  (función serverless Vercel, cache edge 30 min)
 api/_lib/util.js            HTTP, fechas, series, kpi(), trend(), spreadSeries(), settle()
 api/_lib/yahoo.js           Yahoo Finance: precios, perf, futuros Fed funds (ZQ)
 api/_lib/calendar.js        Reuniones de bancos centrales + publicaciones de IPC/PIB con fecha oficial (estático; revisar cada semestre)
@@ -29,6 +29,7 @@ api/_lib/bis.js             BIS (sin clave): tasas de política WS_CBPOL y IPC W
 api/_lib/sources/<pais>.js  Un adaptador por país. Devuelve el "contrato de payload" (abajo)
 api/_lib/sources/usd.js     Crédito USD: EMBI por país (BCRD) + bonos soberanos en USD (onvista) vs Tesoro (FRED). Payload propio
 api/_lib/usd-bonds.json     Lista de ISINs en USD por emisor (la genera scripts/discover-usd-bonds.mjs)
+api/_lib/sources/val.js     Valuación y flujos: ETF iShares por país (P/E, P/B, flujos = Δcuotas × NAV). Payload propio
 api/_lib/sources/sust.js    Sostenibilidad: FMI WEO (API SDMX) + Banco Mundial (WDI). Payload propio: countries[].rows por año
 api/_lib/xlsx.js            Lector mínimo de .xlsx sin dependencias (zlib), usado para la planilla del EMBI
 src/App.jsx                 Tabs, carga en paralelo de todos los países, modo ?mock=1
@@ -235,6 +236,21 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
   StatCan "Next release" de cada comunicado de The Daily; MIC `stat.go.jp/english/data/cpi/1582.htm`; Cabinet Office
   `esri.cao.go.jp/en/sna/kouhyou/kouhyou_top.html`; RBI `Scripts/Annualpolicy.aspx`; MOSPI Advance Release Calendar (PDF).
 - No se cargan fechas estimadas: si un calendario no se puede leer (BCRP, INEI, BCCh), queda vacío y anotado como pendiente.
+- Político: `POLITICAL_EVENTS` (kind `pol`, `tentative` → "previsto") y `POLITICAL_UNDATED` (sin fecha). `country.js` los agrega
+  a cada país fuera del tope de 20 eventos. Revisar cada trimestre (PASO 2027 en discusión; decreto de Francia antes del 7-feb-2027).
+
+### Notas de Valuación (iShares)
+- P/E y P/B: `blackrock.com/varnish-api/.../api/v2/get-product-data?appType=PRODUCT_PAGE&appSubType=ISHARES&targetSite=us-ishares&locale=en_US&userType=individual&portfolioId=<id>&component=fundamentalsAndRisk`.
+- NAV y cuotas diarias: `.../api/v1/get-fund-document?...&portfolioId=<id>&component=fundDownload` (SpreadsheetML, hojas Holdings,
+  Historical, Performance, Distributions; ~3 MB, se lee solo el principio de Historical). IDs en `FUNDS` (val.js), del buscador
+  `ishares.com/us/product-screener/product-screener-v3.1.jsn`.
+- Algunos ETF pasan semanas sin creaciones ni rescates (p.ej. EEM): flujo 0 es dato real, no error.
+- P/E forward: el factsheet mensual de MSCI (`msci.com/documents/10199/255599/msci-<pais>-index-net.pdf`; México:
+  `msci-mexico-index-usd-net.pdf`) trae Div Yld, P/E, P/E Fwd y P/BV a fin de mes del país, de MSCI EM/World y de MSCI ACWI.
+  Leerlo requiere un lector de PDF (pdf.js); pendiente de aprobar la dependencia.
+- Historia del P/E: no hay fuente gratuita con series largas (MSCI la vende; el Internet Archive solo tiene factsheets desde 2026).
+  Opciones: LSEG/Datastream (I/B/E/S, P/E forward 12m por índice MSCI país) o acumular fotos mensuales desde ahora.
+- Términos de iShares: datos para uso personal y no comercial.
 
 ## Pendientes priorizados
 
@@ -245,7 +261,7 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 3. México: Bono M de mercado secundario diario (hoy: subasta primaria).
 4. Colombia: Encuesta mensual de expectativas de BanRep (la página tiene captcha → carga manual o LSEG). TES diario (hoy: promedio mensual).
    Argentina: Merval sin historia en Yahoo/Stooq (solo ARGT en Mundo).
-5. Agenda de datos para MX (INEGI), CA (StatCan), CO (DANE), EZ (Eurostat): hoy solo hay BR (IBGE) y EE.UU. (FRED).
+5. Valuación: P/E forward MSCI (lector de PDF), historia del P/E, ARGT/COLO (Global X).
 6. Persistir snapshots diarios (p.ej. Vercel KV / Postgres + cron) para tener historia propia de variables
    que la fuente no guarda (strip de futuros completo, forwards por plazo, encuestas).
 7. Si se conecta LSEG: adaptador `lseg` para DI futuro, OIS (USD/EURCAD), swaps TIIE/IBR y TES/Mbono.

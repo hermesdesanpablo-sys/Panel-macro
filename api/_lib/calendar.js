@@ -214,6 +214,65 @@ export const DATA_RELEASES = {
   pe: { src: 'https://www.inei.gob.pe/calendario/', items: [] },
 };
 
+// Calendario político (elecciones y asunciones). kind 'pol'. `tentative`: fecha anunciada pero no firme (se rotula "previsto").
+// Verificado el 20-nov-2026 contra organismos electorales y prensa. Revisar cada trimestre.
+export const POLITICAL_EVENTS = {
+  ar: {
+    src: 'https://www.argentina.gob.ar/dine',
+    items: [
+      // Ley 26.571: PASO el 2.º domingo de agosto. El Gobierno impulsa suspenderlas/eliminarlas para 2027 (sin aprobar al 20-nov-2026).
+      { date: '2027-08-08', event: 'Argentina – PASO nacionales', tentative: true, note: 'el Congreso discute suspenderlas' },
+      // Código Electoral Nacional, art. 53: cuarto domingo de octubre.
+      { date: '2027-10-24', event: 'Argentina – Elecciones generales (presidente, ½ Diputados, ⅓ Senado)' },
+      // Art. 96 de la Constitución: segunda vuelta dentro de los 30 días.
+      { date: '2027-11-21', event: 'Argentina – Eventual balotaje presidencial' },
+    ],
+  },
+  br: {
+    src: 'https://www12.senado.leg.br/radio/1/noticia/2026/01/05/posse-presidencial-em-2027-sera-em-5-de-janeiro-e-governadores-tomam-posse-no-dia-6',
+    items: [
+      { date: '2027-01-05', event: 'Brasil – Asunción presidencial (EC 111/2021: pasa del 1-ene al 5-ene)' },
+      { date: '2027-02-01', event: 'Brasil – Asume el nuevo Congreso' },
+    ],
+  },
+  mx: {
+    src: 'https://www.ine.mx/voto-y-elecciones/elecciones-2027/',
+    items: [{ date: '2027-06-06', event: 'México – Elección federal intermedia (500 diputados) y locales en todo el país' }],
+  },
+  co: {
+    src: 'https://www.registraduria.gov.co/',
+    // Resolución 12338 de la Registraduría (28-oct-2026).
+    items: [{ date: '2027-10-31', event: 'Colombia – Elecciones territoriales (gobernadores, alcaldes, asambleas)' }],
+  },
+  eu: {
+    src: 'https://www.info.gouv.fr/actualite/presidentielle-2027-date-a-retenir-et-informations-cles',
+    items: [
+      // Fechas fijadas por el Consejo de Ministros del 1-jul-2026; el decreto de convocatoria sale antes del 7-feb-2027.
+      { date: '2027-04-18', event: 'Francia – Presidencial, 1.ª vuelta', tentative: true, note: 'falta el decreto de convocatoria', flag: 'fr' },
+      { date: '2027-05-02', event: 'Francia – Presidencial, 2.ª vuelta', tentative: true, flag: 'fr' },
+    ],
+  },
+  jp: {
+    src: 'https://news.web.nhk/newsweb/na/nd-20261016de60274',
+    // Proyecto de ley aprobado por el gabinete (oct-2026): prefecturas el 11-abr, municipios el 25-abr.
+    items: [
+      { date: '2027-04-11', event: 'Japón – Elecciones locales unificadas (gobernadores y asambleas prefecturales)', tentative: true },
+      { date: '2027-04-25', event: 'Japón – Elecciones locales unificadas (alcaldes y concejos)', tentative: true },
+    ],
+  },
+};
+// Elecciones relevantes todavía sin fecha: se muestran aparte en la Agenda (vista Político).
+export const POLITICAL_UNDATED = [
+  { cid: 'es', event: 'España – Elecciones generales: la legislatura vence en 2027 (sin convocatoria; se habla de adelanto a la primavera)' },
+  { cid: 'it', event: 'Italia – Elecciones generales: vencen en 2027 (fecha sin definir; hipótesis entre primavera y otoño)' },
+  { cid: 'in', event: 'India – Elecciones estaduales de 2027 (Uttar Pradesh, Punjab, Uttarakhand, Goa y Manipur a inicios de año; Gujarat y Himachal Pradesh a fin de año): la Comisión Electoral todavía no las convocó' },
+];
+
+export function politicalEvents(country) {
+  const r = POLITICAL_EVENTS[country];
+  return r ? r.items.map((e) => ({ date: e.date, event: `${e.event}${e.tentative ? ' (previsto' + (e.note ? `: ${e.note}` : '') + ')' : ''}`, kind: 'pol', url: r.src, ...(e.flag && { flag: e.flag }) })) : [];
+}
+
 export function dataEvents(country) {
   const r = DATA_RELEASES[country];
   return r ? r.items.map(([date, event]) => ({ date, event, kind: 'data', url: r.src })) : [];

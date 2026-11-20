@@ -145,6 +145,9 @@ function ExpTable({ e }) {
   );
 }
 
+const EV_TAG = { cb: 'Decisión', data: 'Dato', pol: 'Político' };
+const EV_CLASS = { cb: 'ev-cb', data: 'ev-data', pol: 'ev-pol' };
+
 export function AgendaList({ events, showFlag = false }) {
   if (!events?.length) return <div className="empty">Sin eventos cargados</div>;
   return (
@@ -152,18 +155,51 @@ export function AgendaList({ events, showFlag = false }) {
       {events.map((e, i) => {
         const n = daysUntil(e.date);
         return (
-          <li key={i} className={e.kind === 'cb' ? 'ev-cb' : 'ev-data'}>
+          <li key={i} className={EV_CLASS[e.kind] || 'ev-data'}>
             <span className="ev-date">{fmtDate(e.date)}</span>
             <span className="ev-in">{n <= 0 ? 'hoy' : `${n}d`}</span>
-            <span className="ev-tag">{e.kind === 'cb' ? 'Decisión' : 'Dato'}</span>
+            <span className="ev-tag">{EV_TAG[e.kind] || 'Dato'}</span>
             <span className="ev-name">
-              {showFlag && <Flag id={e.cid} />}
+              {showFlag && <Flag id={e.flag || e.cid} />}
               {e.url ? <a href={e.url} target="_blank" rel="noreferrer">{e.event}</a> : e.event}
             </span>
           </li>
         );
       })}
     </ul>
+  );
+}
+
+const AGENDA_FILTERS = [
+  ['all', 'Todo'],
+  ['eco', 'Económico'],
+  ['pol', 'Político'],
+];
+/** Agenda consolidada con filtro: todo, económico (decisiones de banco central y datos) o solo político. */
+export function AgendaPanel({ events, undated = [] }) {
+  const [f, setF] = useState(() => { try { return localStorage.getItem('agendaFilter') || 'all'; } catch { return 'all'; } });
+  const pick = (v) => { setF(v); try { localStorage.setItem('agendaFilter', v); } catch { /* sin almacenamiento */ } };
+  const shown = events.filter((e) => f === 'all' || (f === 'pol' ? e.kind === 'pol' : e.kind !== 'pol'));
+  const count = (k) => events.filter((e) => k === 'all' || (k === 'pol' ? e.kind === 'pol' : e.kind !== 'pol')).length;
+  return (
+    <>
+      <div className="agenda-bar">
+        <div className="seg" role="group" aria-label="Filtrar agenda">
+          {AGENDA_FILTERS.map(([k, label]) => (
+            <button key={k} className={f === k ? 'on' : ''} aria-pressed={f === k} onClick={() => pick(k)}>
+              {label} <span className="muted">{count(k)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <AgendaList events={shown} showFlag />
+      {f !== 'eco' && undated.length > 0 && (
+        <div className="agenda-undated">
+          <h4>Sin fecha confirmada</h4>
+          <ul>{undated.map((e, i) => <li key={i}><Flag id={e.cid} /> {e.event}</li>)}</ul>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1103,6 +1139,108 @@ export function SustPanel({ data }) {
         <YearChart data={debtData} projFrom={P} zero={false} height={320}
           lines={debtSel.map((id, k) => ({ key: `k${k}`, label: countries.find((x) => x.id === id)?.name || id }))} />
         <div className="card-foot"><span>Deuda bruta del gobierno general, % del PBI. Hasta 3 países a la vez. Zona sombreada: proyección del FMI.</span></div>
+      </section>
+    </div>
+  );
+}
+
+// ---------- Valuación y flujos (ETF iShares por país) ----------
+const VAL_NAMES = { br: 'Brasil', us: 'EE.UU.', eu: 'Eurozona', mx: 'México', ca: 'Canadá', cl: 'Chile', pe: 'Perú', jp: 'Japón', in: 'India', latam: 'América Latina', em: 'Emergentes', world: 'Mundo (ACWI)', ar: 'Argentina', co: 'Colombia' };
+const VAL_WIN = [['w1', '1 sem'], ['m1', '1 mes'], ['m3', '3 meses'], ['ytd', 'En el año'], ['y1', '12 meses']];
+const valFlag = (cid) => (['latam', 'em', 'world'].includes(cid) ? 'world' : cid);
+
+export function ValPanel({ data }) {
+  const funds = data?.funds || [];
+  const [unit, setUnit] = useState('usd');
+  const [sel, setSel] = useState(['br', 'mx', 'in']);
+  if (!funds.length) return <div className="empty big">Sin datos de iShares</div>;
+  const toggle = (id) => setSel((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= 3 ? [...cur.slice(1), id] : [...cur, id]));
+  const chosen = sel.map((id) => funds.find((f) => f.cid === id)).filter((f) => f?.cum?.length);
+  const byDate = new Map();
+  chosen.forEach((f, k) => f.cum.forEach((p) => { const r = byDate.get(p.d) || { d: p.d }; r[`k${k}`] = p.v; byDate.set(p.d, r); }));
+  const chart = {
+    title: 'Flujo acumulado 12 meses (USD millones)',
+    unit: '',
+    lines: chosen.map((f, k) => ({ key: `k${k}`, label: `${VAL_NAMES[f.cid]} (${f.ticker})` })),
+    data: [...byDate.values()].sort((a, b) => (a.d < b.d ? -1 : 1)),
+  };
+  const asOf = funds.find((f) => f.asOf)?.asOf;
+  const peAsOf = funds.find((f) => f.peAsOf)?.peAsOf;
+  const flowCell = (f, k) => {
+    const v = unit === 'usd' ? f.flows?.[k] : f.pct?.[k];
+    if (v == null) return <td key={k} className="num"><span className="chg na">—</span></td>;
+    return <td key={k} className={`num ${pn(v)}`}>{sign(v, unit === 'usd' ? 0 : 1)}{unit === 'pct' ? '%' : ''}</td>;
+  };
+  const rows = (agg) => funds.filter((f) => !!f.agg === agg);
+  return (
+    <div className="panel">
+      <Errors errors={data?.errors} />
+      <p className="lead">
+        Valuación y flujos de inversores en el ETF de iShares de cada país (vehículo de referencia para inversores del exterior). El <b>P/E</b> es el
+        del ETF sobre utilidades de los últimos 12 meses; difiere del P/E del índice MSCI por método y fecha. El <b>flujo</b> es la creación o el
+        rescate neto de cuotas: variación diaria de cuotas en circulación × valor cuotaparte.
+      </p>
+      <section className="card" id="val-table">
+        <div className="card-head">
+          <h3>Valuación y flujos por país</h3>
+          <div className="seg" role="group" aria-label="Unidad de los flujos">
+            <button className={unit === 'usd' ? 'on' : ''} aria-pressed={unit === 'usd'} onClick={() => setUnit('usd')}>USD millones</button>
+            <button className={unit === 'pct' ? 'on' : ''} aria-pressed={unit === 'pct'} onClick={() => setUnit('pct')}>% de los activos</button>
+          </div>
+        </div>
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>País</th><th>ETF</th><th className="num">P/E</th><th className="num">P/B</th><th className="num">Div. 12m</th><th className="num">Activos (USD M)</th>
+                {VAL_WIN.map(([k, l]) => <th key={k} className="num">Flujo {l}</th>)}
+              </tr>
+            </thead>
+            {[false, true].map((agg) => (
+              <tbody key={String(agg)}>
+                {agg && <tr className="tbl-sub"><td colSpan={6 + VAL_WIN.length}>Referencias regionales</td></tr>}
+                {rows(agg).map((f) => (
+                  <tr key={f.ticker}>
+                    <td><span className="cell-flag"><Flag id={valFlag(f.cid)} /> {VAL_NAMES[f.cid]}</span></td>
+                    <td><a href={f.url} target="_blank" rel="noreferrer">{f.ticker}</a></td>
+                    <td className="num">{f.pe == null ? '—' : fmtNum(f.pe, 1)}</td>
+                    <td className="num">{f.pb == null ? '—' : fmtNum(f.pb, 2)}</td>
+                    <td className="num">{f.divYield == null ? '—' : `${fmtNum(f.divYield, 1)}%`}</td>
+                    <td className="num">{f.aum == null ? '—' : fmtNum(f.aum, 0)}</td>
+                    {VAL_WIN.map(([k]) => flowCell(f, k))}
+                  </tr>
+                ))}
+                {!agg && (data.pending || []).map((f) => (
+                  <tr key={f.ticker} className="row-pending">
+                    <td><span className="cell-flag"><Flag id={f.cid} /> {VAL_NAMES[f.cid]}</span></td>
+                    <td>{f.ticker}</td>
+                    <td colSpan={4 + VAL_WIN.length} className="muted">Pendiente: {f.note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            ))}
+          </table>
+        </div>
+        <div className="card-foot">
+          <span>P/E y P/B al {fmtDate(peAsOf)}; activos y flujos al {fmtDate(asOf)}. P/E forward del índice MSCI: pendiente.</span>
+          <Source source="iShares (BlackRock)" url="https://www.ishares.com/us/products/etf-investments" />
+        </div>
+      </section>
+
+      <section className="card" id="val-flows">
+        <h3>Flujo acumulado en 12 meses</h3>
+        <div className="chips" role="group" aria-label="Países (hasta 3)">
+          {funds.filter((f) => f.cum?.length).map((f) => (
+            <button key={f.ticker} className={`chip ${sel.includes(f.cid) ? 'on' : ''}`} aria-pressed={sel.includes(f.cid)} onClick={() => toggle(f.cid)}>
+              <Flag id={valFlag(f.cid)} /> {VAL_NAMES[f.cid]}
+            </button>
+          ))}
+        </div>
+        <TimeChart chart={chart} height={280} />
+        <div className="card-foot">
+          <span>USD millones acumulados desde hace 12 meses. Hasta 3 países.</span>
+          <Source source="iShares: NAV y cuotas en circulación diarias" url="https://www.ishares.com/us/products/etf-investments" />
+        </div>
       </section>
     </div>
   );

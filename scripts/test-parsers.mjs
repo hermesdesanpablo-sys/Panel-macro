@@ -31,6 +31,14 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
     fails += problems.length;
     continue;
   }
+  if (id === 'val') {
+    const ok = p.funds.filter((f) => f.pe != null && f.flows?.m1 != null && f.cum.length > 100);
+    if (ok.length !== p.funds.length) problems.push(`solo ${ok.length}/${p.funds.length} ETF completos`);
+    console.log(`${problems.length ? '✗' : '✓'} val: ${p.funds.length} ETF, ${p.pending.length} pendientes`);
+    problems.forEach((x) => console.log('    ' + x));
+    fails += problems.length;
+    continue;
+  }
   if (id === 'usd') {
     const withCurve = p.issuers.filter((i) => i.summary.n > 0);
     if (withCurve.length < 3) problems.push(`solo ${withCurve.length} emisores con curva`);
@@ -101,6 +109,19 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   const ev = parseDaneMonth('<a href="/index.php/calendario/icalrepeat.detail/2027/01/08/10/-/ipc"><strong> Índice de Precios al Consumidor (IPC)</strong></a><a href="/index.php/calendario/icalrepeat.detail/2027/01/09/11/-/x"><strong> Resultados del IPC sin alimentos ni regulados (IPC)</strong></a>');
   assert.deepEqual(ev.map((e) => e.date + ' ' + e.event), ['2027-01-08 DANE – IPC']);
   console.log('✓ parseBis / parseDaneMonth');
+}
+// Flujos de ETF: (Δcuotas) × NAV; ventanas y % de activos.
+{
+  const { computeFlows, parseHistorical } = await import('../api/_lib/sources/val.js');
+  const h = parseHistorical('<ss:Worksheet ss:Name="Historical"><ss:Row><ss:Cell><ss:Data>As Of</ss:Data></ss:Cell></ss:Row>'
+    + '<ss:Row><ss:Cell><ss:Data>Nov 19, 2026</ss:Data></ss:Cell><ss:Cell><ss:Data>10</ss:Data></ss:Cell><ss:Cell><ss:Data>--</ss:Data></ss:Cell><ss:Cell><ss:Data>1,200</ss:Data></ss:Cell></ss:Row>'
+    + '<ss:Row><ss:Cell><ss:Data>Nov 18, 2026</ss:Data></ss:Cell><ss:Cell><ss:Data>9</ss:Data></ss:Cell><ss:Cell><ss:Data>--</ss:Data></ss:Cell><ss:Cell><ss:Data>1000</ss:Data></ss:Cell></ss:Row>'
+    + '<ss:Row><ss:Cell><ss:Data>Jul 10, 2000</ss:Data></ss:Cell><ss:Cell><ss:Data>20</ss:Data></ss:Cell><ss:Cell><ss:Data>--</ss:Data></ss:Cell><ss:Cell><ss:Data>--</ss:Data></ss:Cell></ss:Row></ss:Worksheet>');
+  assert.deepEqual(h, [{ d: '2026-11-18', nav: 9, so: 1000 }, { d: '2026-11-19', nav: 10, so: 1200 }]);
+  const fl = computeFlows([{ d: '2025-11-01', nav: 10, so: 1e6 }, ...h.map((r) => ({ ...r, so: r.so * 1e3 }))]);
+  // 1e6 → 1,0e6 (sin cambio) → 1,2e6: el último día entran 200.000 cuotas × 10 = USD 2 M; activos = 1,2e6 × 10 = USD 12 M.
+  assert.ok(Math.abs(fl.flows.w1 - 2) < 1e-9 && Math.abs(fl.pct.w1 - 2 / 12 * 100) < 1e-9 && fl.aum === 12, 'computeFlows');
+  console.log('✓ parseHistorical / computeFlows');
 }
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);

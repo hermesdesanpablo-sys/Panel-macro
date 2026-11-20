@@ -369,6 +369,24 @@ export async function mockFetch(input) {
     }
     return text('FREQ,REF_AREA,UNIT_MEASURE,UNIT_MULT,TIME_FORMAT,BREAKS,COVERAGE,DECIMALS,TITLE_TS,TIME_PERIOD,OBS_VALUE,OBS_CONF,OBS_PRE_BREAK,OBS_STATUS\n' + walk(2.5, 40, 0.03, 'M').map((p) => `M,${area},771,0,,,,,,${p.d.slice(0, 7)},${p.v.toFixed(3)},F,,A`).join('\n') + '\n');
   }
+  if (url.host === 'www.blackrock.com') {
+    const pid = Number(url.searchParams.get('portfolioId'));
+    if (u.includes('get-product-data')) {
+      // Componente fundamentalsAndRisk: objetos { name, formattedValue, value, asOfDate } anidados.
+      const f = (name, value) => ({ name, visible: true, formattedValue: String(value), value, asOfDate: Number(iso(Date.now() - DAY).replace(/-/g, '')) });
+      return json({ productId: pid, componentsByNameMap: { fundamentalsAndRisk: { containersByNameMap: { default: { attributesByNameMap: {
+        priceEarnings: f('priceEarnings', 10 + (pid % 17)), priceBook: f('priceBook', 1 + (pid % 7) / 3), twelveMonTrlYld: f('twelveMonTrlYld', 2 + (pid % 5) / 2), numHoldings: f('numHoldings', 50) } } } } } });
+    }
+    // Planilla SpreadsheetML: hoja Holdings y luego Historical (de la fecha más nueva a la más vieja).
+    const row = (cells) => `<ss:Row>${cells.map((c) => `<ss:Cell><ss:Data ss:Type="String">${c}</ss:Data></ss:Cell>`).join('')}</ss:Row>`;
+    const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const us = (d) => `${M[+d.slice(5, 7) - 1]} ${d.slice(8)}, ${d.slice(0, 4)}`;
+    let so = 100e6 + (pid % 13) * 1e6;
+    const hist = walk(30, 420, 0.01).map((p, i) => ({ ...p, so: (so += (i % 9 === 0 ? 1 : i % 7 === 0 ? -1 : 0) * 0.4e6) })).reverse();
+    return text(`<?xml version="1.0"?><ss:Workbook><ss:Worksheet ss:Name="Holdings"><ss:Table>${row(['Ticker', 'Name'])}${row(['ABC', 'Empresa'])}</ss:Table></ss:Worksheet>`
+      + `<ss:Worksheet ss:Name="Historical"><ss:Table>${row(['As Of', 'NAV per Share', 'Ex-Dividends', 'Shares Outstanding', 'Non-FV NAV'])}`
+      + hist.map((p) => row([us(p.d), p.v.toFixed(4), '--', String(p.so), p.v.toFixed(4)])).join('') + `</ss:Table></ss:Worksheet></ss:Workbook>`);
+  }
   if (url.host === 'www.dane.gov.co') {
     // Vista mensual del calendario: links icalrepeat.detail/AAAA/MM/DD/<id>/-/<slug> con el título en <strong>.
     const [, y, m] = u.match(/month\.calendar\/(\d{4})\/(\d{2})/);

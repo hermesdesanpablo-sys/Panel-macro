@@ -1,4 +1,4 @@
-// GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust
+// GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val
 // Devuelve un payload normalizado por país. Vercel cachea en el edge 30 min.
 import br from './_lib/sources/br.js';
 import us from './_lib/sources/us.js';
@@ -13,11 +13,29 @@ import pe from './_lib/sources/pe.js';
 import india from './_lib/sources/in.js';
 import sust from './_lib/sources/sust.js';
 import usd from './_lib/sources/usd.js';
+import val from './_lib/sources/val.js';
 import world from './_lib/sources/world.js';
 
-const TTL = { world: 60, usd: 900, sust: 21600 };
+import { politicalEvents } from './_lib/calendar.js';
+import { upcoming } from './_lib/util.js';
 
-export const ADAPTERS = { ar, br, us, eu, mx, ca, co, cl, pe, jp, in: india, world, usd, sust };
+const TTL = { world: 60, usd: 900, sust: 21600, val: 3600 };
+
+/** Agrega a la agenda de cada país el calendario político (aparte del tope de 20 eventos económicos). */
+const withPolitics = (id, fn) => async () => {
+  const p = await fn();
+  p.calendar = [...(p.calendar || []), ...upcoming(politicalEvents(id), 10)].sort((a, b) => (a.date < b.date ? -1 : 1));
+  return p;
+};
+const COUNTRY_ADAPTERS = { ar, br, us, eu, mx, ca, co, cl, pe, jp, in: india };
+
+export const ADAPTERS = {
+  ...Object.fromEntries(Object.entries(COUNTRY_ADAPTERS).map(([id, fn]) => [id, withPolitics(id, fn)])),
+  world,
+  usd,
+  sust,
+  val,
+};
 
 export default async function handler(req, res) {
   const c = String(req.query?.c || new URL(req.url, 'http://x').searchParams.get('c') || '').toLowerCase();
@@ -32,7 +50,7 @@ export default async function handler(req, res) {
     payload.updatedAt = new Date().toISOString();
     payload.ms = Date.now() - t0;
     // Caché del CDN según qué tan rápido cambia cada fuente (segundos). Precios: 1 minuto; paneles de país: 5 minutos;
-    // bonos en USD: 15 minutos; Sostenibilidad (anual, FMI): 6 horas. "Recargar" agrega ?fresh=<timestamp> y no usa caché.
+    // bonos en USD: 15 minutos; valuación y flujos de ETF (diarios): 1 hora; Sostenibilidad (anual, FMI): 6 horas. "Recargar" agrega ?fresh=<timestamp> y no usa caché.
     const ttl = TTL[c] ?? 300;
     // Precios (TTL ≤ 60 s): sin stale-while-revalidate, para que nunca se sirva una copia vencida.
     res.setHeader('Cache-Control', ttl <= 60 ? `s-maxage=${ttl}` : `s-maxage=${ttl}, stale-while-revalidate=${Math.min(ttl, 300)}`);
