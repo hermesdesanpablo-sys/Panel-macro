@@ -33,7 +33,6 @@ api/_lib/sources/val.js     Valuación: worldperatio (P/E e historia con desvío
 api/_lib/worldpe.js         Lector de worldperatio.com (P/E diario, serie mensual detailPE_data, tabla de estadísticas por ventana)
 api/_lib/msci.js            Lector del factsheet mensual de MSCI (PDF, con unpdf): Div Yld, P/E, P/E Fwd, P/BV
 api/_lib/ssga.js            State Street: planilla de productos SPDR (P/E FY1, P/B, crec. EPS…) y NAV/cuotas diarias por ETF
-api/_lib/siblis.js          Siblis Research: P/E trailing/forward y crecimiento de ganancias de los sectores de EE.UU. (mensual)
 api/_lib/sources/sust.js    Sostenibilidad: FMI WEO (API SDMX) + Banco Mundial (WDI). Payload propio: countries[].rows por año
 api/_lib/xlsx.js            Lector mínimo de .xlsx sin dependencias (zlib), usado para la planilla del EMBI
 src/App.jsx                 Tabs, carga en paralelo de todos los países, modo ?mock=1
@@ -261,8 +260,10 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 - State Street (sin clave): `ssga.com/library-content/products/fund-data/etfs/us/spdr-product-data-us-en.xlsx` (una fila por SPDR;
   columnas por nombre de encabezado) y `.../navhist-us-en-<ticker>.xlsx` (Date, NAV, Shares Outstanding, Total Net Assets; más nuevo primero).
   Página de cada fondo: `ssga.com/us/en/intermediary/etfs/state-street-<sector>-select-sector-spdr-etf-<ticker>`.
-- Siblis Research: `siblisresearch.com/data/sector-pe-earnings/` (tabla "U.S. sectors: what they cost…", fin de mes). Su API gratis
-  (`/api/v1/<TICKER>/pe-trailing`, tickers US-INFO, US-FINA…) solo trae 9 fotos trimestrales; la historia diaria es paga.
+- Descartadas: Siblis (mensual; su API gratis solo trae 9 fotos trimestrales), S&P DJI `sp-500-eps-est.xlsx` (403 "Security Controls
+  Triggered" a consultas automáticas) y FactSet Earnings Insight (P/E forward por sector solo como imagen).
+- Calidad de worldperatio (`wpeQuality` en val.js, `ETF_LAUNCH`): >10% de meses repetidos o ventana anterior al lanzamiento del ETF →
+  "Baja calidad". Al 20-nov-2026 todas las series pasan a 5 años; a 10/20 años fallan muchas (sobre todo sectores).
 - worldperatio: `/sector/sp-500-<sector>` (base XLK, XLF…) e `/index/sp-500` (SPY), mismo formato que países.
 
 ## Pendientes priorizados

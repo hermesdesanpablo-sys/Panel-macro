@@ -439,14 +439,6 @@ export async function mockFetch(input) {
     return new Response(mockXlsx([['Fund Name:', `State Street® ${tick}`], ['Ticker Symbol:', tick], ['Date', 'NAV', 'Shares Outstanding', 'Total Net Assets'],
       ...hist.map((p) => [dmy(p.d), p.v.toFixed(6), p.so.toExponential(8).replace('e+', 'E'), (p.so * p.v).toExponential(12).replace('e+', 'E')])]), { status: 200 });
   }
-  if (url.host === 'siblisresearch.com') {
-    // Tabla de sectores de EE.UU. con la misma secuencia de celdas que la página real (Real Estate con nota, signo menos unicode).
-    const S = ['Real Estate', 'Information Technology', 'Industrials', 'Health Care', 'Consumer Staples', 'Consumer Discretionary', 'Materials', 'Energy', 'Utilities', 'Financials', 'Communication Services'];
-    const cell = (x) => `<td>${x}</td>`;
-    return text(`<html><p>Data through <b>31 October 2026</b></p><h2>U.S. sectors: what they cost and what they earn</h2><table>`
-      + S.map((n, i) => `<tr>${cell(n)}${n === 'Real Estate' ? cell('P/E is a poor measure here, see note') : ''}${cell((20 + i).toFixed(2))}${cell((16 + i).toFixed(2))}${cell('+' + (5 + i) + '.0%')}${cell(i % 2 ? '&#8722;1.3%' : '+4.0%')}${cell('+' + i + '.5%')}${cell('n/a')}</tr>`).join('')
-      + `</table><p>Implied</p><p>is the earnings growth</p></html>`);
-  }
   if (url.host === 'www.dane.gov.co') {
     // Vista mensual del calendario: links icalrepeat.detail/AAAA/MM/DD/<id>/-/<slug> con el título en <strong>.
     const [, y, m] = u.match(/month\.calendar\/(\d{4})\/(\d{2})/);

@@ -5,5 +5,6 @@ import react from '@vitejs/plugin-react';
 // En Vercel, /api/* son funciones serverless; no hace falta nada más.
 export default defineConfig({
   plugins: [react()],
-  server: { proxy: { '/api': 'http://localhost:3001' } },
+  // Solo el endpoint: la UI importa módulos de api/_lib (p.ej. calendar.js) que Vite tiene que servir, no el proxy.
+  server: { proxy: { '/api/country': 'http://localhost:3001' } },
 });

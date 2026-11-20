@@ -43,8 +43,7 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
     const sec = p.sectors?.rows || [];
     if (sec.length !== 12) problems.push(`sectores: ${sec.length} de 12`);
     if (sec.some((r) => r.ssga?.peFwd == null || r.wpe?.stats?.y5 == null || r.flows?.m1 == null)) problems.push('sectores: falta P/E fwd, historia o flujos');
-    if (sec.filter((r) => r.siblis?.pe != null).length !== 11) problems.push('Siblis: no están los 11 sectores');
-    if (sec.find((r) => r.cid === 'XLRE')?.siblis?.pe !== 20) problems.push('Siblis: fila de Real Estate mal leída');
+    if ([...p.rows, ...sec].some((r) => r.wpe && !r.wpe.quality?.y5)) problems.push('worldperatio: falta el control de calidad');
     console.log(`${problems.length ? '✗' : '✓'} val: ${p.funds.length} ETF, ${sec.length} sectores, ${wpe.length} con historia de P/E, ${ms.length} con P/E fwd MSCI`);
     problems.forEach((x) => console.log('    ' + x));
     fails += problems.length;
@@ -133,6 +132,19 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   // 1e6 → 1,0e6 (sin cambio) → 1,2e6: el último día entran 200.000 cuotas × 10 = USD 2 M; activos = 1,2e6 × 10 = USD 12 M.
   assert.ok(Math.abs(fl.flows.w1 - 2) < 1e-9 && Math.abs(fl.pct.w1 - 2 / 12 * 100) < 1e-9 && fl.aum === 12, 'computeFlows');
   console.log('✓ parseHistorical / computeFlows');
+}
+// Control de calidad de worldperatio: meses repetidos y ventana anterior al lanzamiento del ETF.
+{
+  const { wpeQuality } = await import('../api/_lib/sources/val.js');
+  const months = (n, f) => Array.from({ length: n }, (_, i) => ({ d: `${2026 - Math.floor((n - 1 - i) / 12)}-${String(12 - ((n - 1 - i) % 12)).padStart(2, '0')}-01`.replace(/-(\d)-/, '-0$1-'), v: f(i) }))
+    .sort((a, b) => (a.d < b.d ? -1 : 1));
+  const clean = wpeQuality({ etf: 'EWZ', date: '2026-11-19', history: months(240, (i) => 10 + Math.sin(i)) });
+  assert.ok(clean.y5.ok && clean.y10.ok && clean.y5.stale === 0, 'serie limpia marcada como mala');
+  const stale = wpeQuality({ etf: 'EWZ', date: '2026-11-19', history: months(240, (i) => 10 + Math.floor(i / 4)) });
+  assert.ok(!stale.y5.ok && stale.y5.stale > 0.5, 'serie con valores repetidos no detectada');
+  const young = wpeQuality({ etf: 'XLC', date: '2026-11-19', history: months(240, (i) => 10 + Math.sin(i)) });
+  assert.ok(young.y5.ok && !young.y10.ok && young.y10.preLaunch, 'ventana anterior al lanzamiento no detectada');
+  console.log('✓ wpeQuality');
 }
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);
