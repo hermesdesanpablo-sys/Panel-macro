@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.14.2 — 2026-11-20 (Curva del Tesoro robusta)
+- Crédito USD: la curva del Tesoro (FRED, 11 series en paralelo) a veces llegaba con menos de 5 plazos por límite de consultas y el
+  adaptador la descartaba entera → sin spreads de bonos ni "Rend. USD aprox." (visto en producción el 20-nov: "FRED: curva del Tesoro
+  incompleta", respuesta guardada 15 min en el CDN). Ahora: reintento de a una con espera de las series que fallan y respaldo con Yahoo
+  (^IRX, ^FVX, ^TNX, ^TYX) para los plazos que sigan faltando.
+- `country.js`: si alguna fuente falló, la respuesta se cachea 60 s como máximo (antes, el TTL normal de la solapa).
+- Uruguay y Ecuador ya estaban en Crédito USD (EMBI, curvas, ranking): verificado en producción.
+
 ## 0.14.1 — 2026-11-20 (EMBI al día; Ecuador con composición propia)
 - **EMBI desactualizado en producción**: el CDN del BCRD le servía a Vercel la planilla del día anterior (producción al 18-nov con el
   origen ya al 19-nov, `x-vercel-cache: MISS`). Se agrega `?v=<timestamp>` y `cache: no-store` a la descarga (el sitio del BCRD usa
