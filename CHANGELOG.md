@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.15.1 — 2026-11-20 (Bonos a 10 años: tipo de dato y fecha)
+- Mundo, "Bonos a 10 años": cada cuadro muestra qué tipo de dato es y de qué fecha (Mercado / Cierre / Subasta / Prom. mensual).
+  Antes no se veía y se mezclaban cierres oficiales del día anterior, una subasta y promedios mensuales.
+- EE.UU. 10Y pasa de FRED DGS10 (cierre H.15 del día hábil anterior: mostraba 5,04% el 20-nov con el mercado en 4,91%)
+  a Yahoo ^TNX intradiario, la misma fuente que el 30Y.
+- México: la variación es contra la subasta anterior (antes decía "1 mes").
+
 ## 0.15.0 — 2026-11-20 (Noticias y selector de países)
 - Nueva solapa **Noticias**: titulares minuto a minuto de feeds RSS públicos, unificados y ordenados por hora (`api/_lib/sources/news.js`).
   - Fuentes: Bloomberg (mercados, economía, política), WSJ (mercados, mundo), MarketWatch, comunicados de la Fed y del BCE,

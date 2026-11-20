@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { TimeChart, PathChart, Spark, AreaSpark, CurveChart, YearChart, PeBandChart, ScoreSpreadChart } from './Charts.jsx';
-import { fmtNum, fmtDate, daysUntil, kpiByKey, fmtChg, ARROW, DIR_WORD, GROUPS, chgDir } from '../format.js';
+import { fmtNum, fmtDate, fmtMonth, daysUntil, kpiByKey, fmtChg, ARROW, DIR_WORD, GROUPS, chgDir } from '../format.js';
 import { Flag } from './Flag.jsx';
 import { CmdIcon } from './CmdIcon.jsx';
 
@@ -442,37 +442,49 @@ function QuoteCard({ m, title }) {
   );
 }
 
-/** Cuadros de bonos a 10 años (o el plazo largo disponible) de cada país del monitor. */
+/**
+ * Cuadros de bonos a 10 años (o el plazo largo disponible) de cada país del monitor.
+ * Cada cuadro dice qué tipo de dato es y de qué fecha: no todos son de mercado ni del día.
+ * EE.UU. 10Y y 30Y salen de Yahoo (^TNX, ^TYX: intradiario, con ~15 min de demora); el resto, del último cierre oficial,
+ * de la última subasta (México) o del promedio mensual (Colombia, India).
+ */
 function BondTiles({ countries, markets }) {
+  const live = (m, id, name) => m?.perf && ({
+    id, name, label: `${m.label} (Yahoo ${m.ticker})`, v: m.perf.last, chg: m.perf.d1, per: '1 día', kind: 'Mercado', date: m.spark?.at(-1)?.d,
+  });
   const tiles = countries
     .map((p) => {
+      if (p.id === 'us') return live(markets.find((m) => m.ticker === '^TNX'), 'us', 'EE.UU. 10Y');
       const k = kpiByKey(p, 'y10');
       if (!k?.value) return null;
-      const daily = k.prevDate && (Date.parse(k.date) - Date.parse(k.prevDate)) / 864e5 <= 5;
-      return { id: p.id, name: p.name, label: k.label, v: k.value, chg: daily ? k.prevChange : k.trend?.m1, per: daily ? '1 día' : '1 mes' };
+      const kind = /subasta/i.test(k.label) ? 'Subasta' : /mensual/i.test(k.label) ? 'Prom. mensual' : 'Cierre';
+      const daily = kind === 'Cierre' && k.prevDate && (Date.parse(k.date) - Date.parse(k.prevDate)) / 864e5 <= 5;
+      return {
+        id: p.id, name: p.name, label: `${k.label} · ${k.source}`, v: k.value, kind,
+        date: kind === 'Prom. mensual' ? null : k.date, month: kind === 'Prom. mensual' ? k.date : null,
+        chg: daily || kind === 'Subasta' ? k.prevChange : k.trend?.m1,
+        per: daily ? '1 día' : kind === 'Subasta' ? `vs subasta ${fmtDate(k.prevDate, false)}` : '1 mes',
+      };
     })
     .filter(Boolean);
-  const us30 = markets.find((m) => m.ticker === '^TYX');
+  const us30 = live(markets.find((m) => m.ticker === '^TYX'), 'us', 'EE.UU. 30Y');
+  if (us30) tiles.push({ ...us30, key: 'us30' });
   return (
     <section className="card tv-card" id="bonds">
       <h3>Bonos a 10 años en moneda local</h3>
       <div className="bond-tiles">
         {tiles.map((t) => (
-          <div key={t.id} className={`bond-tile ${t.chg > 0.5 ? 'bt-pos' : t.chg < -0.5 ? 'bt-neg' : 'bt-flat'}`} title={t.label}>
+          <div key={t.key || t.id} className={`bond-tile ${t.chg > 0.5 ? 'bt-pos' : t.chg < -0.5 ? 'bt-neg' : 'bt-flat'}`} title={t.label}>
             <span className="bt-head"><Flag id={t.id} round size={20} />{t.name}</span>
             <span className="bt-val">{fmtNum(t.v, 2)}%</span>
             <span className="bt-chg">{sign(t.chg, 0)} pb <span className="bt-per">{t.per}</span></span>
+            <span className="bt-kind">{t.kind} · {t.month ? fmtMonth(t.month) : fmtDate(t.date, false)}</span>
           </div>
         ))}
-        {us30?.perf && (
-          <div className={`bond-tile ${us30.perf.d1 > 0.5 ? 'bt-pos' : us30.perf.d1 < -0.5 ? 'bt-neg' : 'bt-flat'}`}>
-            <span className="bt-head"><Flag id="us" round size={20} />EE.UU. 30Y</span>
-            <span className="bt-val">{fmtNum(us30.perf.last, 2)}%</span>
-            <span className="bt-chg">{sign(us30.perf.d1, 0)} pb <span className="bt-per">1 día</span></span>
-          </div>
-        )}
       </div>
-      <div className="card-foot"><span>Costo de financiamiento en moneda propia de cada país (no es deuda en dólares: ver la solapa Crédito USD). Verde: la tasa subió · rojo: bajó. Eurozona: curva AAA; Brasil: NTN-F interpolada; México: última subasta; Colombia: promedio mensual.</span></div>
+      <div className="card-foot"><span>Costo de financiamiento en moneda propia de cada país (no es deuda en dólares: ver la solapa Crédito USD). Verde: la tasa subió · rojo: bajó.
+        Tipo de dato: <b>Mercado</b> = intradiario (EE.UU., Yahoo ^TNX/^TYX, ~15 min de demora); <b>Cierre</b> = último cierre oficial publicado (Brasil: tasa de Tesouro Direto, NTN-F interpolada; Eurozona: curva AAA del BCE; Canadá, Chile, Japón: bancos centrales y MOF);
+        <b> Subasta</b> = rendimiento de la última licitación primaria (México); <b>Prom. mensual</b> = promedio del mes (Colombia: BanRep; India: OCDE).</span></div>
     </section>
   );
 }
