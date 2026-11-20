@@ -253,6 +253,11 @@ a.src:hover { color: var(--accent); }
 .tbl-sub td { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); font-weight: 600; padding-top: 16px; }
 .row-pending td { color: var(--text-muted); }
 .subtabs { display: flex; margin: 0 0 14px; }
+.share { display: inline-flex; align-items: center; gap: 8px; min-width: 150px; }
+.share-track { flex: 1; height: 8px; border-radius: 4px; background: var(--surface-3); overflow: hidden; min-width: 90px; }
+.share-fill { display: block; height: 100%; background: var(--series-1); border-radius: 4px; }
+.share-fill.warn { background: #d6962a; }
+.share-num { font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; font-size: 13px; }
 .subtabs .seg button { font-size: 14px; padding: 7px 16px; }
 .tkr-badge { display: inline-block; min-width: 38px; text-align: center; font-size: 11px; font-weight: 700; letter-spacing: .03em; padding: 2px 6px; border-radius: 5px; background: var(--surface-3); color: var(--text-secondary); }
 .val-tag { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 6px; white-space: nowrap; background: var(--surface-3); color: var(--text-secondary); }

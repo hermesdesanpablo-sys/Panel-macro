@@ -34,7 +34,8 @@ api/_lib/worldpe.js         Lector de worldperatio.com (P/E diario, serie mensua
 api/_lib/msci.js            Lector del factsheet mensual de MSCI (PDF, con unpdf): Div Yld, P/E, P/E Fwd, P/BV
 api/_lib/ssga.js            State Street: planilla de productos SPDR (P/E FY1, P/B, crec. EPS…) y NAV/cuotas diarias por ETF
 api/_lib/sources/sust.js    Sostenibilidad: FMI WEO (API SDMX) + Banco Mundial (WDI). Payload propio: countries[].rows por año
-api/_lib/xlsx.js            Lector mínimo de .xlsx sin dependencias (zlib), usado para la planilla del EMBI
+api/_lib/xlsx.js            Lector mínimo de .xlsx sin dependencias (zlib): readFirstSheet / readSheet(buf, n)
+api/_lib/debtcomp.js        Composición de la deuda pública (Banco Mundial QPSD): moneda, residencia del acreedor, vencimientos a 12 meses
 src/App.jsx                 Tabs, carga en paralelo de todos los países, modo ?mock=1
 src/components/Panels.jsx   Kpi, Dynamics, CountryPanel, TrendsTable, WorldPanel (MajorIndices, QuoteCard, BondTiles,
                             MiniTiles, Watchlist), ComparePanel, AgendaList
@@ -190,6 +191,17 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 - Tres brechas: CC = resultado fiscal + (S − I) privado. Intereses netos = primario − total. i = intereses·(1+g)/d₋₁;
   primario que estabiliza = d₋₁·(i − g)/(1 + g). Con inflación alta y deuda en USD (Argentina) la fórmula en moneda local
   no captura el efecto cambiario (se avisa en la UI). El test offline verifica que la identidad cierre todos los años.
+
+### Notas de composición de la deuda y ranking de emisores
+- QPSD (Banco Mundial, `api.worldbank.org/v2/country/<ISO3;…>/indicator/DP.DOD.<X>.CR.<SECTOR>.Z1?source=20&mrnev=1`): X = DECT total,
+  DECF moneda extranjera, DECN moneda local, DECD acreedores residentes, DECX no residentes, DSTC corto plazo, y `DLTC.CR.L1` (largo plazo
+  que vence en ≤1 año). SECTOR: GG / CG / BC. Se usa CG; Chile solo tiene BC. Un indicador inexistente para un sector responde 400.
+  Solo se combinan componentes del mismo trimestre que el total. Sin datos: India, Ecuador (no reportan), Eurozona (sin agregado).
+- Otras fuentes confirmadas para el ranking (20-nov-2026): WGI `GOV_WGI_<GE|RL|CC|RQ|PV|VA>.EST?source=3` (2025); IDS
+  `DT.DOD.DSTC.IR.ZS` (deuda externa de corto plazo / reservas, solo emergentes, 2024; sin Chile ni Uruguay); FMI WEO `GGR_NGDP`
+  (ingresos) para intereses/recaudación; BoC-BoE Sovereign Default Database (`bankofcanada.ca/wp-content/uploads/2026/10/BoC-BoE-Database-2026.xlsx`,
+  hoja 2 "Debt_2026.csv": monto en default en USD M por país, año y acreedor; usar umbral de monto: Perú arrastra montos chicos de la era Brady).
+- Sin fuente gratuita: calificaciones crediticias (pagas); base de tenedores del FMI (Arslanalp-Tsuda) sin descarga actualizada.
 
 ### Notas de Chile (BCCh BDE)
 - Fuente principal: API oficial `SieteRestWS.ashx?token=<BCCH_API_TOKEN>&function=GetSeries&timeseries=<código>&firstdate=aaaa-mm-dd`

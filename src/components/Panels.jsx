@@ -999,6 +999,73 @@ function reading(c) {
   return out;
 }
 
+const COMP_MISSING = {
+  eu: 'Sin agregado de la Eurozona en la base QPSD.',
+  in: 'India no reporta a la base QPSD del Banco Mundial.',
+};
+/** Barra horizontal de una participación (0–100%) con el número al lado; el color no lleva información sola. */
+const ShareBar = ({ v, warn }) => (v == null || !Number.isFinite(v) ? <span className="chg na">—</span> : (
+  <span className="share">
+    <span className="share-track"><span className={`share-fill ${warn ? 'warn' : ''}`} style={{ width: `${Math.min(100, Math.max(0, v))}%` }} /></span>
+    <span className="share-num">{fmtNum(v, 0)}%</span>
+  </span>
+));
+
+/**
+ * Composición de la deuda pública (Banco Mundial, QPSD): moneda, residencia del acreedor y vencimientos a 12 meses.
+ * Es lo que diferencia un mismo nivel de deuda/PBI entre países (deuda en moneda propia y en manos locales es más estable).
+ */
+function DebtComposition({ countries, url }) {
+  const rows = countries.map((c) => ({ c, k: c.composition }));
+  return (
+    <section className="card" id="sust-comp">
+      <h3>Composición de la deuda pública</h3>
+      <div className="tbl-wrap">
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>País</th><th>Cobertura</th><th>Dato al</th><th className="num">Deuda (% PBI)</th>
+              <th>En moneda extranjera (% del total)</th><th>Con acreedores externos (% del total)</th>
+              <th className="num">Vence en 12 meses (% PBI)</th><th>Vence en 12 meses (% del total)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ c, k }) => (k ? (
+              <tr key={c.id} title={k.note || undefined}>
+                <td><span className="cell-flag"><Flag id={c.cc} /> {c.name}{k.note ? ' †' : ''}</span></td>
+                <td className="muted">{k.sectorLabel}</td>
+                <td className="muted">{k.quarter}</td>
+                <td className="num"><b>{fmtNum(k.total, 1)}</b></td>
+                <td><ShareBar v={k.fxShare} warn={k.fxShare > 40} /></td>
+                <td><ShareBar v={k.extShare} warn={k.extShare > 40} /></td>
+                <td className="num">{k.due12m == null ? '—' : `${fmtNum(k.due12m, 1)}${k.due12mPartial ? '*' : ''}`}</td>
+                <td><ShareBar v={k.due12mShare} warn={k.due12mShare > 25} /></td>
+              </tr>
+            ) : (
+              <tr key={c.id} className="row-pending">
+                <td><span className="cell-flag"><Flag id={c.cc} /> {c.name}</span></td>
+                <td colSpan={7} className="muted">Sin datos: {COMP_MISSING[c.id] || 'el país no reporta esta información.'}</td>
+              </tr>
+            )))}
+          </tbody>
+        </table>
+      </div>
+      <div className="card-foot">
+        <span>
+          Banco Mundial, Quarterly Public Sector Debt (lo cargan los ministerios de finanzas y bancos centrales de cada país), valor nominal.
+          Cobertura: gobierno central, salvo Chile (presupuestario central). Por qué importa: con el mismo nivel de deuda, la que está en moneda
+          extranjera sube con cada devaluación y no se puede pagar emitiendo; la que tienen acreedores externos es más volátil (pueden salir); y lo
+          que vence en 12 meses es lo que hay que refinanciar pronto. Barras en ámbar: más de 40% en moneda extranjera o con externos, o más de 25%
+          venciendo en 12 meses (umbrales orientativos). Vence en 12 meses = deuda de corto plazo + cuotas de largo plazo que vencen en el año;
+          * sin el componente de corto plazo para ese trimestre. Colombia no informa la residencia del acreedor; Japón, la moneda.
+          † {rows.filter(({ k }) => k?.note).map(({ c, k }) => `${c.name}: ${k.note}`).join(' ')}
+        </span>
+        <Source source="Banco Mundial (QPSD)" url={url} />
+      </div>
+    </section>
+  );
+}
+
 export function SustPanel({ data }) {
   const countries = data?.countries || [];
   const [sel, setSel] = useState('br');
@@ -1082,6 +1149,8 @@ export function SustPanel({ data }) {
             Fuentes: <a className="src" href={data.sources?.weo} target="_blank" rel="noreferrer">FMI WEO</a> y <a className="src" href={data.sources?.wb} target="_blank" rel="noreferrer">Banco Mundial (WDI)</a>.</span>
         </div>
       </section>
+
+      <DebtComposition countries={countries} url={data.sources?.qpsd} />
 
       <h2 className="section">Ficha por país</h2>
       <div className="chips" role="group" aria-label="País">

@@ -26,6 +26,11 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
     // Identidad de las tres brechas: cuenta corriente = fiscal + privada, en todos los años con dato.
     for (const c of p.countries) for (const r of c.rows) if (r.ca != null && r.fb != null && Math.abs(r.ca - (r.fb + r.priv)) > 0.02) problems.push(`${c.id} ${r.y}: no cierra la identidad`);
     if (p.countries.some((c) => c.summary.debt == null)) problems.push('país sin deuda/PBI');
+    const comp = p.countries.filter((c) => c.composition);
+    if (comp.length !== p.countries.length - 2) problems.push(`composición de la deuda: ${comp.length} países (esperados todos menos EZ e IN)`);
+    const ar = p.countries.find((c) => c.id === 'ar')?.composition;
+    if (!ar || ar.fxShare !== 25 || Math.abs(ar.extShare - 100 / 3) > 1e-9 || ar.due12m !== 9 || ar.asOf !== '2026-06-30') problems.push('composición: cálculo de participaciones o fecha');
+    if (p.countries.find((c) => c.id === 'cl')?.composition?.sector !== 'BC') problems.push('composición: Chile debería usar el presupuestario central');
     console.log(`${problems.length ? '✗' : '✓'} sust: ${p.countries.length} países, ${p.countries[0].rows.length} años`);
     problems.slice(0, 5).forEach((x) => console.log('    ' + x));
     fails += problems.length;

@@ -29,12 +29,17 @@ const decode = (s) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&qu
 const colIndex = (ref) => [...ref].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
 
 /** Primera hoja como array de filas (cada fila: array de valores string, '' si vacía). */
-export function readFirstSheet(buf) {
+export const readFirstSheet = (buf) => readSheet(buf, 1);
+
+/** Hoja número `n` (1 = primera, según el nombre de archivo sheetN.xml) como array de filas. */
+export function readSheet(buf, n = 1) {
   const files = unzip(buf);
   const sharedXml = files['xl/sharedStrings.xml']?.toString('utf8') || '';
   const shared = [...sharedXml.matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => decode(m[1].replace(/<[^>]+>/g, '')));
-  const sheetName = Object.keys(files).filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort()[0];
-  if (!sheetName) throw new Error('xlsx: sin hojas');
+  const sheetName = n === 1
+    ? Object.keys(files).filter((f) => /^xl\/worksheets\/sheet\d+\.xml$/.test(f)).sort()[0]
+    : `xl/worksheets/sheet${n}.xml`;
+  if (!sheetName || !files[sheetName]) throw new Error(`xlsx: no existe la hoja ${n}`);
   const xml = files[sheetName].toString('utf8');
   const rows = [];
   for (const rm of xml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {

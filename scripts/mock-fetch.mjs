@@ -290,6 +290,15 @@ export async function mockFetch(input) {
   }
   if (url.host === 'api.worldbank.org') {
     const codes = u.match(/country\/([^/]+)\/indicator/)[1].split(';');
+    if (url.searchParams.get('source') === '20') {
+      // QPSD trimestral (% del PBI): un dato por país (mrnev=1). Total 60; moneda extranjera 15; externos 20; corto plazo 3; largo que vence 6.
+      // India no reporta (como en la base real); el presupuestario central (BC) no tiene corto plazo (la API responde 400).
+      const ind = u.match(/indicator\/([^?]+)/)[1];
+      if (ind === 'DP.DOD.DSTC.CR.BC.Z1') return new Response('<?xml version="1.0"?><error/>', { status: 400 });
+      const V = { DECT: 60, DECF: 15, DECN: 45, DECD: 40, DECX: 20, DSTC: 3, 'DLTC.CR.L1': 6 };
+      const key = Object.keys(V).find((k) => ind.includes(`.${k}.`));
+      return json([{ page: 1 }, codes.filter((c) => c !== 'IND').map((c) => ({ countryiso3code: c, date: '2026Q2', value: V[key] }))]);
+    }
     const rows = codes.flatMap((c, i) => Array.from({ length: 21 }, (_, k) => ({ countryiso3code: c, date: String(2005 + k), value: 2 + Math.sin(k / 4 + i) * 3 })));
     return json([{ page: 1, lastupdated: '2026-11-11' }, rows]);
   }
