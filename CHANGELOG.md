@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.15.0 — 2026-11-20 (Noticias y selector de países)
+- Nueva solapa **Noticias**: titulares minuto a minuto de feeds RSS públicos, unificados y ordenados por hora (`api/_lib/sources/news.js`).
+  - Fuentes: Bloomberg (mercados, economía, política), WSJ (mercados, mundo), MarketWatch, comunicados de la Fed y del BCE,
+    Google Noticias (búsquedas de finanzas de América Latina en español e inglés, con el medio de origen) y FinancialJuice.
+  - Filtros por tema (bancos centrales, datos, mercados, política), por país o América Latina, por fuente y búsqueda de texto.
+    Etiquetas automáticas por palabras clave. Se resaltan los titulares nuevos desde la actualización anterior.
+  - Se actualiza cada minuto con la solapa abierta (caché de 60 s). Una fuente caída queda "no disponible" sin cortar el resto.
+  - Sin Reuters: no tiene feed público (solo con LSEG).
+- Los países pasan a un selector **Países** en la barra superior (menú desplegable con teclado), para liberar espacio.
+- Verificado: `npm test` OK (mocks de los 11 feeds, deduplicación, medio de Google, prefijo de FinancialJuice, fuente caída);
+  datos reales: 11/11 fuentes, ~380 titulares; `npm run build` OK; capturas en escritorio y celular.
+
 ## 0.14.2 — 2026-11-20 (Curva del Tesoro robusta)
 - Crédito USD: la curva del Tesoro (FRED, 11 series en paralelo) a veces llegaba con menos de 5 plazos por límite de consultas y el
   adaptador la descartaba entera → sin spreads de bonos ni "Rend. USD aprox." (visto en producción el 20-nov: "FRED: curva del Tesoro

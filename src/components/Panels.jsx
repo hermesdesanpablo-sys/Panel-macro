@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { TimeChart, PathChart, Spark, AreaSpark, CurveChart, YearChart, PeBandChart, ScoreSpreadChart } from './Charts.jsx';
 import { fmtNum, fmtDate, daysUntil, kpiByKey, fmtChg, ARROW, DIR_WORD, GROUPS, chgDir } from '../format.js';
 import { Flag } from './Flag.jsx';
@@ -1692,5 +1692,118 @@ export function RankPanel({ data, state }) {
         </div>
       </section>
     </>
+  );
+}
+
+// ---------- Noticias ----------
+const NEWS_TOPICS = [['all', 'Todo'], ['cb', 'Bancos centrales'], ['data', 'Datos'], ['mkts', 'Mercados'], ['pol', 'Política']];
+const NEWS_REGIONS = [
+  ['all', 'Todos los países'], ['latam', 'América Latina'], ['ar', 'Argentina'], ['br', 'Brasil'], ['mx', 'México'], ['cl', 'Chile'], ['co', 'Colombia'],
+  ['pe', 'Perú'], ['uy', 'Uruguay'], ['ec', 'Ecuador'], ['us', 'EE.UU.'], ['eu', 'Eurozona'], ['ca', 'Canadá'], ['jp', 'Japón'], ['cn', 'China'], ['in', 'India'],
+];
+const LATAM = ['ar', 'br', 'mx', 'cl', 'co', 'pe', 'uy', 'ec'];
+const TOPIC_LABEL = { cb: 'Banco central', data: 'Dato', mkts: 'Mercados', pol: 'Política' };
+const storedNews = (k, d) => { try { return localStorage.getItem(`news.${k}`) ?? d; } catch { return d; } };
+const keepNews = (k, v) => { try { localStorage.setItem(`news.${k}`, v); } catch { /* sin almacenamiento */ } };
+const hhmm = (iso) => new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const ago = (iso, now) => {
+  const m = Math.max(0, Math.round((now - Date.parse(iso)) / 60000));
+  return m < 1 ? 'recién' : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.floor(m / 60)} h` : `hace ${Math.floor(m / 1440)} d`;
+};
+const dayLabel = (iso) => {
+  const d = new Date(iso), t = new Date();
+  const same = (a, b) => a.toDateString() === b.toDateString();
+  if (same(d, t)) return 'Hoy';
+  if (same(d, new Date(t.getTime() - 864e5))) return 'Ayer';
+  return d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+};
+
+export function NewsPanel({ data }) {
+  const items = data?.items || [];
+  const sources = data?.sources || [];
+  const labels = [...new Set(sources.map((s) => s.label))];
+  const [topic, setTopicS] = useState(() => storedNews('topic', 'all'));
+  const [region, setRegionS] = useState(() => storedNews('region', 'all'));
+  const [off, setOffS] = useState(() => { try { return JSON.parse(storedNews('off', '[]')); } catch { return []; } });
+  const [q, setQ] = useState('');
+  const setTopic = (v) => { setTopicS(v); keepNews('topic', v); };
+  const setRegion = (v) => { setRegionS(v); keepNews('region', v); };
+  const toggleSrc = (l) => setOffS((cur) => { const n = cur.includes(l) ? cur.filter((x) => x !== l) : [...cur, l]; keepNews('off', JSON.stringify(n)); return n; });
+  // Titulares nuevos desde la carga anterior (se resaltan hasta la siguiente actualización).
+  const seen = useRef(null);
+  const [fresh, setFresh] = useState(new Set());
+  useEffect(() => {
+    const ids = new Set(items.map((i) => i.id));
+    if (seen.current) setFresh(new Set([...ids].filter((id) => !seen.current.has(id))));
+    seen.current = ids;
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  const now = Date.now();
+  const srcLabel = (i) => sources.find((s) => s.key === i.feed)?.label || i.source;
+  const ql = q.trim().toLowerCase();
+  const shown = items.filter((i) => (topic === 'all' || i.tags.includes(topic))
+    && (region === 'all' || (region === 'latam' ? i.countries.some((c) => LATAM.includes(c)) : i.countries.includes(region)))
+    && !off.includes(srcLabel(i))
+    && (!ql || `${i.title} ${i.summary || ''} ${i.source}`.toLowerCase().includes(ql)));
+  let lastDay = null;
+  return (
+    <div className="panel">
+      <section className="card news" id="news">
+        <div className="news-bar">
+          <div className="seg" role="group" aria-label="Tema">
+            {NEWS_TOPICS.map(([k, l]) => <button key={k} className={topic === k ? 'on' : ''} aria-pressed={topic === k} onClick={() => setTopic(k)}>{l}</button>)}
+          </div>
+          <select className="news-select" value={region} onChange={(e) => setRegion(e.target.value)} aria-label="País o región">
+            {NEWS_REGIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+          <input className="news-search" type="search" placeholder="Buscar en titulares…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar en titulares" />
+          <span className="muted news-count">{shown.length} titulares · se actualiza cada minuto</span>
+        </div>
+        <div className="chips news-src" role="group" aria-label="Fuentes">
+          {labels.map((l) => {
+            const st = sources.filter((s) => s.label === l);
+            const ok = st.some((s) => s.ok);
+            return (
+              <button key={l} className={`chip ${off.includes(l) ? '' : 'on'}`} aria-pressed={!off.includes(l)} onClick={() => toggleSrc(l)}
+                title={st.map((s) => `${s.topic}: ${s.ok ? `${s.count} titulares` : `no disponible (${s.error})`}`).join(' · ')}>
+                {l}{!ok && <span className="muted"> · no disponible</span>}
+              </button>
+            );
+          })}
+        </div>
+        {!shown.length ? <div className="empty">Sin titulares con estos filtros</div> : (
+          <ul className="news-list">
+            {shown.map((i) => {
+              const day = dayLabel(i.time);
+              const sep = day !== lastDay ? <li key={`d-${day}`} className="news-day">{day}</li> : null;
+              lastDay = day;
+              return [sep, (
+                <li key={i.id} className={`news-item ${fresh.has(i.id) ? 'is-new' : ''}`}>
+                  <span className="news-time" title={new Date(i.time).toLocaleString('es-AR')}>{hhmm(i.time)}<span className="muted">{ago(i.time, now)}</span></span>
+                  <span className="news-src-tag" title={i.via ? `vía ${i.via}` : undefined}>{i.source}</span>
+                  <span className="news-body">
+                    {i.link ? <a href={i.link} target="_blank" rel="noreferrer">{i.title}</a> : i.title}
+                    {fresh.has(i.id) && <span className="news-new">nuevo</span>}
+                    <span className="news-meta">
+                      {i.countries.filter((c) => c !== 'us' || i.countries.length === 1).slice(0, 4).map((c) => <Flag key={c} id={c} />)}
+                      {i.tags.map((t) => <span key={t} className={`news-tag t-${t}`}>{TOPIC_LABEL[t]}</span>)}
+                    </span>
+                    {i.summary && <span className="news-sum">{i.summary}</span>}
+                  </span>
+                </li>
+              )];
+            })}
+          </ul>
+        )}
+        <div className="card-foot">
+          <span>
+            Titulares de feeds públicos (RSS), unificados y ordenados por hora: Bloomberg (mercados, economía, política), WSJ (mercados, mundo),
+            MarketWatch, comunicados de la Fed y del BCE, Google Noticias (búsquedas de finanzas de América Latina, en español e inglés; se muestra
+            el medio de origen) y FinancialJuice cuando responde. Las etiquetas de tema y país son automáticas por palabras clave (pueden fallar).
+            Sin Reuters: no tiene feed público (requiere LSEG).
+          </span>
+          <span>{sources.filter((s) => !s.ok).length ? `No disponibles ahora: ${[...new Set(sources.filter((s) => !s.ok).map((s) => s.label))].join(', ')}` : 'Todas las fuentes respondieron'}</span>
+        </div>
+      </section>
+    </div>
   );
 }

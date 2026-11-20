@@ -133,6 +133,29 @@ export async function mockFetch(input) {
   const url = new URL(typeof input === 'string' ? input : input.url);
   const u = url.toString();
 
+  // Noticias: RSS sintético por fuente (horas relativas a ahora). FinancialJuice "no responde" para probar fuentes caídas.
+  const NEWS_HOSTS = ['feeds.bloomberg.com', 'feeds.content.dowjones.io', 'www.federalreserve.gov', 'www.ecb.europa.eu', 'news.google.com', 'www.financialjuice.com'];
+  if (NEWS_HOSTS.includes(url.host)) {
+    if (url.host === 'www.financialjuice.com') return new Response('Too Many Requests', { status: 429 });
+    const t = (min) => new Date(Date.now() - min * 60e3).toUTCString();
+    const item = (title, min, desc = '') => `<item><title><![CDATA[${title}]]></title><link>https://example.com/${encodeURIComponent(title).slice(0, 40)}</link>`
+      + `<pubDate>${t(min)}</pubDate><description><![CDATA[${desc}]]></description></item>`;
+    const rss = (...items) => text(`<?xml version="1.0"?><rss version="2.0"><channel><title>Mock</title>${items.join('')}</channel></rss>`);
+    const k = url.host === 'news.google.com' ? (u.includes('hl=es') ? 'gn-es' : 'gn-en') : url.host === 'feeds.bloomberg.com' ? url.pathname.split('/')[1] : url.host === 'feeds.content.dowjones.io' ? url.pathname.split('/').pop() : url.host;
+    const ITEMS = {
+      markets: [item('Treasury Yields Climb as Traders Pare Fed Rate-Cut Bets', 4, 'Two-year yields rose after strong US payrolls data.'), item('Emerging-market bonds rally as dollar weakens', 75)],
+      economics: [item('Brazil inflation slows more than expected, boosting Selic cut bets', 12), item('Japan Exports Rise for Third Month as Yen Stays Weak', 300)],
+      politics: [item('Milei Seeks Congress Support for Budget Ahead of Bond Payments', 30), item('Treasury Yields Climb as Traders Pare Fed Rate-Cut Bets', 6)],
+      RSSMarketsMain: [item('Stocks Edge Higher on Wall Street; Nasdaq Leads', 8)],
+      RSSWorldNews: [item('China Steps Up Stimulus as Property Slump Drags On', 95)],
+      mw_topstories: [item('Oil prices slip as OPEC+ weighs output increase', 20), item('Old headline outside the window', 60 * 60)],
+      'www.federalreserve.gov': [item('Federal Reserve Board announces approval of application', 200)],
+      'www.ecb.europa.eu': [item('Monetary policy statement by Christine Lagarde', 400)],
+      'gn-es': [item('El riesgo país de Argentina cae a mínimos del año - Ámbito', 15), item('Banxico recorta la tasa de interés en 25 puntos básicos - El Economista', 45)],
+      'gn-en': [item('Chile peso gains as copper rallies - Reuters', 50)],
+    };
+    return rss(...(ITEMS[k] || []));
+  }
   if (url.host === 'www.finanzas.gob.ec' && u.includes('deuda-publica-nueva-metodologia')) {
     // Página del boletín: links de descarga (los ids no van en orden; el último mes se elige por el rótulo).
     const a = (id, t) => `<a class="download-link" href="https://www.finanzas.gob.ec/wp-content/plugins/download-monitor/download.php?id=${id}">${t}</a>`;

@@ -1,16 +1,21 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { CountryPanel, WorldPanel, AgendaPanel, ComparePanel, UsdPanel, SustPanel, ValPanel, RankPanel } from './components/Panels.jsx';
+import { CountryPanel, WorldPanel, AgendaPanel, ComparePanel, UsdPanel, SustPanel, ValPanel, RankPanel, NewsPanel } from './components/Panels.jsx';
+import { CountryMenu } from './components/CountryMenu.jsx';
 import { POLITICAL_UNDATED } from '../api/_lib/calendar.js';
 import { fmtDate } from './format.js';
 import { Flag } from './components/Flag.jsx';
 
-const TABS = [
+// Solapas generales en la barra; los países van en el selector "Países" para no ocupar espacio arriba.
+const MAIN_TABS = [
   { id: 'world', label: 'Mundo' },
+  { id: 'news', label: 'Noticias' },
   { id: 'usd', label: 'Crédito USD' },
   { id: 'sust', label: 'Sostenibilidad' },
   { id: 'val', label: 'Valuación' },
   { id: 'compare', label: 'Comparar' },
   { id: 'agenda', label: 'Agenda' },
+];
+const COUNTRY_TABS = [
   { id: 'ar', label: 'Argentina' },
   { id: 'br', label: 'Brasil' },
   { id: 'us', label: 'EE.UU.' },
@@ -23,6 +28,7 @@ const TABS = [
   { id: 'jp', label: 'Japón' },
   { id: 'in', label: 'India' },
 ];
+const TABS = [...MAIN_TABS, ...COUNTRY_TABS];
 const COUNTRIES = ['ar', 'br', 'us', 'eu', 'mx', 'ca', 'co', 'cl', 'pe', 'jp', 'in'];
 const MOCK = new URLSearchParams(location.search).has('mock');
 
@@ -63,7 +69,7 @@ export default function App() {
   const fetchAll = useCallback((fresh = false) => ['world', ...COUNTRIES].forEach((id) => fetchOne(id, fresh)), [fetchOne]);
   // Crédito USD cotiza ~100 bonos: se pide solo al abrir la solapa (y con Recargar si ya estaba abierta).
   useEffect(() => {
-    if (['usd', 'sust', 'val'].includes(tab) && !data[tab] && state[tab] !== 'loading') fetchOne(tab);
+    if (['usd', 'sust', 'val', 'news'].includes(tab) && !data[tab] && state[tab] !== 'loading') fetchOne(tab);
     // El ranking de emisores se muestra en Crédito USD: se pide junto con esa solapa.
     if (tab === 'usd' && !data.rank && state.rank !== 'loading') fetchOne('rank');
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -74,10 +80,15 @@ export default function App() {
   tabRef.current = tab;
   useEffect(() => {
     const visible = () => document.visibilityState === 'visible';
-    const w = setInterval(() => visible() && fetchOne('world'), 60_000);
+    // Mundo (precios) y Noticias (titulares) cada minuto; el resto de las solapas cada 5 minutos.
+    const w = setInterval(() => {
+      if (!visible()) return;
+      fetchOne('world');
+      if (tabRef.current === 'news') fetchOne('news');
+    }, 60_000);
     const t = setInterval(() => {
       const id = tabRef.current;
-      if (visible() && id !== 'world' && id !== 'agenda' && id !== 'compare') fetchOne(id);
+      if (visible() && !['world', 'news', 'agenda', 'compare'].includes(id)) fetchOne(id);
     }, 300_000);
     return () => { clearInterval(w); clearInterval(t); };
   }, [fetchOne]);
@@ -108,12 +119,13 @@ export default function App() {
           {MOCK && <span className="mock-badge">DATOS DE EJEMPLO – no reales</span>}
         </div>
         <nav className="tabs" role="tablist">
-          {TABS.map((t) => (
+          {MAIN_TABS.map((t) => (
             <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'on' : ''} onClick={() => go(t.id)}>
               <Flag id={t.id} /> {t.label}
               {state[t.id] === 'loading' && <span className="dot" />}
             </button>
           ))}
+          <CountryMenu items={COUNTRY_TABS} current={tab} onPick={go} loading={COUNTRY_TABS.some((c) => state[c.id] === 'loading')} />
         </nav>
         <div className="actions">
           {updated && (
@@ -121,7 +133,7 @@ export default function App() {
               Act. {new Date(updated).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
-          <button className="btn" onClick={() => { fetchAll(true); ['usd', 'sust', 'val', 'rank'].forEach((t) => data[t] && fetchOne(t, true)); }}>Recargar</button>
+          <button className="btn" onClick={() => { fetchAll(true); ['usd', 'sust', 'val', 'rank', 'news'].forEach((t) => data[t] && fetchOne(t, true)); }}>Recargar</button>
         </div>
       </header>
 
@@ -137,6 +149,8 @@ export default function App() {
           <ComparePanel countries={countries} a={cmpA} b={cmpB} setA={setCmpA} setB={setCmpB} />
         ) : tab === 'sust' && current ? (
           <SustPanel data={current} />
+        ) : tab === 'news' && current ? (
+          <NewsPanel data={current} />
         ) : tab === 'val' && current ? (
           <ValPanel data={current} />
         ) : tab === 'usd' && current ? (

@@ -8,7 +8,7 @@ Dashboard macro con un panel por país (Argentina, Brasil, EE.UU., Eurozona, Mé
 **Mundo** (cuadros tipo terminal + panel lateral "Hoy", tendencias y comparativo entre países), una solapa
 **Comparar** (dos países lado a lado), una solapa **Crédito USD** (spread EMBI de América Latina y curvas de los
 bonos soberanos en dólares), una solapa **Sostenibilidad** (tres brechas, deuda/PBI y primario que estabiliza la deuda),
-una solapa **Valuación** (subsolapas Países y Sectores de EE.UU.: ratios, P/E contra su historia y flujos de ETF) y una **Agenda** consolidada (económica y política).
+una solapa **Noticias** (titulares RSS minuto a minuto con filtros), una solapa **Valuación** (subsolapas Países y Sectores de EE.UU.: ratios, P/E contra su historia y flujos de ETF) y una **Agenda** consolidada (económica y política).
 Dueño: Hermes (renta fija / mercado de capitales, Argentina). Idioma de la UI y de los comentarios: español.
 
 Objetivo de cada panel:
@@ -21,7 +21,7 @@ Objetivo de cada panel:
 ## Arquitectura
 
 ```
-api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val|rank  (función serverless Vercel, cache edge 30 min)
+api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val|rank|news  (función serverless Vercel, cache edge 30 min)
 api/_lib/util.js            HTTP, fechas, series, kpi(), trend(), spreadSeries(), settle()
 api/_lib/yahoo.js           Yahoo Finance: precios, perf, futuros Fed funds (ZQ)
 api/_lib/calendar.js        Reuniones de bancos centrales + publicaciones de IPC/PIB con fecha oficial (estático; revisar cada semestre)
@@ -35,6 +35,7 @@ api/_lib/msci.js            Lector del factsheet mensual de MSCI (PDF, con unpdf
 api/_lib/ssga.js            State Street: planilla de productos SPDR (P/E FY1, P/B, crec. EPS…) y NAV/cuotas diarias por ETF
 api/_lib/sources/sust.js    Sostenibilidad: FMI WEO (API SDMX) + Banco Mundial (WDI). Payload propio: countries[].rows por año
 api/_lib/xlsx.js            Lector mínimo de .xlsx sin dependencias (zlib): readFirstSheet / readSheet(buf, n)
+api/_lib/sources/news.js    Noticias: feeds RSS públicos (Bloomberg, WSJ, MarketWatch, Fed, BCE, Google Noticias, FinancialJuice); etiquetas por palabras clave
 api/_lib/sources/rank.js    Ranking de emisores (8 de LatAm): 5 pilares ponderados, solo datos 2025+, vs spread EMBI
 api/_lib/debtcomp.js        Composición de la deuda pública (Banco Mundial QPSD): moneda, residencia del acreedor, vencimientos a 12 meses
 api/_lib/ecdebt.js          Ecuador: composición de la deuda con el Boletín de Deuda Pública del Ministerio de Economía (no reporta a QPSD)
@@ -42,6 +43,7 @@ src/App.jsx                 Tabs, carga en paralelo de todos los países, modo ?
 src/components/Panels.jsx   Kpi, Dynamics, CountryPanel, TrendsTable, WorldPanel (MajorIndices, QuoteCard, BondTiles,
                             MiniTiles, Watchlist), ComparePanel, AgendaList
 src/components/Charts.jsx   TimeChart, PathChart, Spark, AreaSpark (Recharts)
+src/components/CountryMenu.jsx  Selector "Países" de la barra superior
 src/components/Flag.jsx     Banderas SVG (flagcdn; los emoji de bandera no se ven en Windows)
 scripts/smoke.mjs           Prueba contra las APIs REALES (requiere .env)
 scripts/test-parsers.mjs    Test offline con fetch simulado + genera src/mock-data.json
