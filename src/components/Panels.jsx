@@ -1152,6 +1152,14 @@ const LECTURA = { Cheap: 'Muy barato', Undervalued: 'Barato', Fair: 'Neutral', O
 const lecturaOf = (z) => (z == null || !Number.isFinite(z) ? null : z < -2 ? 'Cheap' : z < -1 ? 'Undervalued' : z <= 1 ? 'Fair' : z <= 2 ? 'Overvalued' : 'Expensive');
 const VAL_WINDOWS = [['y5', '5 años', 5], ['y10', '10 años', 10], ['y20', '20 años', 20]];
 const isoDate = (d) => d.toISOString().slice(0, 10);
+/** Motivo por el que una ventana de worldperatio no es confiable (null si pasa el control). */
+const qualityIssue = (q) => {
+  if (!q || q.ok) return null;
+  const r = [];
+  if (q.stale != null && q.stale > 0.1) r.push(`${Math.round(q.stale * 100)}% de los meses repiten el valor anterior (dato viejo arrastrado)`);
+  if (q.preLaunch) r.push(`la ventana arranca antes del lanzamiento del ETF (${q.launch}): esa parte es una reconstrucción no documentada`);
+  return r.join('; ') || 'serie incompleta';
+};
 const num = (v, d = 1) => (v == null || !Number.isFinite(v) ? '—' : fmtNum(v, d));
 const pctCell = (v, d = 1) => (v == null || !Number.isFinite(v) ? '—' : `${fmtNum(v, d)}%`);
 
@@ -1182,7 +1190,7 @@ function WindowSeg({ win, setWin }) {
  * El gráfico tiene su propia ventana (5/10/20 años) para comparar sin cambiar la tabla.
  */
 function PeHistory({ rows, label, refLabel, defaultSel }) {
-  const [win, setWin] = useState('y10');
+  const [win, setWin] = useState('y5');
   const [chartWin, setChartWin] = useState('y5');
   const [peSel, setPeSel] = useState(defaultSel);
   const withWpe = rows.filter((r) => r.wpe);
@@ -1211,9 +1219,10 @@ function PeHistory({ rows, label, refLabel, defaultSel }) {
             </thead>
             <GroupBody list={withWpe} cols={9} refLabel={refLabel} render={(r) => {
               const S = r.wpe.stats?.[win];
-              const lec = lecturaOf(S?.z);
+              const issue = qualityIssue(r.wpe.quality?.[win]);
+              const lec = issue ? null : lecturaOf(S?.z);
               return (
-                <tr key={r.cid}>
+                <tr key={r.cid} className={issue ? 'row-poor' : undefined} title={issue ? `Baja calidad: ${issue}` : undefined}>
                   <td><span className="cell-flag">{r.flag}{r.label}</span></td>
                   <td><a href={r.wpe.url} target="_blank" rel="noreferrer" title={r.wpe.note || undefined}>{r.wpe.etf}{r.wpe.note ? ' †' : ''}</a></td>
                   <td className="num"><b>{num(r.wpe.pe)}</b></td>
@@ -1222,7 +1231,7 @@ function PeHistory({ rows, label, refLabel, defaultSel }) {
                   <td className="num">{S ? `${fmtNum(S.avg - S.sd, 1)} – ${fmtNum(S.avg + S.sd, 1)}` : '—'}</td>
                   <td className="num">{S ? `${fmtNum(Math.max(0, S.avg - 2 * S.sd), 1)} – ${fmtNum(S.avg + 2 * S.sd, 1)}` : '—'}</td>
                   <td className="num">{S?.z == null ? '—' : `${sign(S.z, 2)} σ`}</td>
-                  <td>{lec ? <span className={`val-tag val-${lec.toLowerCase()}`}>{LECTURA[lec]}</span> : '—'}</td>
+                  <td>{issue ? <span className="val-tag val-poor">Baja calidad</span> : lec ? <span className={`val-tag val-${lec.toLowerCase()}`}>{LECTURA[lec]}</span> : '—'}</td>
                 </tr>
               );
             }} />
@@ -1230,6 +1239,9 @@ function PeHistory({ rows, label, refLabel, defaultSel }) {
         </div>
         <div className="card-foot">
           <span>
+            <b>Control de calidad:</b> en cada ventana se descarta la lectura si más del 10% de los meses repiten el valor anterior o si la ventana
+            arranca antes del lanzamiento del ETF base (historia reconstruida que worldperatio no documenta). Pasá el mouse sobre la fila para ver el
+            motivo. A 5 años pasan todas las series; a 10 y 20 años fallan varias, sobre todo los sectores.{' '}
             P/E diario al {fmtDate(wpeDate)} calculado por worldperatio sobre el ETF base (12 meses hacia atrás). Promedio y desvío excluyen el 10% de
             valores extremos de cada lado. Lectura: dentro de ±1 desvío neutral; entre 1 y 2 barato/caro; más de 2 muy barato/muy caro.
             {rows.some((r) => r.wpe?.note) ? ' † Eurozona: worldperatio publica Europa (VGK).' : ''} Úsese para comparar contra la propia historia.
@@ -1257,6 +1269,7 @@ function PeHistory({ rows, label, refLabel, defaultSel }) {
               Últimos {chartLabel}: P/E mensual (línea) y su promedio (μ, punteada); banda oscura ±1 desvío, banda clara ±2 desvíos.
               {st ? ` ${peRow.label}: μ = ${fmtNum(st.avg, 1)}, desvío = ${fmtNum(st.sd, 2)}; hoy ${fmtNum(peRow.wpe.pe, 1)} (${sign(st.z, 2)} σ).` : ''}
               {peRow.wpe.note ? ` ${peRow.wpe.note}.` : ''}
+              {qualityIssue(peRow.wpe.quality?.[chartWin]) ? <b className="warn-txt">{` Baja calidad en esta ventana: ${qualityIssue(peRow.wpe.quality[chartWin])}.`}</b> : ''}
             </span>
             <Source source={`worldperatio (${peRow.wpe.etf})`} url={peRow.wpe.url} />
           </div>
@@ -1404,21 +1417,19 @@ function SectorVal({ data }) {
   return (
     <>
       <section className="card" id="sec-direct">
-        <h3>Sectores del S&amp;P 500: datos de State Street (SPDR) y Siblis</h3>
+        <h3>Sectores del S&amp;P 500: datos de State Street (Select Sector SPDR)</h3>
         <div className="tbl-wrap">
           <table className="tbl">
             <thead>
               <tr>
                 <th>Sector</th><th>ETF</th>
-                <th className="num">P/E fwd (FY1)</th><th className="num">P/B</th><th className="num">Crec. EPS 3-5a</th><th className="num">Div. índice</th>
-                <th className="num">SEC 30d</th><th className="num">Holdings</th><th className="num">Cap. prom. (USD MM)</th>
-                <th className="num off-col">P/E trailing*</th><th className="num off-col">P/E fwd*</th><th className="num off-col">Crec. implícito*</th>
-                <th className="num off-col">Ganancias 1a*</th><th className="num off-col">3a anual*</th><th className="num off-col">5a anual*</th>
+                <th className="num">P/E fwd (FY1)</th><th className="num">P/B</th><th className="num">Crec. EPS 3-5a</th><th className="num">PEG</th>
+                <th className="num">Div. índice</th><th className="num">SEC 30d</th><th className="num">Holdings</th><th className="num">Cap. prom. (USD MM)</th>
               </tr>
             </thead>
-            <GroupBody list={rows} cols={15} refLabel="Referencia" render={(r) => {
-              const P = r.ssga || {}, B = r.siblis || {};
-              const g = (v) => (v == null ? '—' : <span className={pn(v)}>{sign(v, 1)}%</span>);
+            <GroupBody list={rows} cols={10} refLabel="Referencia" render={(r) => {
+              const P = r.ssga || {};
+              const peg = P.peFwd != null && P.epsGrowth > 0 ? P.peFwd / P.epsGrowth : null;
               return (
                 <tr key={r.cid}>
                   <td>{r.label}</td>
@@ -1426,16 +1437,11 @@ function SectorVal({ data }) {
                   <td className="num"><b>{num(P.peFwd)}</b></td>
                   <td className="num">{num(P.pb, 2)}</td>
                   <td className="num">{pctCell(P.epsGrowth)}</td>
+                  <td className="num">{num(peg, 2)}</td>
                   <td className="num">{pctCell(P.divIndex, 2)}</td>
                   <td className="num">{pctCell(P.sec30, 2)}</td>
                   <td className="num">{P.holdings ?? '—'}</td>
                   <td className="num">{P.mktCap == null ? '—' : fmtNum(P.mktCap / 1e9, 0)}</td>
-                  <td className="num off-col"><b>{num(B.pe)}</b></td>
-                  <td className="num off-col">{num(B.peFwd)}</td>
-                  <td className="num off-col">{g(B.implied)}</td>
-                  <td className="num off-col">{g(B.g1)}</td>
-                  <td className="num off-col">{g(B.g3)}</td>
-                  <td className="num off-col">{g(B.g5)}</td>
                 </tr>
               );
             }} />
@@ -1443,14 +1449,12 @@ function SectorVal({ data }) {
         </div>
         <div className="card-foot">
           <span>
-            State Street, planilla diaria de los SPDR al {fmtDate(S.ssgaAsOf)}: P/E FY1 = precio sobre ganancias estimadas del próximo año fiscal
-            (promedio armónico ponderado); crecimiento del EPS esperado a 3-5 años; dividendo del índice; SEC 30d; cap. promedio ponderada en miles
-            de millones. <b>*</b> Siblis Research, mensual (atraso), al {fmtDate(S.siblisAsOf)}: P/E trailing y forward del sector, crecimiento
-            implícito (trailing/forward − 1) y crecimiento anualizado de las ganancias. Real estate: el P/E no es buena medida (usar P/FFO).
+            State Street, planilla diaria de los SPDR al {fmtDate(S.ssgaAsOf)}. P/E FY1 = precio sobre ganancias estimadas del próximo año fiscal
+            (promedio armónico ponderado de las acciones del fondo); crecimiento del EPS esperado a 3-5 años; PEG = P/E FY1 ÷ crecimiento esperado
+            (cálculo propio); dividendo del índice; SEC 30d; capitalización promedio ponderada en miles de millones de USD. El P/E de 12 meses hacia
+            atrás está en la tabla de historia (worldperatio).
           </span>
-          <span>
-            <Source source="State Street (SPDR)" url={S.sources?.ssga} /> · <Source source="Siblis Research" url={S.sources?.siblis} />
-          </span>
+          <Source source="State Street (SPDR)" url={S.sources?.ssga} />
         </div>
       </section>
       <PeHistory rows={rows} label="Sector" refLabel="Referencia" defaultSel="XLK" />
@@ -1479,8 +1483,8 @@ export function ValPanel({ data }) {
             forward). Después, cada bolsa contra su propia historia con <b>worldperatio</b> (P/E diario e historia mensual desde 1995, con promedio y desvíos).
             Al final, los flujos de inversores en los ETF.</>
           : <>Los 11 sectores del S&amp;P 500 a través de los <b>Select Sector SPDR</b> de State Street (P/E forward, P/B, crecimiento esperado, dividendos),
-            con el P/E trailing y forward mensual de <b>Siblis Research</b>. Después, cada sector contra su propia historia con <b>worldperatio</b>, y los
-            flujos de inversores en los SPDR.</>}
+            todos datos diarios del administrador de los fondos. Después, cada sector contra su propia historia con <b>worldperatio</b> (con control de
+            calidad), y los flujos de inversores en los SPDR.</>}
       </p>
       {view === 'countries' ? <CountryVal data={data} /> : <SectorVal data={data} />}
     </div>

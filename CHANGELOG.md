@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.12.1 — 2026-11-20 (Sectores sin Siblis; control de calidad de la historia)
+- Sectores: se saca Siblis (mensual) y quedan solo datos directos y diarios de State Street; se suma el PEG (P/E FY1 ÷ crecimiento
+  esperado, cálculo propio).
+- **Control de calidad de worldperatio** (`wpeQuality`): por serie y ventana se mide el % de meses que repiten el valor anterior y si la
+  ventana arranca antes del lanzamiento del ETF base (historia reconstruida que el sitio no documenta). Si falla (>10% repetidos o
+  pre-lanzamiento) la lectura pasa a "Baja calidad" con el motivo. Resultado: a 5 años pasan las 25 series; a 10 años fallan AR, CO,
+  PE, JP, América Latina y 9 de 12 series de sectores (p.ej. XLP 28% de meses repetidos). La tabla arranca en 5 años.
+- **S&P Dow Jones Indices** (`sp-500-eps-est.xlsx`): no se pudo sumar, el sitio responde 403 "Security Controls Triggered" a toda
+  consulta automática. **FactSet Earnings Insight**: los P/E forward por sector vienen solo como imagen; no se usa (OCR = datos sucios).
+- Dev: el proxy de Vite pasa a `/api/country` (antes `/api` interceptaba el import de `api/_lib/calendar.js` y la UI no cargaba en `npm run dev`).
+
 ## 0.12.0 — 2026-11-20 (Valuación: países y sectores de EE.UU.)
 - Valuación con dos subsolapas: **Países** (lo anterior) y **Sectores de EE.UU.** (11 sectores del S&P 500 + S&P 500 de referencia).
 - Sectores, datos directos: planilla diaria de productos de State Street (`spdr-product-data-us-en.xlsx`): P/E FY1 (forward),

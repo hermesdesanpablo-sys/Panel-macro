@@ -7,7 +7,6 @@ import { getJson, clean, iso, settle } from '../util.js';
 import { worldPe, WPE_URL } from '../worldpe.js';
 import { msciFundamentals, MSCI_PDF } from '../msci.js';
 import { ssgaProducts, ssgaNavHist, SSGA_PRODUCT } from '../ssga.js';
-import { siblisSectors, SIBLIS_URL } from '../siblis.js';
 
 const BLK = 'https://www.blackrock.com/varnish-api/blk-one01-product-data/product-data/api';
 const Q = 'appType=PRODUCT_PAGE&appSubType=ISHARES&targetSite=us-ishares&locale=en_US&userType=individual';
@@ -121,47 +120,72 @@ export function computeFlows(hist) {
   return { asOf: last.d, aum: aum / 1e6, shares: s.at(-1)?.v, flows, pct, cum };
 }
 
-// Sectores de EE.UU.: Select Sector SPDR (State Street) + worldperatio (P/E e historia) + Siblis (trailing/forward mensual).
+// Sectores de EE.UU.: Select Sector SPDR (State Street, datos directos y diarios) + worldperatio (P/E e historia).
 export const SECTORS = [
-  { id: 'XLK', name: 'Tecnología', siblis: 'Information Technology', wpe: 'sector/sp-500-information-technology', slug: 'technology' },
-  { id: 'XLC', name: 'Comunicaciones', siblis: 'Communication Services', wpe: 'sector/sp-500-communication-services', slug: 'communication-services' },
-  { id: 'XLY', name: 'Consumo discrecional', siblis: 'Consumer Discretionary', wpe: 'sector/sp-500-consumer-discretionary', slug: 'consumer-discretionary' },
-  { id: 'XLP', name: 'Consumo básico', siblis: 'Consumer Staples', wpe: 'sector/sp-500-consumer-staples', slug: 'consumer-staples' },
-  { id: 'XLE', name: 'Energía', siblis: 'Energy', wpe: 'sector/sp-500-energy', slug: 'energy' },
-  { id: 'XLF', name: 'Financiero', siblis: 'Financials', wpe: 'sector/sp-500-financials', slug: 'financial' },
-  { id: 'XLV', name: 'Salud', siblis: 'Health Care', wpe: 'sector/sp-500-health-care', slug: 'health-care' },
-  { id: 'XLI', name: 'Industrial', siblis: 'Industrials', wpe: 'sector/sp-500-industrials', slug: 'industrial' },
-  { id: 'XLB', name: 'Materiales', siblis: 'Materials', wpe: 'sector/sp-500-materials', slug: 'materials' },
-  { id: 'XLRE', name: 'Real estate', siblis: 'Real Estate', wpe: 'sector/sp-500-real-estate', slug: 'real-estate' },
-  { id: 'XLU', name: 'Servicios públicos', siblis: 'Utilities', wpe: 'sector/sp-500-utilities', slug: 'utilities' },
+  { id: 'XLK', name: 'Tecnología', wpe: 'sector/sp-500-information-technology', slug: 'technology' },
+  { id: 'XLC', name: 'Comunicaciones', wpe: 'sector/sp-500-communication-services', slug: 'communication-services' },
+  { id: 'XLY', name: 'Consumo discrecional', wpe: 'sector/sp-500-consumer-discretionary', slug: 'consumer-discretionary' },
+  { id: 'XLP', name: 'Consumo básico', wpe: 'sector/sp-500-consumer-staples', slug: 'consumer-staples' },
+  { id: 'XLE', name: 'Energía', wpe: 'sector/sp-500-energy', slug: 'energy' },
+  { id: 'XLF', name: 'Financiero', wpe: 'sector/sp-500-financials', slug: 'financial' },
+  { id: 'XLV', name: 'Salud', wpe: 'sector/sp-500-health-care', slug: 'health-care' },
+  { id: 'XLI', name: 'Industrial', wpe: 'sector/sp-500-industrials', slug: 'industrial' },
+  { id: 'XLB', name: 'Materiales', wpe: 'sector/sp-500-materials', slug: 'materials' },
+  { id: 'XLRE', name: 'Real estate', wpe: 'sector/sp-500-real-estate', slug: 'real-estate' },
+  { id: 'XLU', name: 'Servicios públicos', wpe: 'sector/sp-500-utilities', slug: 'utilities' },
   { id: 'SPY', name: 'S&P 500', wpe: 'index/sp-500', agg: true },
 ];
 const ssgaPage = (x) => `https://www.ssga.com/us/en/intermediary/etfs/${x.slug ? `state-street-${x.slug}-select-sector-spdr-etf` : 'state-street-spdr-sp-500-etf-trust'}-${x.id.toLowerCase()}`;
 
-/** Bloque de sectores: misma estructura de filas que países (wpe, flujos) más los ratios de SSGA y Siblis. */
+/** Bloque de sectores: misma estructura de filas que países (wpe, flujos) más los ratios de State Street. */
 async function sectorsBlock(errors) {
-  const tasks = { 'SSGA planilla de productos': ssgaProducts, 'Siblis sectores': siblisSectors };
+  const tasks = { 'SSGA planilla de productos': ssgaProducts };
   for (const x of SECTORS) {
     tasks[`worldperatio ${x.id}`] = () => worldPe(x.wpe);
     tasks[`SSGA ${x.id} flujos`] = async () => computeFlows(await ssgaNavHist(x.id));
   }
   const d = await settle(tasks, errors);
   const P = d['SSGA planilla de productos'] || {};
-  const S = d['Siblis sectores'];
   const rows = SECTORS.map((x) => {
     const W = d[`worldperatio ${x.id}`];
     return {
       cid: x.id, name: x.name, agg: !!x.agg, ticker: x.id, url: ssgaPage(x),
       ssga: P[x.id] || null,
-      siblis: x.siblis && S?.sectors[x.siblis] ? { ...S.sectors[x.siblis], asOf: S.asOf } : null,
-      wpe: W && { pe: W.pe, date: W.date, etf: W.etf, stats: W.stats, url: WPE_URL(x.wpe), history: W.history.filter((p) => p.d >= HIST_FROM) },
+      wpe: W && { pe: W.pe, date: W.date, etf: W.etf, stats: W.stats, quality: wpeQuality(W), url: WPE_URL(x.wpe), history: W.history.filter((p) => p.d >= HIST_FROM) },
       ...(d[`SSGA ${x.id} flujos`] || { flows: null, pct: null, cum: [] }),
     };
   });
-  return { rows, ssgaAsOf: Object.values(P)[0]?.asOf || null, siblisAsOf: S?.asOf || null, sources: { ssga: SSGA_PRODUCT, siblis: SIBLIS_URL } };
+  return { rows, ssgaAsOf: Object.values(P)[0]?.asOf || null, sources: { ssga: SSGA_PRODUCT } };
 }
 
-const HIST_FROM = '2006-01-01'; // historia mensual para el gráfico: 20 años alcanzan para la ventana más larga
+const HIST_FROM = '2006-01-01';
+
+// Lanzamiento de cada ETF base de worldperatio (mes). Antes de esa fecha la serie es una reconstrucción que el sitio no documenta.
+export const ETF_LAUNCH = {
+  ARGT: '2011-03', EWZ: '2000-07', VTI: '2001-05', VGK: '2005-03', EWW: '1996-03', EWC: '1996-03', COLO: '2009-02', ECH: '2007-11',
+  EPU: '2009-06', EWJ: '1996-03', INDA: '2012-02', FLLA: '2018-06', EEM: '2003-04', SPY: '1993-01',
+  XLK: '1998-12', XLY: '1998-12', XLP: '1998-12', XLE: '1998-12', XLF: '1998-12', XLV: '1998-12', XLI: '1998-12', XLB: '1998-12', XLU: '1998-12',
+  XLC: '2018-06', XLRE: '2015-10',
+};
+export const STALE_MAX = 0.1; // más de 10% de meses con el mismo valor que el mes anterior = dato viejo arrastrado
+
+/**
+ * Calidad de la serie mensual de worldperatio por ventana: % de meses repetidos y si la ventana arranca antes del ETF.
+ * → { y5: { stale, preLaunch, ok }, y10: …, y20: … }
+ */
+export function wpeQuality(W) {
+  const out = {};
+  const launch = ETF_LAUNCH[W.etf];
+  for (const [k, years] of [['y5', 5], ['y10', 10], ['y20', 20]]) {
+    const from = `${Number(W.date.slice(0, 4)) - years}${W.date.slice(4, 7)}`;
+    const h = W.history.filter((p) => p.d.slice(0, 7) >= from);
+    const rep = h.reduce((n, p, i) => n + (i && p.v === h[i - 1].v ? 1 : 0), 0);
+    const stale = h.length > 1 ? rep / (h.length - 1) : null;
+    const preLaunch = launch ? from < launch : false;
+    out[k] = { stale: stale == null ? null : Math.round(stale * 1000) / 1000, preLaunch, launch: launch || null, ok: stale != null && stale <= STALE_MAX && !preLaunch };
+  }
+  return out;
+} // historia mensual para el gráfico: 20 años alcanzan para la ventana más larga
 
 export default async function valuation() {
   const errors = [];
@@ -194,7 +218,7 @@ export default async function valuation() {
       url: c.pid ? pageUrl(c.pid) : null,
       // worldperatio: P/E diario, historia y estadísticas.
       wpe: W && {
-        pe: W.pe, date: W.date, etf: W.etf, stats: W.stats, url: WPE_URL(c.wpe), note: c.wpeNote || null,
+        pe: W.pe, date: W.date, etf: W.etf, stats: W.stats, quality: wpeQuality(W), url: WPE_URL(c.wpe), note: c.wpeNote || null,
         history: W.history.filter((p) => p.d >= HIST_FROM),
       },
       msci: msciRow(c),
@@ -218,7 +242,7 @@ export default async function valuation() {
     rows,
     sectors,
     pending: PENDING,
-    source: 'worldperatio.com (P/E e historia), MSCI (factsheets) e iShares (flujos)',
+    source: 'iShares y MSCI (países), State Street (sectores), worldperatio (historia del P/E, con control de calidad)',
     errors,
   };
 }
