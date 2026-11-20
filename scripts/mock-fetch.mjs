@@ -133,6 +133,28 @@ export async function mockFetch(input) {
   const url = new URL(typeof input === 'string' ? input : input.url);
   const u = url.toString();
 
+  if (url.host === 'www.finanzas.gob.ec' && u.includes('deuda-publica-nueva-metodologia')) {
+    // Página del boletín: links de descarga (los ids no van en orden; el último mes se elige por el rótulo).
+    const a = (id, t) => `<a class="download-link" href="https://www.finanzas.gob.ec/wp-content/plugins/download-monitor/download.php?id=${id}">${t}</a>`;
+    return text(`<html>${a(18301, 'Base de Datos<br>Bolet&iacute;n de Deuda Mayo 2026')}${a(18303, 'Perfil Vencimientos CP<br>Externa Interna Mayo 2026')}`
+      + `${a(18695, 'Base de Datos Boletín de Deuda Agosto 2026')}${a(18694, 'Perfil Vencimientos CP Externa Interna Agosto 2026')}</html>`);
+  }
+  if (url.host === 'www.finanzas.gob.ec' && u.includes('download.php')) {
+    const id = url.searchParams.get('id');
+    const filler = Array.from({ length: 16 }, () => [['x']]);
+    if (id === '18695') {
+      // Base de datos: hoja "1." (sheet2) con el indicador deuda/PIB, en miles de USD.
+      return new Response(mockXlsx([['INDICE']], [['', 'Indicador de la Deuda Pública'], ['', 'Cifras en miles de dólares USD.'], ['', '', 'AGOSTO'],
+        ['', 'Total Deuda Externa ', '52000000'], ['', 'Total Deuda Interna', '16000000'], ['', 'DEUDA PÚBLICA TOTAL ', '68000000'], ['', 'PIB NOMINAL', '136000000']]), { status: 200 });
+    }
+    if (id === '18694') {
+      // Perfil CP: hoja "16." (sheet17), fila de capital total y meses desde septiembre de 2026, más columnas de totales.
+      const M = ['SEPTIEMBRE 2026', 'OCTUBRE 2026', 'NOVIEMBRE 2026', 'DICIEMBRE 2026', 'ENERO 2027', 'FEBRERO 2027', 'MARZO 2027', 'ABRIL 2027', 'MAYO 2027', 'JUNIO 2027', 'JULIO 2027', 'AGOSTO 2027', 'SEPTIEMBRE 2027', 'TOTAL 2027'];
+      return new Response(mockXlsx(...filler, [['DEUDA TOTAL PRINCIPAL'], ['CAPITAL DEUDA EXTERNA + INTERNA', ...M.map((_, i) => String(i < 12 ? 500000000 : 999000000000))], ['CAPITAL DEUDA EXTERNA', ...M]]), { status: 200 });
+    }
+    return new Response('not found', { status: 404 });
+  }
+
   if (url.host === 'www.bankofcanada.ca' && u.includes('BoC-BoE-Database')) {
     // Base de defaults BoC-BoE: hoja 1 resumen, hoja 2 "Debt_2026.csv" con metadatos arriba y una fila por país y año.
     // Columnas en el orden real hasta DEBT_LC_DEBT. AR: holdouts en default hasta 2025; EC: default 2020; PE: arrastre chico (bajo el umbral).

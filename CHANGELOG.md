@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.14.1 — 2026-11-20 (EMBI al día; Ecuador con composición propia)
+- **EMBI desactualizado en producción**: el CDN del BCRD le servía a Vercel la planilla del día anterior (producción al 18-nov con el
+  origen ya al 19-nov, `x-vercel-cache: MISS`). Se agrega `?v=<timestamp>` y `cache: no-store` a la descarga (el sitio del BCRD usa
+  `?v=` en sus propios links). Verificado localmente: 19-nov.
+- **Ecuador** en Sostenibilidad (todo el tablero) y en la composición de la deuda con **dato propio**: Boletín de Deuda Pública del
+  Ministerio de Economía y Finanzas (`ecdebt.js`): base del boletín (hoja "1.", indicador deuda/PIB consolidado) y perfil de vencimientos
+  de corto plazo (hoja "16.", capital de los próximos 12 meses). Último mes publicado elegido por el rótulo (los ids no son correlativos).
+  Agosto 2026: deuda 50,0% del PIB, 76,8% con acreedores externos, vencimientos a 12 meses 6,9% del PIB (13,8% del total); dolarizado →
+  100% en una moneda que no emite.
+- Ranking: Ecuador pasa a tener el pilar de composición (antes re-ponderado al 75%). Al 20-nov: 1 Chile 75, 2 Perú 73, 3 Uruguay 70,
+  4 Colombia 57, 5 México 51, 6 Brasil 45, 7 Argentina 36, 8 Ecuador 35. Con el min–max, el 100% de Ecuador en moneda extranjera pasa a
+  ser el peor valor del grupo y sube el puntaje de composición del resto (p.ej. Argentina 12 → 41).
+
 ## 0.14.0 — 2026-11-20 (Ranking de emisores soberanos)
 - Crédito USD: **Ranking de emisores** (AR, BR, CL, CO, MX, PE, UY, EC; `c=rank`, caché 1 h). Pilares y pesos acordados con Hermes:
   fiscal 25% (deuda bruta, intereses/ingresos, resultado fiscal), composición 25% (% en moneda extranjera, % con acreedores externos,

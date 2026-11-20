@@ -9,6 +9,7 @@
 import { getJson, settle } from '../util.js';
 import { parseWeo, WEO_URL } from './sust.js';
 import { debtComposition, QPSD_URL } from '../debtcomp.js';
+import { ecuadorDebt, EC_DEBT_PAGE } from '../ecdebt.js';
 import { embi, EMBI_PAGE } from './usd.js';
 import { readSheet } from '../xlsx.js';
 
@@ -202,7 +203,8 @@ export default async function ranking() {
   const d = await settle(
     {
       'FMI WEO 2025': weo2025,
-      'Banco Mundial composición de la deuda (QPSD)': () => debtComposition(UNIVERSE.map((c) => ({ id: c.id, wb: c.iso3 })), { CHL: 'BC' }),
+      'Banco Mundial composición de la deuda (QPSD)': () => debtComposition(UNIVERSE.filter((c) => c.id !== 'ec').map((c) => ({ id: c.id, wb: c.iso3 })), { CHL: 'BC' }),
+      'Ecuador composición de la deuda (Ministerio de Economía)': ecuadorDebt,
       'Banco Mundial reservas': () => wbLatest('FI.RES.TOTL.CD'),
       'Banco Mundial gobernanza (WGI)': wgi,
       'BoC-BoE defaults': defaults,
@@ -211,7 +213,9 @@ export default async function ranking() {
     errors
   );
   const W = d['FMI WEO 2025'];
-  const out = buildRanking({ W: W?.data, comp: d['Banco Mundial composición de la deuda (QPSD)'], res: d['Banco Mundial reservas'],
+  const comp = { ...(d['Banco Mundial composición de la deuda (QPSD)'] || {}) };
+  if (d['Ecuador composición de la deuda (Ministerio de Economía)']) comp.ec = d['Ecuador composición de la deuda (Ministerio de Economía)'];
+  const out = buildRanking({ W: W?.data, comp, res: d['Banco Mundial reservas'],
     wgiRes: d['Banco Mundial gobernanza (WGI)'], def: d['BoC-BoE defaults'], E: d['BCRD EMBI'] });
   return {
     id: 'rank',
@@ -221,7 +225,7 @@ export default async function ranking() {
     indicators: INDICATORS,
     ...out,
     defaultThreshold: DEFAULT_MIN_USD_M,
-    sources: { weo: WEO_URL, qpsd: QPSD_URL, wgi: WGI_URL, boc: BOC_PAGE, embi: EMBI_PAGE },
+    sources: { weo: WEO_URL, qpsd: QPSD_URL, ecDebt: EC_DEBT_PAGE, wgi: WGI_URL, boc: BOC_PAGE, embi: EMBI_PAGE },
     errors,
   };
 }

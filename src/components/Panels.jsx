@@ -1015,7 +1015,7 @@ const ShareBar = ({ v, warn }) => (v == null || !Number.isFinite(v) ? <span clas
  * Composición de la deuda pública (Banco Mundial, QPSD): moneda, residencia del acreedor y vencimientos a 12 meses.
  * Es lo que diferencia un mismo nivel de deuda/PBI entre países (deuda en moneda propia y en manos locales es más estable).
  */
-function DebtComposition({ countries, url }) {
+function DebtComposition({ countries, url, ecUrl }) {
   const rows = countries.map((c) => ({ c, k: c.composition }));
   return (
     <section className="card" id="sust-comp">
@@ -1036,7 +1036,7 @@ function DebtComposition({ countries, url }) {
                 <td className="muted">{k.sectorLabel}</td>
                 <td className="muted">{k.quarter}</td>
                 <td className="num"><b>{fmtNum(k.total, 1)}</b></td>
-                <td><ShareBar v={k.fxShare} warn={k.fxShare > 40} /></td>
+                <td>{k.dollarized ? <span className="share"><ShareBar v={k.fxShare} warn /> <span className="muted small-tag">dolarizado</span></span> : <ShareBar v={k.fxShare} warn={k.fxShare > 40} />}</td>
                 <td><ShareBar v={k.extShare} warn={k.extShare > 40} /></td>
                 <td className="num">{k.due12m == null ? '—' : `${fmtNum(k.due12m, 1)}${k.due12mPartial ? '*' : ''}`}</td>
                 <td><ShareBar v={k.due12mShare} warn={k.due12mShare > 25} /></td>
@@ -1053,14 +1053,19 @@ function DebtComposition({ countries, url }) {
       <div className="card-foot">
         <span>
           Banco Mundial, Quarterly Public Sector Debt (lo cargan los ministerios de finanzas y bancos centrales de cada país), valor nominal.
-          Cobertura: gobierno central, salvo Chile (presupuestario central). Por qué importa: con el mismo nivel de deuda, la que está en moneda
+          Cobertura: gobierno central, salvo Chile (presupuestario central). Ecuador no reporta a esa base: dato propio del Boletín de Deuda Pública
+          mensual del Ministerio de Economía y Finanzas (indicador oficial consolidado del sector público; externa = acreedores no residentes;
+          dolarizado: toda la deuda es en dólares, moneda que no emite). Por qué importa: con el mismo nivel de deuda, la que está en moneda
           extranjera sube con cada devaluación y no se puede pagar emitiendo; la que tienen acreedores externos es más volátil (pueden salir); y lo
           que vence en 12 meses es lo que hay que refinanciar pronto. Barras en ámbar: más de 40% en moneda extranjera o con externos, o más de 25%
           venciendo en 12 meses (umbrales orientativos). Vence en 12 meses = deuda de corto plazo + cuotas de largo plazo que vencen en el año;
           * sin el componente de corto plazo para ese trimestre. Colombia no informa la residencia del acreedor; Japón, la moneda.
           † {rows.filter(({ k }) => k?.note).map(({ c, k }) => `${c.name}: ${k.note}`).join(' ')}
         </span>
-        <Source source="Banco Mundial (QPSD)" url={url} />
+        <span>
+          <Source source="Banco Mundial (QPSD)" url={url} />
+          {ecUrl && <> · <Source source="Ministerio de Economía de Ecuador" url={ecUrl} /></>}
+        </span>
       </div>
     </section>
   );
@@ -1150,7 +1155,7 @@ export function SustPanel({ data }) {
         </div>
       </section>
 
-      <DebtComposition countries={countries} url={data.sources?.qpsd} />
+      <DebtComposition countries={countries} url={data.sources?.qpsd} ecUrl={data.sources?.ecDebt} />
 
       <h2 className="section">Ficha por país</h2>
       <div className="chips" role="group" aria-label="País">
@@ -1672,7 +1677,8 @@ export function RankPanel({ data, state }) {
           <span>
             Valor del indicador y, en chico, su puntaje 0–100 dentro del grupo. Fuentes: FMI WEO {data.year} (deuda, intereses = primario − resultado
             total, sobre ingresos; resultado fiscal; cuenta corriente); Banco Mundial QPSD (composición, último trimestre {data.year}+, gobierno
-            central; Chile: presupuestario central y sin residencia del acreedor por dato no creíble; Ecuador no reporta); Banco Mundial
+            central; Chile: presupuestario central y sin residencia del acreedor por dato no creíble; Ecuador: Boletín de Deuda Pública del
+            Ministerio de Economía, dolarizado = 100% en una moneda que no emite); Banco Mundial
             (reservas {data.year}); WGI {data.year} (promedio de efectividad del gobierno, Estado de derecho, control de la corrupción, calidad
             regulatoria, estabilidad política y voz); BoC-BoE Sovereign Default Database 2026: años desde el último año con más de
             USD {fmtNum(data.defaultThreshold, 0)} M en default con acreedores comerciales (bonos, bancos, deuda local), tope 30. Argentina figura

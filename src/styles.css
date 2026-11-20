@@ -323,3 +323,4 @@ a.src:hover { color: var(--accent); }
 .lead.small { font-size: 13.5px; margin: 0 0 14px; }
 .share.compact { min-width: 96px; gap: 6px; }
 .share.compact .share-track { min-width: 54px; }
+.small-tag { font-size: 11px; }

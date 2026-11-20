@@ -12,6 +12,7 @@ import { getJson, settle, clean, iso, daysAgo } from '../util.js';
 import { fred } from './us.js';
 import { sgs } from './br.js';
 import { debtComposition, QPSD_URL } from '../debtcomp.js';
+import { ecuadorDebt, EC_DEBT_PAGE } from '../ecdebt.js';
 
 export const COUNTRIES = [
   { id: 'ar', name: 'Argentina', weo: 'ARG', wb: 'ARG' },
@@ -21,6 +22,7 @@ export const COUNTRIES = [
   { id: 'mx', name: 'México', weo: 'MEX', wb: 'MEX' },
   { id: 'pe', name: 'Perú', weo: 'PER', wb: 'PER' },
   { id: 'uy', name: 'Uruguay', weo: 'URY', wb: 'URY' },
+  { id: 'ec', name: 'Ecuador', weo: 'ECU', wb: 'ECU' },
   { id: 'us', name: 'Estados Unidos', weo: 'USA', wb: 'USA' },
   { id: 'ca', name: 'Canadá', weo: 'CAN', wb: 'CAN' },
   { id: 'eu', name: 'Eurozona', weo: 'G163', wb: 'EMU' },
@@ -276,7 +278,9 @@ export default async function sustainability() {
       'Banco Mundial reservas': () => wb(WB.resMonths),
       'Banco Mundial servicio de deuda externa': () => wb(WB.extService),
       // Composición de la deuda (QPSD): sin Eurozona (no hay agregado); Chile solo publica el presupuestario central.
-      'Banco Mundial composición de la deuda (QPSD)': () => debtComposition(COUNTRIES.filter((c) => c.id !== 'eu'), { CHL: 'BC' }),
+      'Banco Mundial composición de la deuda (QPSD)': () => debtComposition(COUNTRIES.filter((c) => !['eu', 'ec'].includes(c.id)), { CHL: 'BC' }),
+      // Ecuador no reporta a QPSD: dato propio del Ministerio de Economía y Finanzas.
+      'Ecuador composición de la deuda (Ministerio de Economía)': ecuadorDebt,
     },
     errors
   );
@@ -305,9 +309,11 @@ export default async function sustainability() {
     countries: COUNTRIES.map((c) => ({
       ...buildCountry(c, W.data[c.weo], B, projFrom),
       official: OFF[c.id] || null,
-      composition: d['Banco Mundial composición de la deuda (QPSD)']?.[c.id] ? { ...d['Banco Mundial composición de la deuda (QPSD)'][c.id], note: COMP_NOTES[c.id] || null } : null,
+      composition: c.id === 'ec'
+        ? d['Ecuador composición de la deuda (Ministerio de Economía)'] || null
+        : d['Banco Mundial composición de la deuda (QPSD)']?.[c.id] ? { ...d['Banco Mundial composición de la deuda (QPSD)'][c.id], note: COMP_NOTES[c.id] || null } : null,
     })),
-    sources: { weo: WEO_URL, wb: WB_URL, qpsd: QPSD_URL },
+    sources: { weo: WEO_URL, wb: WB_URL, qpsd: QPSD_URL, ecDebt: EC_DEBT_PAGE },
     errors,
   };
 }
