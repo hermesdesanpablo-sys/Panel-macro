@@ -1,7 +1,7 @@
 // Japón: Banco de Japón (API de series, sin clave) + Ministerio de Finanzas (curva JGB) + BIS (IPC) + Yahoo.
 import { getJson, getText, clean, iso, daysAgo, settle, kpi, merge, thin, last, upcoming, spreadSeries } from '../util.js';
 import { equityBlock, yahooSeries } from '../yahoo.js';
-import { meetingEvents } from '../calendar.js';
+import { agendaEvents } from '../calendar.js';
 
 const BOJ_API = 'https://www.stat-search.boj.or.jp/api/v1/getDataCode';
 const BOJ_URL = 'https://www.stat-search.boj.or.jp/index_en.html';
@@ -145,7 +145,7 @@ export default async function japan() {
     ],
     expectations: [],
     path: null,
-    calendar: upcoming(meetingEvents('jp')),
+    calendar: upcoming(agendaEvents('jp'), 20),
     errors,
   };
 }

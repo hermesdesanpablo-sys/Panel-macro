@@ -8,7 +8,7 @@
 // - Cuadros mensuales: traen varios años por defecto.
 import { getText, clean, iso, daysAgo, settle, kpi, merge, thin, last, upcoming, spreadSeries, yoyFromIndex, valueAt } from '../util.js';
 import { yahooSeries, perf } from '../yahoo.js';
-import { meetingEvents } from '../calendar.js';
+import { agendaEvents } from '../calendar.js';
 
 const BDE = 'https://si3.bcentral.cl/Siete/ES/Siete/Cuadro';
 export const CUADROS = {
@@ -247,7 +247,7 @@ export default async function chile() {
     path: pathPts.length
       ? { title: 'TPM esperada por plazo (Encuesta de Expectativas Económicas)', kind: 'survey', asOf: asOfEee, current: last(tpm)?.v, currentLabel: 'TPM actual', path: pathPts, source: 'BCCh – EEE', url: bdeUrl(C.eeeTpm), note: 'Mediana de los economistas encuestados.' }
       : null,
-    calendar: upcoming(meetingEvents('cl')),
+    calendar: upcoming(agendaEvents('cl'), 20),
     errors,
   };
 }

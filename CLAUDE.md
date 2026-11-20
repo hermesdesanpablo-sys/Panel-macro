@@ -4,11 +4,11 @@ Contexto para Claude Code. Leer entero antes de tocar código.
 
 ## Qué es
 
-Dashboard macro con un panel por país (Argentina, Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Chile, Japón), una vista
+Dashboard macro con un panel por país (Argentina, Brasil, EE.UU., Eurozona, México, Canadá, Colombia, Chile, Perú, Japón, India), una vista
 **Mundo** (cuadros tipo terminal + panel lateral "Hoy", tendencias y comparativo entre países), una solapa
 **Comparar** (dos países lado a lado), una solapa **Crédito USD** (spread EMBI de América Latina y curvas de los
-bonos soberanos en dólares), una solapa **Sostenibilidad** (tres brechas, deuda/PBI y primario que estabiliza la deuda)
-y una **Agenda** consolidada.
+bonos soberanos en dólares), una solapa **Sostenibilidad** (tres brechas, deuda/PBI y primario que estabiliza la deuda),
+una solapa **Valuación** (P/E, P/B y flujos de los ETF por país) y una **Agenda** consolidada (económica y política).
 Dueño: Hermes (renta fija / mercado de capitales, Argentina). Idioma de la UI y de los comentarios: español.
 
 Objetivo de cada panel:
@@ -21,13 +21,17 @@ Objetivo de cada panel:
 ## Arquitectura
 
 ```
-api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|jp|world|usd|sust  (función serverless Vercel, cache edge 30 min)
+api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val  (función serverless Vercel, cache edge 30 min)
 api/_lib/util.js            HTTP, fechas, series, kpi(), trend(), spreadSeries(), settle()
 api/_lib/yahoo.js           Yahoo Finance: precios, perf, futuros Fed funds (ZQ)
-api/_lib/calendar.js        Fechas de reuniones de bancos centrales (estático, revisar 1 vez/año)
+api/_lib/calendar.js        Reuniones de bancos centrales + publicaciones de IPC/PIB con fecha oficial (estático; revisar cada semestre)
+api/_lib/bis.js             BIS (sin clave): tasas de política WS_CBPOL y IPC WS_LONG_CPI (Perú, India)
 api/_lib/sources/<pais>.js  Un adaptador por país. Devuelve el "contrato de payload" (abajo)
 api/_lib/sources/usd.js     Crédito USD: EMBI por país (BCRD) + bonos soberanos en USD (onvista) vs Tesoro (FRED). Payload propio
 api/_lib/usd-bonds.json     Lista de ISINs en USD por emisor (la genera scripts/discover-usd-bonds.mjs)
+api/_lib/sources/val.js     Valuación: worldperatio (P/E e historia con desvíos) + MSCI (P/E fwd) + iShares (flujos = Δcuotas × NAV)
+api/_lib/worldpe.js         Lector de worldperatio.com (P/E diario, serie mensual detailPE_data, tabla de estadísticas por ventana)
+api/_lib/msci.js            Lector del factsheet mensual de MSCI (PDF, con unpdf): Div Yld, P/E, P/E Fwd, P/BV
 api/_lib/sources/sust.js    Sostenibilidad: FMI WEO (API SDMX) + Banco Mundial (WDI). Payload propio: countries[].rows por año
 api/_lib/xlsx.js            Lector mínimo de .xlsx sin dependencias (zlib), usado para la planilla del EMBI
 src/App.jsx                 Tabs, carga en paralelo de todos los países, modo ?mock=1
@@ -147,6 +151,8 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 
 | 🇦🇷 | ✔ TAMAR (BCRA 44; sin tasa de política desde jul-25) y pases 1d (150) | ✔ INDEC vía BCRA (27 m/m, 28 a/a) | ✔ REM: 12m (BCRA 29, con historia) + planilla completa (inflación, TAMAR, TC, PIB, fiscal) | ✔ BADLAR; EMBI (BCRD); ❌ curva en pesos | ✔ A3500 + bandas | ✔ ARGT | ✔ IPC INDEC 15-dic-2026 |
 | 🇨🇱 | ✔ BDE F022.TPM | ✔ BDE IPC var. 12m | ✔ EEE (inflación 11/23m, TPM por plazo, PIB) y EOF (TPM e inflación 12m); ✔ BCP−BCU 10Y | ✔ BCP 2Y/10Y, BCU 10Y | ✔ dólar observado | ✔ ECH; IPSA mensual (BDE) | ✔ dic-2026; ❌ 2027 (publicado, no accesible) |
+| 🇵🇪 | ✔ BIS D.PE | ✔ BIS M.PE.771 (lag ~2 meses) | FMI WEO (dic/dic próximo año); ❌ encuesta BCRP (API bloqueada) | ✔ EMBI; ❌ curva en soles | ✔ Yahoo PEN=X | ✔ EPU; ❌ S&P/BVL sin historia en Yahoo | ❌ BCRP e INEI (sin calendario legible) |
+| 🇮🇳 | ✔ BIS D.IN (lag ~1 mes) | ✔ BIS M.IN.771 | FMI WEO (AF abr–mar); proxy 3M − repo | ✔ OCDE vía FRED: call, 3M, 10Y (mensual); ❌ G-sec 2Y | ✔ Yahoo INR=X | ✔ INDA/^NSEI | ✔ RBI MPC AF 26-27; MOSPI (previstas) |
 | 🇯🇵 | ✔ BoJ call O/N (STRDCLUCON) | ✔ BIS WS_LONG_CPI M.JP.771 | ✔ Tankan infl. 1a; proxy JGB 2Y − call | ✔ MOF JGB 2Y/10Y/30Y | ✔ Yahoo JPY=X | ✔ EWJ/^N225 | ✔ BoJ 2026–2027 |
 
 ### Notas de Crédito USD (onvista)
@@ -223,6 +229,32 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 - Variables opcionales para sobreescribir: `BANREP_FLOW_POLICY`, `BANREP_IBR_ON`, `BANREP_IBR_6M`.
 - `startPeriod` solo respeta el año; el filtro fino de fechas se hace del lado del cliente.
 
+### Notas de la Agenda
+- `calendar.js`: `POLICY_MEETINGS` (bancos centrales) y `DATA_RELEASES` (IPC y PIB) con la fuente de cada calendario;
+  `agendaEvents(id)` une ambos. En vivo: BR (API del IBGE, nombres completos: "Índice Nacional de Preços ao Consumidor Amplo" = IPCA,
+  "... Amplo 15" = IPCA-15), EE.UU. (FRED releases) y CO (vista mensual del DANE, `parseDaneMonth`).
+- Fuentes de las fechas estáticas: INDEC `ftp/cuadros/publicaciones/calendario_<N>sem<AAAA>.pdf`; INEGI
+  `contenidos/saladeprensa/doc/cal_<AAAA>.pdf`; BCE `press/calendars/statscal/ges/html/sthicp.en.html` (HICP flash/final);
+  StatCan "Next release" de cada comunicado de The Daily; MIC `stat.go.jp/english/data/cpi/1582.htm`; Cabinet Office
+  `esri.cao.go.jp/en/sna/kouhyou/kouhyou_top.html`; RBI `Scripts/Annualpolicy.aspx`; MOSPI Advance Release Calendar (PDF).
+- No se cargan fechas estimadas: si un calendario no se puede leer (BCRP, INEI, BCCh), queda vacío y anotado como pendiente.
+- Político: `POLITICAL_EVENTS` (kind `pol`, `tentative` → "previsto") y `POLITICAL_UNDATED` (sin fecha). `country.js` los agrega
+  a cada país fuera del tope de 20 eventos. Revisar cada trimestre (PASO 2027 en discusión; decreto de Francia antes del 7-feb-2027).
+
+### Notas de Valuación (iShares)
+- P/E y P/B: `blackrock.com/varnish-api/.../api/v2/get-product-data?appType=PRODUCT_PAGE&appSubType=ISHARES&targetSite=us-ishares&locale=en_US&userType=individual&portfolioId=<id>&component=fundamentalsAndRisk`.
+- NAV y cuotas diarias: `.../api/v1/get-fund-document?...&portfolioId=<id>&component=fundDownload` (SpreadsheetML, hojas Holdings,
+  Historical, Performance, Distributions; ~3 MB, se lee solo el principio de Historical). IDs en `FUNDS` (val.js), del buscador
+  `ishares.com/us/product-screener/product-screener-v3.1.jsn`.
+- Algunos ETF pasan semanas sin creaciones ni rescates (p.ej. EEM): flujo 0 es dato real, no error.
+- P/E forward: factsheet mensual de MSCI (`msci.com/documents/10199/255599/msci-<pais>-index-net.pdf`; México:
+  `msci-mexico-index-usd-net.pdf`; EM: `msci-emerging-markets-index-usd-net.pdf`) con Div Yld, P/E, P/E Fwd y P/BV a fin de mes del
+  país y de dos comparables. Se lee con `unpdf`; si cambia el formato, `parseMsciText` falla con un error claro.
+- Historia del P/E: worldperatio.com (`/area/<pais>`): P/E diario sobre un ETF (EWZ, VTI, VGK, EWW…), serie mensual desde 1995 en
+  `detailPE_data` (Highcharts) y tabla "Last NY" con μ, σ, desvío y lectura (Fair/Overvalued/Expensive/Undervalued/Cheap).
+  No tiene Eurozona (se usa Europa) ni ACWI. Su P/E difiere del de MSCI (ETF vs índice, fecha): se muestran ambos.
+- Términos de iShares: datos para uso personal y no comercial.
+
 ## Pendientes priorizados
 
 1. Deploy en Vercel (cargar `FRED_API_KEY` y `BANXICO_TOKEN` en Settings → Environment Variables).
@@ -232,7 +264,7 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 3. México: Bono M de mercado secundario diario (hoy: subasta primaria).
 4. Colombia: Encuesta mensual de expectativas de BanRep (la página tiene captcha → carga manual o LSEG). TES diario (hoy: promedio mensual).
    Argentina: Merval sin historia en Yahoo/Stooq (solo ARGT en Mundo).
-5. Agenda de datos para MX (INEGI), CA (StatCan), CO (DANE), EZ (Eurostat): hoy solo hay BR (IBGE) y EE.UU. (FRED).
+5. Valuación: flujos de ARGT/COLO (Global X responde 429); historia del P/E forward (solo LSEG/Datastream).
 6. Persistir snapshots diarios (p.ej. Vercel KV / Postgres + cron) para tener historia propia de variables
    que la fuente no guarda (strip de futuros completo, forwards por plazo, encuestas).
 7. Si se conecta LSEG: adaptador `lseg` para DI futuro, OIS (USD/EURCAD), swaps TIIE/IBR y TES/Mbono.

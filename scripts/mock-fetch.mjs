@@ -55,6 +55,10 @@ const SGS = {
 const FRED = {
   ...Object.fromEntries(['DGS1MO', 'DGS3MO', 'DGS6MO', 'DGS1', 'DGS3', 'DGS5', 'DGS7', 'DGS20', 'DGS30'].map((id, i) => [id, () => walk(3.6 + i * 0.12, 20, 0.004)])),
   DFEDTARU: () => steps([4.5, 4.25, 4.0, 3.75], 1100),
+  // India (OCDE vía FRED, mensuales).
+  IRSTCI01INM156N: () => walk(5.4, 36, 0.01, 'M'),
+  INDIR3TIB01STM: () => walk(5.7, 36, 0.01, 'M'),
+  INDIRLTLT01STM: () => walk(6.5, 36, 0.005, 'M'),
   DFEDTARL: () => steps([4.25, 4.0, 3.75, 3.5], 1100),
   EFFR: () => steps([3.83, 3.64], 400),
   CPIAUCSL: () => index(300, 40, 2.9),
@@ -154,7 +158,9 @@ export async function mockFetch(input) {
     return json({ value });
   }
   if (url.host === 'servicodados.ibge.gov.br') {
-    return json({ items: [{ nome_produto: 'IPCA-15', data_divulgacao: dmy(iso(Date.now() + 8 * DAY)) + ' 09:00:00' }, { nome_produto: 'Sistema de Contas Nacionais Trimestrais (PIB)', data_divulgacao: dmy(iso(Date.now() + 15 * DAY)) + ' 09:00:00' }] });
+    // Nombres reales del calendario del IBGE (nombre completo, no la sigla).
+    const it = (n, k) => ({ nome_produto: n, data_divulgacao: dmy(iso(Date.now() + k * DAY)) + ' 09:00:00' });
+    return json({ items: [it('Índice Nacional de Preços ao Consumidor Amplo 15', 8), it('Índice Nacional de Preços ao Consumidor Amplo', 22), it('Índice Nacional de Preços ao Consumidor', 22), it('Sistema de Contas Nacionais Trimestrais', 15)] });
   }
   if (url.host === 'api.stlouisfed.org') {
     if (u.includes('/release/dates')) {
@@ -270,7 +276,7 @@ export async function mockFetch(input) {
     const key = decodeURIComponent(u.match(/WEO\/\+\/([^?]+)/)[1]).split('.');
     const cs = key[0].split('+'), inds = key[1].split('+');
     const years = Array.from({ length: 2031 - 2004 + 1 }, (_, i) => String(2004 + i));
-    const base = { BCA_NGDPD: -1.5, GGXCNL_NGDP: -3, GGXONLB_NGDP: 0.5, GGXWDG_NGDP: 60, NGSD_NGDP: 20, NID_NGDP: 21.5, NGDP: 1000, NGDP_RPCH: 2 };
+    const base = { BCA_NGDPD: -1.5, GGXCNL_NGDP: -3, GGXONLB_NGDP: 0.5, GGXWDG_NGDP: 60, NGSD_NGDP: 20, NID_NGDP: 21.5, NGDP: 1000, NGDP_RPCH: 2, PCPIPCH: 3, PCPIEPCH: 2.8 };
     const series = {};
     cs.forEach((c, ci) => inds.forEach((ind, ii) => {
       series[`${ci}:${ii}:0`] = {
@@ -355,7 +361,68 @@ export async function mockFetch(input) {
     return text(`Interest Rate,,,,,,,,,,,,,,,(Unit : %)\nDate,1Y,2Y,3Y,4Y,5Y,6Y,7Y,8Y,9Y,10Y,15Y,20Y,25Y,30Y,40Y\n${rows.join('\n')}\n`);
   }
   if (url.host === 'stats.bis.org') {
-    return text('FREQ,REF_AREA,UNIT_MEASURE,TIME_PERIOD,OBS_VALUE\n' + walk(2.5, 40, 0.03, 'M').map((p) => `M,JP,771,${p.d.slice(0, 7)},${p.v.toFixed(3)}`).join('\n') + '\n');
+    // Formato real: campos de texto con comas y punto y coma antes de TIME_PERIOD,OBS_VALUE; NaN en feriados.
+    const area = u.match(/\/(?:D|M)\.([A-Z]{2})/)[1];
+    if (u.includes('WS_CBPOL')) {
+      const rows = steps([5.0, 4.75, 4.5, 4.25], 1100).map((p, i) => `D,${area},368,0,,From 3 Apr 2001 onwards: official rate; see notes.,4,Central bank,Notes, with commas, Central bank policy rates - Daily,${p.d},${i % 50 === 7 ? 'NaN' : p.v},A,F,`);
+      return text('FREQ,REF_AREA,UNIT_MEASURE,UNIT_MULT,TIME_FORMAT,COMPILATION,DECIMALS,SOURCE_REF,SUPP_INFO_BREAKS,TITLE,TIME_PERIOD,OBS_VALUE,OBS_STATUS,OBS_CONF,OBS_PRE_BREAK\n' + rows.join('\n') + '\n');
+    }
+    return text('FREQ,REF_AREA,UNIT_MEASURE,UNIT_MULT,TIME_FORMAT,BREAKS,COVERAGE,DECIMALS,TITLE_TS,TIME_PERIOD,OBS_VALUE,OBS_CONF,OBS_PRE_BREAK,OBS_STATUS\n' + walk(2.5, 40, 0.03, 'M').map((p) => `M,${area},771,0,,,,,,${p.d.slice(0, 7)},${p.v.toFixed(3)},F,,A`).join('\n') + '\n');
+  }
+  if (url.host === 'www.blackrock.com') {
+    const pid = Number(url.searchParams.get('portfolioId'));
+    if (u.includes('get-product-data')) {
+      // Componente fundamentalsAndRisk: objetos { name, formattedValue, value, asOfDate } anidados.
+      const f = (name, value, monthly = false) => ({ name, visible: true, formattedValue: String(value), value,
+        asOfDate: Number((monthly ? iso(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 0)) : iso(Date.now() - DAY)).replace(/-/g, '')) });
+      return json({ productId: pid, componentsByNameMap: { fundamentalsAndRisk: { containersByNameMap: { default: { attributesByNameMap: {
+        priceEarnings: f('priceEarnings', 10 + (pid % 17)), priceBook: f('priceBook', 1 + (pid % 7) / 3), twelveMonTrlYld: f('twelveMonTrlYld', 2 + (pid % 5) / 2, true), numHoldings: f('numHoldings', 50),
+        thirtyDaySecYield: f('thirtyDaySecYield', 1.5 + (pid % 4) / 3, true), beta3Yr: f('beta3Yr', 0.6 + (pid % 5) / 10, true), standardDeviation3Yr: f('standardDeviation3Yr', 15 + (pid % 9), true) } } } } } });
+    }
+    // Planilla SpreadsheetML: hoja Holdings y luego Historical (de la fecha más nueva a la más vieja).
+    const row = (cells) => `<ss:Row>${cells.map((c) => `<ss:Cell><ss:Data ss:Type="String">${c}</ss:Data></ss:Cell>`).join('')}</ss:Row>`;
+    const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const us = (d) => `${M[+d.slice(5, 7) - 1]} ${d.slice(8)}, ${d.slice(0, 4)}`;
+    let so = 100e6 + (pid % 13) * 1e6;
+    const hist = walk(30, 420, 0.01).map((p, i) => ({ ...p, so: (so += (i % 9 === 0 ? 1 : i % 7 === 0 ? -1 : 0) * 0.4e6) })).reverse();
+    return text(`<?xml version="1.0"?><ss:Workbook><ss:Worksheet ss:Name="Holdings"><ss:Table>${row(['Ticker', 'Name'])}${row(['ABC', 'Empresa'])}</ss:Table></ss:Worksheet>`
+      + `<ss:Worksheet ss:Name="Historical"><ss:Table>${row(['As Of', 'NAV per Share', 'Ex-Dividends', 'Shares Outstanding', 'Non-FV NAV'])}`
+      + hist.map((p) => row([us(p.d), p.v.toFixed(4), '--', String(p.so), p.v.toFixed(4)])).join('') + `</ss:Table></ss:Worksheet></ss:Workbook>`);
+  }
+  if (url.host === 'worldperatio.com') {
+    // Misma estructura que la página real: título, P/E y fecha, ETF, serie mensual (Highcharts) y tabla de estadísticas.
+    const LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const now = new Date(Date.now() - DAY);
+    const date = `${now.getUTCDate()} ${LONG[now.getUTCMonth()]} ${now.getUTCFullYear()}`;
+    const hist = walk(12, 260, 0.04, 'M');
+    const pe = hist.at(-1).v;
+    const row = (y, avg, sd) => `<tr><td><b>Last ${y}Y</b></td><td>${avg}</td><td>${sd}</td><td>[${(avg - 2 * sd).toFixed(2)} · <font>${(avg - sd).toFixed(2)} , ${(avg + sd).toFixed(2)}</font> · ${(avg + 2 * sd).toFixed(2)}]</td>`
+      + `<td><div class="pe-range"></div></td><td>${((pe - avg) / sd >= 0 ? '+' : '') + ((pe - avg) / sd).toFixed(2)} &sigma;</td><td><div class="w3-tag">Fair</div></td></tr>`;
+    return text(`<html><h1>Test Stock Market: current P/E Ratio</h1><a>Homepage</a><h2>Test Stock Market: current P/E Ratio</h2><span>Test Stock Market</span>`
+      + `<span>P/E Ratio</span><span>${pe.toFixed(2)}</span><span>${date}</span><p>P/E Ratio is calculated on the <b>ETF</b> Etf</p>`
+      + `<script>detailPE_data = [${hist.map((p) => `[Date.UTC(${p.d.slice(0, 4)}, ${+p.d.slice(5, 7) - 1}, 1),${p.v.toFixed(4)}]`).join(',')}];</script>`
+      + `<table>${row(1, 12.5, 0.9)}${row(5, 11.8, 1.6)}${row(10, 12.1, 1.9)}${row(20, 12.4, 2.1)}</table></html>`);
+  }
+  if (url.host === 'www.msci.com') {
+    // PDF mínimo válido (fuente Helvetica, texto sin comprimir) con la leyenda y la sección FUNDAMENTALS del factsheet real.
+    const lines = ['CUMULATIVE INDEX PERFORMANCE — NET RETURNS (USD)', '(OCT 2011 – OCT 2026)', 'MSCI Test', 'MSCI Emerging Markets', 'MSCI ACWI', 'ANNUAL PERFORMANCE (%)',
+      'FUNDAMENTALS (OCT 30, 2026)', 'Div Yld (%) P/E P/E Fwd P/BV', '5.80 8.89 7.58 1.71', '2.19 13.68 12.10 2.20', '1.61 20.82 15.64 3.71', 'INDEX RISK AND RETURN CHARACTERISTICS'];
+    const esc = (x) => x.replace(/[—–]/g, '-').replace(/([()\\])/g, '\\$1');
+    const content = `BT /F1 10 Tf 14 TL 40 760 Td ${lines.map((l) => `(${esc(l)}) Tj T*`).join(' ')} ET`;
+    const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+      `<< /Length ${content.length} >>\nstream\n${content}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+    let pdf = '%PDF-1.4\n';
+    const off = objs.map((o, i) => { const at = pdf.length; pdf += `${i + 1} 0 obj\n${o}\nendobj\n`; return at; });
+    const xref = pdf.length;
+    pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${off.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+    return new Response(Buffer.from(pdf, 'latin1'), { status: 200, headers: { 'content-type': 'application/pdf' } });
+  }
+  if (url.host === 'www.dane.gov.co') {
+    // Vista mensual del calendario: links icalrepeat.detail/AAAA/MM/DD/<id>/-/<slug> con el título en <strong>.
+    const [, y, m] = u.match(/month\.calendar\/(\d{4})\/(\d{2})/);
+    const ev = (d, t) => `<a class="cal_titlelink" href="/index.php/calendario/icalrepeat.detail/${y}/${m}/${d}/1/-/x"><strong> ${t}</strong></a>`;
+    return text(`<html>${ev('07', 'Índice de Precios al Consumidor (IPC)')}${ev('07', 'Boletín diario de Precios de Alimentos (SIPSA)')}${ev('17', 'Producto Interno Bruto (PIB)')}${ev('18', 'Indicador de Seguimiento a la Economía (ISE)')}</html>`);
   }
   return new Response('not mocked: ' + u, { status: 404 });
 }

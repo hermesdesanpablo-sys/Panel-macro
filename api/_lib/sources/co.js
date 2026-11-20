@@ -6,10 +6,40 @@
 // (ver ipcFromUvr). La tasa de política se puede fijar con env BANREP_FLOW_POLICY.
 import { getText, getJson, clean, iso, daysAgo, settle, kpi, merge, thin, last, upcoming, yoyFromIndex, spreadSeries } from '../util.js';
 import { equityBlock } from '../yahoo.js';
-import { meetingEvents } from '../calendar.js';
+import { agendaEvents } from '../calendar.js';
 import { fred } from './us.js';
 
 const SDMX = 'https://totoro.banrep.gov.co/nsi-jax-ws/rest';
+
+// Calendario del DANE (vista mensual en HTML, sin API). Cada publicación es un link
+// ".../icalrepeat.detail/AAAA/MM/DD/<id>/-/<slug>"><strong> Título</strong>. Se toman IPC, PIB e ISE.
+const DANE_CAL = 'https://www.dane.gov.co/index.php/calendario';
+const DANE_PICK = [
+  [/^Índice de Precios al Consumidor \(IPC\)$/, 'DANE – IPC'],
+  [/^Producto Interno Bruto/, 'DANE – PIB trimestral'],
+  [/^Indicador de Seguimiento a la Economía/, 'DANE – ISE (actividad mensual)'],
+];
+export function parseDaneMonth(html) {
+  const out = [];
+  const re = /icalrepeat\.detail\/(\d{4})\/(\d{2})\/(\d{2})\/\d+\/[^"]*"[^>]*>\s*<strong>\s*([^<]+?)\s*<\/strong>/g;
+  for (const m of html.matchAll(re)) {
+    const hit = DANE_PICK.find(([r]) => r.test(m[4]));
+    if (hit) out.push({ date: `${m[1]}-${m[2]}-${m[3]}`, event: hit[1], kind: 'data', url: DANE_CAL });
+  }
+  return out.filter((e, i, a) => a.findIndex((x) => x.date === e.date && x.event === e.event) === i);
+}
+async function daneCalendar(months = 4) {
+  const now = new Date();
+  const pages = await Promise.allSettled(
+    Array.from({ length: months }, (_, k) => {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + k, 15));
+      return getText(`${DANE_CAL}/month.calendar/${d.getUTCFullYear()}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/15/-`, { timeout: 20000 });
+    })
+  );
+  const ok = pages.filter((p) => p.status === 'fulfilled');
+  if (!ok.length) throw new Error(pages[0]?.reason?.message || 'DANE calendario sin respuesta');
+  return ok.flatMap((p) => parseDaneMonth(p.value));
+}
 const XML_DATA = 'application/vnd.sdmx.genericdata+xml;version=2.1';
 const XML_STRUCT = 'application/vnd.sdmx.structure+xml;version=2.1';
 const BANREP_URL = 'https://suameca.banrep.gov.co/estadisticas-economicas/';
@@ -126,6 +156,7 @@ export default async function colombia() {
   const d = await settle(
     {
       'datos.gov.co TRM': () => trmSocrata(from),
+      'DANE calendario': () => daneCalendar(),
       'BanRep IBR': () => banrep(BANREP_FLOWS.ibr, year - 1),
       'BanRep tasa de política': async () => {
         const flow = BANREP_FLOWS.policy;
@@ -238,7 +269,10 @@ export default async function colombia() {
     ],
     expectations: [],
     path: null,
-    calendar: upcoming(meetingEvents('co')),
+    calendar: upcoming(
+      [...agendaEvents('co'), ...(d['DANE calendario'] || [])].filter((e, i, a) => a.findIndex((x) => x.date === e.date && x.event.startsWith(e.event.split(' de ')[0])) === i),
+      20
+    ),
     errors,
   };
 }

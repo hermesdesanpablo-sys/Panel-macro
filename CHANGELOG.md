@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.11.1 — 2026-11-20 (Valuación: datos directos primero)
+- Primera tabla con los datos de quienes arman índices y fondos: iShares (P/E y P/B del ETF diarios; dividendo 12m, SEC 30d,
+  beta y volatilidad 3 años mensuales) y MSCI (P/E, P/E forward, P/BV y dividendo del índice país, mensual). Asterisco en todo
+  lo que se publica una vez por mes, con la fecha de cada fuente.
+- Segunda tabla: worldperatio contra la propia historia (rangos ±1 y ±2 desvíos). Gráfico del P/E con bandas sombreadas de
+  ±1 y ±2 desvíos y el promedio punteado (las bandas son áreas, no series: una sola línea de datos).
+
+## 0.11.0 — 2026-11-20 (P/E histórico con desvíos y P/E forward)
+- **Valuación contra la historia** (worldperatio.com, sin clave): P/E diario por país (calculado sobre el ETF), historia mensual
+  desde 1995 y, por ventana de 5/10/20 años, promedio, desvío estándar (excluyendo el 10% extremo de cada lado), rango ±1 desvío,
+  cuántos desvíos está hoy del promedio y lectura (muy barato / barato / neutral / caro / muy caro). Gráfico del P/E con la banda
+  ±1 desvío. Eurozona: worldperatio solo publica Europa (VGK), se avisa. Argentina y Colombia incluidos (ARGT, COLO).
+- **P/E forward MSCI**: factsheet mensual en PDF leído con `unpdf` (nueva dependencia, pdf.js empaquetado para serverless):
+  dividend yield, P/E, P/E forward y P/BV del índice país; EM y ACWI salen de las filas de comparación. Verificado contra el
+  factsheet propio de MSCI EM (P/E 13,68, forward 8,70 al 30-oct-2026: es lo que publica MSCI).
+- Solapa reorganizada en tres bloques: valuación, P/E histórico y flujos (iShares). Verificado en vivo: 13 países con worldperatio,
+  13 con MSCI, 12 ETF con flujos, sin errores. Test offline con página simulada de worldperatio y un PDF mínimo real.
+
+## 0.10.0 — 2026-11-20 (Valuación y flujos + agenda política)
+- **Valuación** (solapa nueva, `c=val`, caché 1 h): por país, el ETF de iShares de referencia con P/E (12 meses), P/B y dividendo
+  12m (API de producto de BlackRock, diarios) y **flujos netos** 1 sem / 1 mes / 3 meses / año / 12 meses en USD millones o % de
+  los activos, más el flujo acumulado de 12 meses (hasta 3 países). Flujo diario = Δ cuotas en circulación × NAV, de la hoja
+  "Historical" de la planilla del fondo (se lee en streaming y se corta en ~300 días). Verificado: 12 ETF sin errores;
+  ej. EWZ −54 M de cuotas desde el 22-oct (≈ −USD 1.600 M en el mes).
+  - Pendiente: ARGT y COLO (Global X responde 429); P/E forward del índice MSCI (factsheet mensual en PDF: falta OK para
+    sumar un lector de PDF); historia del P/E (ver CLAUDE.md).
+- **Agenda política** (`POLITICAL_EVENTS`, kind `pol`): AR (PASO 8-ago, generales 24-oct, eventual balotaje 21-nov-2027),
+  BR (asunción 5-ene, Congreso 1-feb), MX (intermedia 6-jun), CO (territoriales 31-oct), Francia (presidencial 18-abr y 2-may,
+  previsto), Japón (locales unificadas 11 y 25-abr, previsto). Sin fecha: España, Italia, estaduales de India.
+  Botones **Todo / Económico / Político** en la Agenda (se recuerda la elección); etiqueta "Político" en color propio.
+
+## 0.9.0 — 2026-11-19 (Perú, India, agenda completa y orden de solapas)
+- **Orden de solapas**: Mundo, Crédito USD, Sostenibilidad, Comparar, Agenda y después los países (AR, BR, EE.UU., EZ, MX,
+  CA, CO, CL, PE, JP, IN). La barra pasa a dos filas en pantallas anchas (scroll horizontal en celular).
+- **Perú** (nuevo panel): tasa de referencia BCRP e IPC (BIS), EMBI (BCRD), USDPEN, EPU, proyecciones del FMI (WEO).
+  La API del BCRP responde con un desafío anti-bots a consultas automáticas (19-nov-2026): sin curva en soles ni encuesta.
+- **India** (nuevo panel): repo del RBI e IPC (BIS), call, interbancaria 3M y G-sec 10Y (OCDE vía FRED, mensuales),
+  proxy 3M − repo, USDINR, INDA/Nifty 50 y proyecciones del FMI (años fiscales abr–mar). India entra en Sostenibilidad.
+- **Agenda**: inflación, PIB y decisiones de banco central en todos los países, con fecha oficial:
+  - AR: INDEC (PDF 2.º sem. 2026): EMAE, IPC, PIB 3T. EZ: HICP flash y final hasta jun-27 (calendario estadístico del BCE)
+    y PIB 3T (Eurostat). MX: INPC quincenal y mensual, PIB oportuno y revisado, IGAE hasta jun-27 (PDF INEGI 2026 y 2027).
+  - CA: IPC y PIB (último "Next release" de The Daily). CO: DANE **en vivo** (vista mensual, IPC/PIB/ISE). CL: IPC del INE.
+  - JP: IPC nacional y de Tokio (MIC) y PIB (Cabinet Office). IN: decisiones del MPC (RBI) e IPC/PIB previstos (MOSPI).
+  - BR: **corregido** — el calendario del IBGE usa nombres completos y el filtro nunca captaba IPCA ni IPCA-15; ahora sí
+    (IPCA-15 rotulado "mitad de mes") y ventana de 90 días. EE.UU.: nombres de publicaciones en español.
+- Pendiente: Perú (BCRP e INEI sin calendario legible), BCCh (RPM 2027, PIB, Imacec), StatCan 2027, Banxico y BanRep 2027,
+  INDEC 1.er sem. 2027.
+- Tests: parser del BIS (campos con comas, NaN), parser del DANE, agenda de BR con IPCA/IPCA-15/PIB.
+
 ## 0.8.2 — 2026-11-19 (convención de monedas)
 - Rótulos de tipo de cambio en formato de ticker sin barra (USDMXN, USDBRL, EURUSD, USDJPY…), coherente con los valores
   (moneda cotizada por 1 unidad de la base). Nota de convención en el panel "Hoy" y en CLAUDE.md.

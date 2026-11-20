@@ -191,3 +191,36 @@ export function YearChart({ data, lines, projFrom, unit = '%', height = 260, zer
     </ResponsiveContainer>
   );
 }
+
+/**
+ * P/E histórico con bandas de ±1 y ±2 desvíos alrededor del promedio de la ventana. Las bandas son áreas sombreadas
+ * (no series): una sola línea de datos, un solo eje Y. Rótulos a la derecha para no depender del color.
+ */
+export function PeBandChart({ data, stats, height = 300, title }) {
+  if (!data?.length) return <div className="empty">Sin datos</div>;
+  const vals = data.map((p) => p.pe).filter(Number.isFinite);
+  const lo = stats ? Math.min(...vals, stats.avg - 2 * stats.sd) : Math.min(...vals);
+  const hi = stats ? Math.max(...vals, stats.avg + 2 * stats.sd) : Math.max(...vals);
+  const pad = (hi - lo) * 0.06;
+  const band = (y1, y2, op) => <ReferenceArea y1={y1} y2={y2} fill="var(--series-1)" fillOpacity={op} stroke="none" ifOverflow="extendDomain" />;
+  const tag = (y, text) => <ReferenceLine y={y} stroke="transparent" label={{ value: text, position: 'right', fill: 'var(--text-muted)', fontSize: 11 }} />;
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <ComposedChart data={data} margin={{ top: 8, right: 64, bottom: 0, left: 0 }} aria-label={title}>
+        <CartesianGrid stroke="var(--grid)" vertical={false} />
+        {stats && band(stats.avg - 2 * stats.sd, stats.avg + 2 * stats.sd, 0.08)}
+        {stats && band(stats.avg - stats.sd, stats.avg + stats.sd, 0.16)}
+        {stats && <ReferenceLine y={stats.avg} stroke="var(--text-muted)" strokeDasharray="4 4" />}
+        {stats && tag(stats.avg + 2 * stats.sd, '+2σ')}
+        {stats && tag(stats.avg + stats.sd, '+1σ')}
+        {stats && tag(stats.avg, 'μ')}
+        {stats && tag(stats.avg - stats.sd, '−1σ')}
+        {stats && tag(stats.avg - 2 * stats.sd, '−2σ')}
+        <XAxis dataKey="d" tickFormatter={fmtMonth} minTickGap={40} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--grid)' }} tickLine={false} />
+        <YAxis domain={[Math.max(0, lo - pad), hi + pad]} width={40} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v, 0)} />
+        <Tooltip content={<TipBox unit="" decimals={2} labelFmt={fmtMonth} />} cursor={{ stroke: 'var(--text-muted)', strokeDasharray: '3 3' }} />
+        <Line type="monotone" dataKey="pe" name="P/E" stroke="var(--series-2)" strokeWidth={2} dot={false} isAnimationActive={false} />
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}

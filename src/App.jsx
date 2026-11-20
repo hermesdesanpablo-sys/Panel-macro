@@ -1,10 +1,16 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { CountryPanel, WorldPanel, AgendaList, ComparePanel, UsdPanel, SustPanel } from './components/Panels.jsx';
+import { CountryPanel, WorldPanel, AgendaPanel, ComparePanel, UsdPanel, SustPanel, ValPanel } from './components/Panels.jsx';
+import { POLITICAL_UNDATED } from '../api/_lib/calendar.js';
 import { fmtDate } from './format.js';
 import { Flag } from './components/Flag.jsx';
 
 const TABS = [
   { id: 'world', label: 'Mundo' },
+  { id: 'usd', label: 'Crédito USD' },
+  { id: 'sust', label: 'Sostenibilidad' },
+  { id: 'val', label: 'Valuación' },
+  { id: 'compare', label: 'Comparar' },
+  { id: 'agenda', label: 'Agenda' },
   { id: 'ar', label: 'Argentina' },
   { id: 'br', label: 'Brasil' },
   { id: 'us', label: 'EE.UU.' },
@@ -13,13 +19,11 @@ const TABS = [
   { id: 'ca', label: 'Canadá' },
   { id: 'co', label: 'Colombia' },
   { id: 'cl', label: 'Chile' },
+  { id: 'pe', label: 'Perú' },
   { id: 'jp', label: 'Japón' },
-  { id: 'usd', label: 'Crédito USD' },
-  { id: 'sust', label: 'Sostenibilidad' },
-  { id: 'compare', label: 'Comparar' },
-  { id: 'agenda', label: 'Agenda' },
+  { id: 'in', label: 'India' },
 ];
-const COUNTRIES = ['ar', 'br', 'us', 'eu', 'mx', 'ca', 'co', 'cl', 'jp'];
+const COUNTRIES = ['ar', 'br', 'us', 'eu', 'mx', 'ca', 'co', 'cl', 'pe', 'jp', 'in'];
 const MOCK = new URLSearchParams(location.search).has('mock');
 
 /** `fresh`: pide datos nuevos salteando la caché del CDN (botón Recargar). */
@@ -58,7 +62,7 @@ export default function App() {
   }, []);
   const fetchAll = useCallback((fresh = false) => ['world', ...COUNTRIES].forEach((id) => fetchOne(id, fresh)), [fetchOne]);
   // Crédito USD cotiza ~100 bonos: se pide solo al abrir la solapa (y con Recargar si ya estaba abierta).
-  useEffect(() => { if (['usd', 'sust'].includes(tab) && !data[tab] && state[tab] !== 'loading') fetchOne(tab); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (['usd', 'sust', 'val'].includes(tab) && !data[tab] && state[tab] !== 'loading') fetchOne(tab); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
   // Actualización automática con la pestaña visible: precios de Mundo cada minuto; la solapa abierta cada 5 minutos.
@@ -113,7 +117,7 @@ export default function App() {
               Act. {new Date(updated).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
-          <button className="btn" onClick={() => { fetchAll(true); ['usd', 'sust'].forEach((t) => data[t] && fetchOne(t, true)); }}>Recargar</button>
+          <button className="btn" onClick={() => { fetchAll(true); ['usd', 'sust', 'val'].forEach((t) => data[t] && fetchOne(t, true)); }}>Recargar</button>
         </div>
       </header>
 
@@ -129,12 +133,14 @@ export default function App() {
           <ComparePanel countries={countries} a={cmpA} b={cmpB} setA={setCmpA} setB={setCmpB} />
         ) : tab === 'sust' && current ? (
           <SustPanel data={current} />
+        ) : tab === 'val' && current ? (
+          <ValPanel data={current} />
         ) : tab === 'usd' && current ? (
           <UsdPanel data={current} />
         ) : tab === 'agenda' ? (
           <section className="card" id="agenda-all">
             <h2 className="title"><Flag id="agenda" /> Agenda consolidada</h2>
-            <AgendaList events={agenda} showFlag />
+            <AgendaPanel events={agenda} undated={POLITICAL_UNDATED} />
           </section>
         ) : !current ? (
           <div className="empty big">{st && st !== 'loading' ? `Error: ${st}` : 'Cargando…'}</div>

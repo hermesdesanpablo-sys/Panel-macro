@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TimeChart, PathChart, Spark, AreaSpark, CurveChart, YearChart } from './Charts.jsx';
+import { TimeChart, PathChart, Spark, AreaSpark, CurveChart, YearChart, PeBandChart } from './Charts.jsx';
 import { fmtNum, fmtDate, daysUntil, kpiByKey, fmtChg, ARROW, DIR_WORD, GROUPS, chgDir } from '../format.js';
 import { Flag } from './Flag.jsx';
 import { CmdIcon } from './CmdIcon.jsx';
@@ -130,7 +130,7 @@ function PerfTable({ equity }) {
 
 function ExpTable({ e }) {
   return (
-    <Card id={`exp-${e.title}`} title={e.title} source={e.source} url={e.url} note={e.asOf ? `Encuesta del ${fmtDate(e.asOf)}` : null}>
+    <Card id={`exp-${e.title}`} title={e.title} source={e.source} url={e.url} note={e.asOf ? `${e.asOfLabel || 'Encuesta del'} ${fmtDate(e.asOf)}` : null}>
       <div className="tbl-wrap"><table className="tbl">
         <thead><tr>{e.columns.map((c) => <th key={c}>{c}</th>)}</tr></thead>
         <tbody>
@@ -145,6 +145,9 @@ function ExpTable({ e }) {
   );
 }
 
+const EV_TAG = { cb: 'Decisión', data: 'Dato', pol: 'Político' };
+const EV_CLASS = { cb: 'ev-cb', data: 'ev-data', pol: 'ev-pol' };
+
 export function AgendaList({ events, showFlag = false }) {
   if (!events?.length) return <div className="empty">Sin eventos cargados</div>;
   return (
@@ -152,18 +155,51 @@ export function AgendaList({ events, showFlag = false }) {
       {events.map((e, i) => {
         const n = daysUntil(e.date);
         return (
-          <li key={i} className={e.kind === 'cb' ? 'ev-cb' : 'ev-data'}>
+          <li key={i} className={EV_CLASS[e.kind] || 'ev-data'}>
             <span className="ev-date">{fmtDate(e.date)}</span>
             <span className="ev-in">{n <= 0 ? 'hoy' : `${n}d`}</span>
-            <span className="ev-tag">{e.kind === 'cb' ? 'Decisión' : 'Dato'}</span>
+            <span className="ev-tag">{EV_TAG[e.kind] || 'Dato'}</span>
             <span className="ev-name">
-              {showFlag && <Flag id={e.cid} />}
+              {showFlag && <Flag id={e.flag || e.cid} />}
               {e.url ? <a href={e.url} target="_blank" rel="noreferrer">{e.event}</a> : e.event}
             </span>
           </li>
         );
       })}
     </ul>
+  );
+}
+
+const AGENDA_FILTERS = [
+  ['all', 'Todo'],
+  ['eco', 'Económico'],
+  ['pol', 'Político'],
+];
+/** Agenda consolidada con filtro: todo, económico (decisiones de banco central y datos) o solo político. */
+export function AgendaPanel({ events, undated = [] }) {
+  const [f, setF] = useState(() => { try { return localStorage.getItem('agendaFilter') || 'all'; } catch { return 'all'; } });
+  const pick = (v) => { setF(v); try { localStorage.setItem('agendaFilter', v); } catch { /* sin almacenamiento */ } };
+  const shown = events.filter((e) => f === 'all' || (f === 'pol' ? e.kind === 'pol' : e.kind !== 'pol'));
+  const count = (k) => events.filter((e) => k === 'all' || (k === 'pol' ? e.kind === 'pol' : e.kind !== 'pol')).length;
+  return (
+    <>
+      <div className="agenda-bar">
+        <div className="seg" role="group" aria-label="Filtrar agenda">
+          {AGENDA_FILTERS.map(([k, label]) => (
+            <button key={k} className={f === k ? 'on' : ''} aria-pressed={f === k} onClick={() => pick(k)}>
+              {label} <span className="muted">{count(k)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <AgendaList events={shown} showFlag />
+      {f !== 'eco' && undated.length > 0 && (
+        <div className="agenda-undated">
+          <h4>Sin fecha confirmada</h4>
+          <ul>{undated.map((e, i) => <li key={i}><Flag id={e.cid} /> {e.event}</li>)}</ul>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1103,6 +1139,232 @@ export function SustPanel({ data }) {
         <YearChart data={debtData} projFrom={P} zero={false} height={320}
           lines={debtSel.map((id, k) => ({ key: `k${k}`, label: countries.find((x) => x.id === id)?.name || id }))} />
         <div className="card-foot"><span>Deuda bruta del gobierno general, % del PBI. Hasta 3 países a la vez. Zona sombreada: proyección del FMI.</span></div>
+      </section>
+    </div>
+  );
+}
+
+// ---------- Valuación y flujos (ETF iShares por país) ----------
+const VAL_NAMES = { br: 'Brasil', us: 'EE.UU.', eu: 'Eurozona', mx: 'México', ca: 'Canadá', cl: 'Chile', pe: 'Perú', jp: 'Japón', in: 'India', latam: 'América Latina', em: 'Emergentes', world: 'Mundo (ACWI)', ar: 'Argentina', co: 'Colombia' };
+const VAL_WIN = [['w1', '1 sem'], ['m1', '1 mes'], ['m3', '3 meses'], ['ytd', 'En el año'], ['y1', '12 meses']];
+const valFlag = (cid) => (['latam', 'em', 'world'].includes(cid) ? 'world' : cid);
+
+const LECTURA = { Cheap: 'Muy barato', Undervalued: 'Barato', Fair: 'Neutral', Overvalued: 'Caro', Expensive: 'Muy caro' };
+const lecturaOf = (z) => (z == null || !Number.isFinite(z) ? null : z < -2 ? 'Cheap' : z < -1 ? 'Undervalued' : z <= 1 ? 'Fair' : z <= 2 ? 'Overvalued' : 'Expensive');
+const VAL_WINDOWS = [['y5', '5 años', 5], ['y10', '10 años', 10], ['y20', '20 años', 20]];
+const isoDate = (d) => d.toISOString().slice(0, 10);
+
+export function ValPanel({ data }) {
+  const rows = data?.rows || data?.funds || [];
+  const funds = rows.filter((f) => f.ticker);
+  const [unit, setUnit] = useState('usd');
+  const [win, setWin] = useState('y10');
+  const [peSel, setPeSel] = useState('br');
+  const [sel, setSel] = useState(['br', 'mx', 'in']);
+  if (!rows.length) return <div className="empty big">Sin datos de valuación</div>;
+  const toggle = (id) => setSel((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= 3 ? [...cur.slice(1), id] : [...cur, id]));
+  const [, winLabel, winYears] = VAL_WINDOWS.find((w) => w[0] === win);
+
+  // Flujo acumulado 12 meses (hasta 3 países).
+  const chosen = sel.map((id) => funds.find((f) => f.cid === id)).filter((f) => f?.cum?.length);
+  const byDate = new Map();
+  chosen.forEach((f, k) => f.cum.forEach((p) => { const r = byDate.get(p.d) || { d: p.d }; r[`k${k}`] = p.v; byDate.set(p.d, r); }));
+  const flowChart = {
+    title: 'Flujo acumulado 12 meses (USD millones)', unit: '',
+    lines: chosen.map((f, k) => ({ key: `k${k}`, label: `${VAL_NAMES[f.cid]} (${f.ticker})` })),
+    data: [...byDate.values()].sort((a, b) => (a.d < b.d ? -1 : 1)),
+  };
+
+  // P/E histórico del país elegido con la banda μ ± σ de la ventana.
+  const peRow = rows.find((r) => r.cid === peSel && r.wpe?.history?.length) || rows.find((r) => r.wpe?.history?.length);
+  const st = peRow?.wpe?.stats?.[win];
+  const from = peRow ? isoDate(new Date(Date.UTC(Number(peRow.wpe.date.slice(0, 4)) - winYears, Number(peRow.wpe.date.slice(5, 7)) - 1, 1))) : '';
+  const peData = peRow ? [...peRow.wpe.history.filter((p) => p.d >= from), { d: peRow.wpe.date, v: peRow.wpe.pe }].map((p) => ({ d: p.d, pe: p.v })) : [];
+
+  const asOf = funds.find((f) => f.asOf)?.asOf;
+  const wpeDate = rows.find((r) => r.wpe?.date)?.wpe.date;
+  const msciDate = rows.find((r) => r.msci?.asOf)?.msci.asOf;
+  const isharesDate = rows.find((r) => r.ishares?.pe?.d)?.ishares.pe.d;
+  const isharesMonthly = rows.find((r) => r.ishares?.div12m?.d)?.ishares.div12m.d;
+  const num = (v, d = 1) => (v == null || !Number.isFinite(v) ? '—' : fmtNum(v, d));
+  const flowCell = (f, k) => {
+    const v = unit === 'usd' ? f.flows?.[k] : f.pct?.[k];
+    if (v == null) return <td key={k} className="num"><span className="chg na">—</span></td>;
+    return <td key={k} className={`num ${pn(v)}`}>{sign(v, unit === 'usd' ? 0 : 1)}{unit === 'pct' ? '%' : ''}</td>;
+  };
+  const group = (list, render, cols) => [false, true].map((agg) => (
+    <tbody key={String(agg)}>
+      {agg && <tr className="tbl-sub"><td colSpan={cols}>Referencias regionales</td></tr>}
+      {list.filter((r) => !!r.agg === agg).map(render)}
+    </tbody>
+  ));
+  const countryCell = (r) => <td><span className="cell-flag"><Flag id={valFlag(r.cid)} /> {VAL_NAMES[r.cid]}</span></td>;
+
+  return (
+    <div className="panel">
+      <Errors errors={data?.errors} />
+      <p className="lead">
+        Primero, los datos de quienes arman los índices y los fondos: <b>iShares</b> (ratios del ETF de cada país) y <b>MSCI</b> (índice país,
+        con P/E forward). Después, cada bolsa contra su propia historia con <b>worldperatio</b> (P/E diario e historia mensual desde 1995,
+        con promedio y desvíos). Al final, los flujos de inversores en los ETF.
+      </p>
+
+      <section className="card" id="val-direct">
+        <h3>Valuación: datos de iShares y MSCI</h3>
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>País</th><th>ETF</th>
+                <th className="num">P/E ETF</th><th className="num">P/B ETF</th><th className="num">Div. 12m*</th><th className="num">SEC 30d*</th>
+                <th className="num">Beta 3a*</th><th className="num">Volat. 3a*</th>
+                <th className="num off-col">P/E MSCI*</th><th className="num off-col">P/E fwd MSCI*</th><th className="num off-col">P/BV MSCI*</th><th className="num off-col">Div. MSCI*</th>
+              </tr>
+            </thead>
+            {group(rows, (r) => {
+              const I = r.ishares || {};
+              const pct = (x) => (x?.v == null ? '—' : `${fmtNum(x.v, 1)}%`);
+              return (
+                <tr key={r.cid}>
+                  {countryCell(r)}
+                  <td>{r.url ? <a href={r.url} target="_blank" rel="noreferrer">{r.ticker}</a> : <span className="muted" title="Sin ETF de iShares para este país">—</span>}</td>
+                  <td className="num"><b>{num(I.pe?.v)}</b></td>
+                  <td className="num">{num(I.pb?.v, 2)}</td>
+                  <td className="num">{pct(I.div12m)}</td>
+                  <td className="num">{pct(I.sec30)}</td>
+                  <td className="num">{num(I.beta3y?.v, 2)}</td>
+                  <td className="num">{pct(I.vol3y)}</td>
+                  <td className="num off-col">{r.msci?.url ? <a href={r.msci.url} target="_blank" rel="noreferrer">{num(r.msci.pe)}</a> : num(r.msci?.pe)}</td>
+                  <td className="num off-col"><b>{num(r.msci?.peFwd)}</b></td>
+                  <td className="num off-col">{num(r.msci?.pbv, 2)}</td>
+                  <td className="num off-col">{r.msci?.dy == null ? '—' : `${fmtNum(r.msci.dy, 1)}%`}</td>
+                </tr>
+              );
+            }, 12)}
+          </table>
+        </div>
+        <div className="card-foot">
+          <span>
+            iShares: P/E y P/B del ETF diarios, al {fmtDate(isharesDate)}. <b>*</b> Se publica una vez por mes (tiene atraso): rendimientos, beta y
+            volatilidad de iShares al {fmtDate(isharesMonthly)}; MSCI (índice país, factsheet mensual) al {fmtDate(msciDate)}. Div. 12m = dividendo
+            de los últimos 12 meses; SEC 30d = rendimiento estandarizado SEC; volatilidad = desvío estándar anual de 3 años. Argentina y Colombia:
+            sin ETF de iShares (solo MSCI). Emergentes y ACWI de MSCI salen de las filas de comparación de los factsheets.
+          </span>
+          <span>
+            <Source source="iShares (BlackRock)" url="https://www.ishares.com/us/products/etf-investments" /> · <Source source="MSCI factsheets" url="https://www.msci.com/indexes" />
+          </span>
+        </div>
+      </section>
+
+      <section className="card" id="val-table">
+        <div className="card-head">
+          <h3>Contra su propia historia (worldperatio)</h3>
+          <div className="seg" role="group" aria-label="Ventana histórica">
+            {VAL_WINDOWS.map(([k, l]) => <button key={k} className={win === k ? 'on' : ''} aria-pressed={win === k} onClick={() => setWin(k)}>{l}</button>)}
+          </div>
+        </div>
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>País</th><th>ETF base</th><th className="num">P/E</th><th className="num">Promedio {winLabel}</th><th className="num">Desvío est.</th>
+                <th className="num">Rango ±1 desvío</th><th className="num">Rango ±2 desvíos</th><th className="num">Hoy vs promedio</th><th>Lectura</th>
+              </tr>
+            </thead>
+            {group(rows.filter((r) => r.wpe), (r) => {
+              const S = r.wpe?.stats?.[win];
+              const lec = lecturaOf(S?.z);
+              return (
+                <tr key={r.cid}>
+                  {countryCell(r)}
+                  <td><a href={r.wpe.url} target="_blank" rel="noreferrer" title={r.wpe.note || undefined}>{r.wpe.etf}{r.wpe.note ? ' †' : ''}</a></td>
+                  <td className="num"><b>{num(r.wpe.pe)}</b></td>
+                  <td className="num">{num(S?.avg)}</td>
+                  <td className="num">{num(S?.sd, 2)}</td>
+                  <td className="num">{S ? `${fmtNum(S.avg - S.sd, 1)} – ${fmtNum(S.avg + S.sd, 1)}` : '—'}</td>
+                  <td className="num">{S ? `${fmtNum(Math.max(0, S.avg - 2 * S.sd), 1)} – ${fmtNum(S.avg + 2 * S.sd, 1)}` : '—'}</td>
+                  <td className="num">{S?.z == null ? '—' : `${sign(S.z, 2)} σ`}</td>
+                  <td>{lec ? <span className={`val-tag val-${lec.toLowerCase()}`}>{LECTURA[lec]}</span> : '—'}</td>
+                </tr>
+              );
+            }, 9)}
+          </table>
+        </div>
+        <div className="card-foot">
+          <span>
+            P/E diario al {fmtDate(wpeDate)} calculado por worldperatio sobre el ETF base. Promedio y desvío excluyen el 10% de valores extremos de
+            cada lado. Lectura: dentro de ±1 desvío neutral; entre 1 y 2 barato/caro; más de 2 muy barato/muy caro. † Eurozona: worldperatio
+            publica Europa (VGK). Difiere del P/E de iShares/MSCI por método y fecha: úsese para comparar contra la propia historia.
+          </span>
+          <Source source="worldperatio.com" url="https://worldperatio.com/area/" />
+        </div>
+      </section>
+
+      {peRow && (
+        <section className="card" id="val-pe">
+          <h3>P/E histórico con bandas de ±1 y ±2 desvíos ({winLabel})</h3>
+          <div className="chips" role="group" aria-label="País">
+            {rows.filter((r) => r.wpe?.history?.length).map((r) => (
+              <button key={r.cid} className={`chip ${peRow.cid === r.cid ? 'on' : ''}`} aria-pressed={peRow.cid === r.cid} onClick={() => setPeSel(r.cid)}>
+                <Flag id={valFlag(r.cid)} /> {VAL_NAMES[r.cid]}
+              </button>
+            ))}
+          </div>
+          <PeBandChart data={peData} stats={st} height={300} title={`P/E de ${VAL_NAMES[peRow.cid]}`} />
+          <div className="card-foot">
+            <span>
+              P/E mensual (línea) y su promedio de {winLabel} (μ, punteada); banda oscura ±1 desvío, banda clara ±2 desvíos. Último punto al {fmtDate(peRow.wpe.date)}.
+              {st ? ` μ = ${fmtNum(st.avg, 1)}, desvío = ${fmtNum(st.sd, 2)}; hoy ${sign(st.z, 2)} σ.` : ''}{peRow.wpe.note ? ` ${peRow.wpe.note}.` : ''}
+            </span>
+            <Source source={`worldperatio (${peRow.wpe.etf})`} url={peRow.wpe.url} />
+          </div>
+        </section>
+      )}
+
+      <section className="card" id="val-flows">
+        <div className="card-head">
+          <h3>Flujos de inversores (ETF iShares)</h3>
+          <div className="seg" role="group" aria-label="Unidad de los flujos">
+            <button className={unit === 'usd' ? 'on' : ''} aria-pressed={unit === 'usd'} onClick={() => setUnit('usd')}>USD millones</button>
+            <button className={unit === 'pct' ? 'on' : ''} aria-pressed={unit === 'pct'} onClick={() => setUnit('pct')}>% de los activos</button>
+          </div>
+        </div>
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>País</th><th>ETF</th><th className="num">P/E ETF</th><th className="num">P/B ETF</th><th className="num">Activos (USD M)</th>
+                {VAL_WIN.map(([k, l]) => <th key={k} className="num">Flujo {l}</th>)}
+              </tr>
+            </thead>
+            {group([...funds, ...(data.pending || []).map((p) => ({ ...p, pendingRow: true }))], (f) => f.pendingRow ? (
+              <tr key={f.ticker} className="row-pending">
+                {countryCell(f)}<td>{f.ticker}</td><td colSpan={3 + VAL_WIN.length} className="muted">Pendiente: {f.note}</td>
+              </tr>
+            ) : (
+              <tr key={f.ticker}>
+                {countryCell(f)}
+                <td><a href={f.url} target="_blank" rel="noreferrer">{f.ticker}</a></td>
+                <td className="num">{num(f.pe)}</td>
+                <td className="num">{num(f.pb, 2)}</td>
+                <td className="num">{f.aum == null ? '—' : fmtNum(f.aum, 0)}</td>
+                {VAL_WIN.map(([k]) => flowCell(f, k))}
+              </tr>
+            ), 5 + VAL_WIN.length)}
+          </table>
+        </div>
+        <div className="chips" role="group" aria-label="Países (hasta 3)">
+          {funds.filter((f) => f.cum?.length).map((f) => (
+            <button key={f.ticker} className={`chip ${sel.includes(f.cid) ? 'on' : ''}`} aria-pressed={sel.includes(f.cid)} onClick={() => toggle(f.cid)}>
+              <Flag id={valFlag(f.cid)} /> {VAL_NAMES[f.cid]}
+            </button>
+          ))}
+        </div>
+        <TimeChart chart={flowChart} height={260} />
+        <div className="card-foot">
+          <span>Flujo = variación diaria de cuotas en circulación × valor cuotaparte. Al {fmtDate(asOf)}. Gráfico: USD millones acumulados en 12 meses (hasta 3 países).</span>
+          <Source source="iShares (BlackRock)" url="https://www.ishares.com/us/products/etf-investments" />
+        </div>
       </section>
     </div>
   );

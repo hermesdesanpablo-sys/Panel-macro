@@ -24,6 +24,7 @@ export const COUNTRIES = [
   { id: 'ca', name: 'Canadá', weo: 'CAN', wb: 'CAN' },
   { id: 'eu', name: 'Eurozona', weo: 'G163', wb: 'EMU' },
   { id: 'jp', name: 'Japón', weo: 'JPN', wb: 'JPN' },
+  { id: 'in', name: 'India', weo: 'IND', wb: 'IND' },
 ];
 const WEO = {
   ca: 'BCA_NGDPD', // cuenta corriente, % PBI
@@ -295,5 +296,44 @@ export default async function sustainability() {
     countries: COUNTRIES.map((c) => ({ ...buildCountry(c, W.data[c.weo], B, projFrom), official: OFF[c.id] || null })),
     sources: { weo: WEO_URL, wb: WB_URL },
     errors,
+  };
+}
+
+/**
+ * Proyecciones del FMI (WEO) para un país, para los paneles sin encuesta de expectativas accesible (Perú, India).
+ * Devuelve { asOf, url, table, expCpi } con el año en curso y el siguiente. India: el WEO usa año fiscal (2026 = abr-26/mar-27).
+ */
+export async function weoOutlook(code, { fiscal = false } = {}) {
+  const ind = { cpiAvg: 'PCPIPCH', cpiEop: 'PCPIEPCH', growth: 'NGDP_RPCH', fb: 'GGXCNL_NGDP', debt: 'GGXWDG_NGDP', ca: 'BCA_NGDPD' };
+  const j = await getJson(`https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.RES/WEO/+/${code}.${Object.values(ind).join('+')}.A?startPeriod=${new Date().getUTCFullYear() - 1}`, { timeout: 25000 });
+  const { data, updated } = parseWeo(j);
+  const D = data[code];
+  if (!D) throw new Error(`FMI WEO: sin datos para ${code}`);
+  const m = String(updated[code] || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const asOf = m ? `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` : null;
+  const y0 = new Date().getUTCFullYear();
+  const lbl = (y) => (fiscal ? `AF ${y}/${String(y + 1).slice(2)}` : String(y));
+  const v = (k, y) => D[ind[k]]?.[y] ?? null;
+  const row = (label, k) => [label, v(k, y0), v(k, y0 + 1)];
+  return {
+    asOf,
+    url: WEO_URL,
+    expCpi: { year: y0 + 1, label: lbl(y0 + 1), v: v('cpiEop', y0 + 1) },
+    table: {
+      title: `Proyecciones del FMI (WEO)${fiscal ? ' – años fiscales abr–mar' : ''}`,
+      columns: ['Variable (%)', lbl(y0), lbl(y0 + 1)],
+      rows: [
+        row('Inflación promedio', 'cpiAvg'),
+        row('Inflación fin de período', 'cpiEop'),
+        row('Crecimiento real del PBI', 'growth'),
+        row('Resultado fiscal (% PBI)', 'fb'),
+        row('Deuda bruta del gobierno (% PBI)', 'debt'),
+        row('Cuenta corriente (% PBI)', 'ca'),
+      ],
+      asOf,
+      asOfLabel: 'WEO actualizado el',
+      source: 'FMI, World Economic Outlook',
+      url: WEO_URL,
+    },
   };
 }
