@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.13.0 — 2026-11-20 (Composición de la deuda pública)
+- Sostenibilidad: tabla **Composición de la deuda pública** (Banco Mundial, Quarterly Public Sector Debt, API fuente 20, trimestral):
+  deuda en % del PBI, % en moneda extranjera, % con acreedores no residentes y lo que vence en 12 meses (corto plazo + cuotas de largo
+  plazo que vencen en el año), en % del PBI y del total. Gobierno central para todos salvo Chile (solo publica el presupuestario central).
+  Verificado en vivo (2026Q2): AR 52% en ME, 34% externos, 29% vence en 12 meses; BR 3% / 12% / 27%; UY 41% / 41% / 6%.
+- Advertencias: Chile reporta 2% de acreedores externos con 33% en moneda extranjera (no creíble; se marca); India no reporta a QPSD;
+  Eurozona sin agregado; Colombia sin residencia del acreedor; Japón sin moneda.
+- `xlsx.js`: `readSheet(buf, n)` para leer cualquier hoja (lo necesita la base de defaults del Banco de Canadá).
+- Datos confirmados para el ranking de emisores (sin construirlo todavía): FMI WEO (ingresos → intereses/recaudación), QPSD (composición),
+  Banco Mundial IDS (deuda externa de corto plazo / reservas, emergentes), WGI (gobernanza, 6 indicadores, 2025) y BoC-BoE Sovereign
+  Default Database 2026 (monto en default por país y año desde 1960, por tipo de acreedor).
+
 ## 0.12.2 — 2026-11-20 (China en Valuación; monedas en Mundo)
 - Valuación – Países: China (sin panel macro) con iShares MCHI (ratios y flujos), MSCI China (factsheet en USD: P/E 11,96,
   forward 9,32 al 30-oct) y worldperatio (P/E sobre FXI, FTSE China 50; pasa el control de calidad a 5 y 10 años).

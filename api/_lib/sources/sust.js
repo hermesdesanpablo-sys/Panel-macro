@@ -11,6 +11,7 @@
 import { getJson, settle, clean, iso, daysAgo } from '../util.js';
 import { fred } from './us.js';
 import { sgs } from './br.js';
+import { debtComposition, QPSD_URL } from '../debtcomp.js';
 
 export const COUNTRIES = [
   { id: 'ar', name: 'Argentina', weo: 'ARG', wb: 'ARG' },
@@ -259,6 +260,12 @@ export function buildCountry(c, W, B, projFrom) {
   };
 }
 
+// Advertencias de calidad en la composición (QPSD), revisadas a mano contra lo que se sabe de cada país.
+const COMP_NOTES = {
+  cl: 'Acreedores externos poco creíbles: 2% del total con 33% en moneda extranjera (Chile tiene bonos globales en manos de no residentes); probablemente clasifica por moneda o por mercado y no por tenedor. Cobertura: presupuestario central.',
+  in: 'India no reporta a la base QPSD del Banco Mundial.',
+};
+
 export default async function sustainability() {
   const errors = [];
   const d = await settle(
@@ -268,6 +275,8 @@ export default async function sustainability() {
       'Banco Mundial deuda externa': () => wb(WB.extDebt),
       'Banco Mundial reservas': () => wb(WB.resMonths),
       'Banco Mundial servicio de deuda externa': () => wb(WB.extService),
+      // Composición de la deuda (QPSD): sin Eurozona (no hay agregado); Chile solo publica el presupuestario central.
+      'Banco Mundial composición de la deuda (QPSD)': () => debtComposition(COUNTRIES.filter((c) => c.id !== 'eu'), { CHL: 'BC' }),
     },
     errors
   );
@@ -293,8 +302,12 @@ export default async function sustainability() {
     flag: '⚖️',
     projFrom,
     weoVintage: Object.values(W.updated).sort().at(-1) || null,
-    countries: COUNTRIES.map((c) => ({ ...buildCountry(c, W.data[c.weo], B, projFrom), official: OFF[c.id] || null })),
-    sources: { weo: WEO_URL, wb: WB_URL },
+    countries: COUNTRIES.map((c) => ({
+      ...buildCountry(c, W.data[c.weo], B, projFrom),
+      official: OFF[c.id] || null,
+      composition: d['Banco Mundial composición de la deuda (QPSD)']?.[c.id] ? { ...d['Banco Mundial composición de la deuda (QPSD)'][c.id], note: COMP_NOTES[c.id] || null } : null,
+    })),
+    sources: { weo: WEO_URL, wb: WB_URL, qpsd: QPSD_URL },
     errors,
   };
 }
