@@ -53,7 +53,8 @@ export default async function handler(req, res) {
     payload.ms = Date.now() - t0;
     // Caché del CDN según qué tan rápido cambia cada fuente (segundos). Precios: 1 minuto; paneles de país: 5 minutos;
     // bonos en USD: 15 minutos; valuación y flujos de ETF (diarios): 1 hora; Sostenibilidad (anual, FMI): 6 horas. "Recargar" agrega ?fresh=<timestamp> y no usa caché.
-    const ttl = TTL[c] ?? 300;
+    // Si alguna fuente falló, la respuesta se guarda poco tiempo: que un fallo pasajero no quede 15 min (o 6 h) en el CDN.
+    const ttl = payload.errors?.length ? Math.min(60, TTL[c] ?? 300) : TTL[c] ?? 300;
     // Precios (TTL ≤ 60 s): sin stale-while-revalidate, para que nunca se sirva una copia vencida.
     res.setHeader('Cache-Control', ttl <= 60 ? `s-maxage=${ttl}` : `s-maxage=${ttl}, stale-while-revalidate=${Math.min(ttl, 300)}`);
     res.status(200).json(payload);

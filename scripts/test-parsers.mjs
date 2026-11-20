@@ -178,6 +178,20 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   assert.ok(Math.abs(f.b + 0.03) < 1e-9 && Math.abs(f.r2 - 1) < 1e-9, 'fitSpreads');
   console.log('✓ scoreIndicator / fitSpreads');
 }
+// Curva del Tesoro: reintento de las series de FRED que fallan y respaldo con Yahoo.
+{
+  const { ustCurve } = await import('../api/_lib/sources/usd.js');
+  let calls = 0;
+  const flaky = async (id) => { calls++; if (calls <= 6) throw new Error('429'); return [{ d: '2026-11-19', v: 4 }]; };
+  const a = await ustCurve({ fredFn: flaky, yahooFn: async () => [], wait: 1 });
+  assert.equal(a.length, 11, 'reintento de FRED');
+  const down = async () => { throw new Error('caído'); };
+  const b = await ustCurve({ fredFn: down, yahooFn: async (t) => [{ d: '2026-11-19', v: t === '^TNX' ? 4.4 : 4 }], wait: 1 });
+  assert.deepEqual(b.map((p) => p.x), [0.25, 5, 10, 30], 'respaldo con Yahoo');
+  assert.ok(b.every((p) => p.src === 'Yahoo'));
+  await assert.rejects(ustCurve({ fredFn: down, yahooFn: async () => [], wait: 1 }), /incompleta/);
+  console.log('✓ ustCurve (reintento y respaldo)');
+}
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);
 console.log('OK – src/mock-data.json actualizado');

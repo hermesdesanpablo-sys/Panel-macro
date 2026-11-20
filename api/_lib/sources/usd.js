@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import { getJson, iso, daysAgo, settle, last, valueAt } from '../util.js';
 import { fred } from './us.js';
 import { readFirstSheet, excelDate } from '../xlsx.js';
+import { yahooSeries } from '../yahoo.js';
 
 // ---------- Spread EMBI (JP Morgan EMBI Global Diversified) publicado por el Banco Central de la Rep. Dominicana ----------
 // Planilla diaria con historia desde 2007; URL fija en su CDN (sin API). Valores en puntos porcentuales → se pasan a pb.
@@ -209,10 +210,33 @@ export function interp(pts, x) {
 
 const UST = [['DGS1MO', 1 / 12], ['DGS3MO', 0.25], ['DGS6MO', 0.5], ['DGS1', 1], ['DGS2', 2], ['DGS3', 3], ['DGS5', 5], ['DGS7', 7], ['DGS10', 10], ['DGS20', 20], ['DGS30', 30]];
 
-async function ustCurve() {
-  const ser = await Promise.all(UST.map(([id]) => fred(id, daysAgo(20)).catch(() => [])));
-  const pts = UST.map(([id, x], i) => ({ id, x, v: last(ser[i])?.v, d: last(ser[i])?.d })).filter((p) => Number.isFinite(p.v));
-  if (pts.length < 5) throw new Error('FRED: curva del Tesoro incompleta');
+// Respaldo si FRED falla: tasas del Tesoro de Yahoo (^IRX viene como tasa de descuento a 13 semanas; las demás, rendimiento).
+const UST_YAHOO = [['^IRX', 0.25], ['^FVX', 5], ['^TNX', 10], ['^TYX', 30]];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Curva del Tesoro de EE.UU. FRED a veces rechaza parte de las 11 consultas simultáneas (límite por clave): las que fallan
+ * se reintentan de a una con espera; si aun así faltan plazos, se completa con Yahoo. Así un fallo parcial no deja sin spreads.
+ */
+export async function ustCurve({ fredFn = fred, yahooFn = yahooSeries, wait = 400 } = {}) {
+  const got = await Promise.all(UST.map(([id]) => fredFn(id, daysAgo(20)).catch(() => null)));
+  for (let k = 0; k < UST.length; k++) {
+    for (let tries = 0; !got[k]?.length && tries < 2; tries++) {
+      await sleep(wait * (tries + 1));
+      got[k] = await fredFn(UST[k][0], daysAgo(20)).catch(() => null);
+    }
+  }
+  const pts = UST.map(([id, x], i) => ({ id, x, v: last(got[i] || [])?.v, d: last(got[i] || [])?.d, src: 'FRED' })).filter((p) => Number.isFinite(p.v));
+  if (pts.length < UST.length) {
+    for (const [t, x] of UST_YAHOO) {
+      if (pts.some((p) => p.x === x)) continue;
+      const s = await yahooFn(t, '1mo').catch(() => null);
+      const p = last(s || []);
+      if (p && Number.isFinite(p.v)) pts.push({ id: t, x, v: p.v, d: p.d, src: 'Yahoo' });
+    }
+    pts.sort((a, b) => a.x - b.x);
+  }
+  if (pts.length < 4) throw new Error(`curva del Tesoro incompleta (FRED y Yahoo: ${pts.length} plazos)`);
   return pts;
 }
 
