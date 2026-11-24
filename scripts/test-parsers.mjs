@@ -222,6 +222,14 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   assert.ok(m[0].tags.includes('data'));
   console.log('✓ classify / mergeNews');
 }
+// Colombia: TES 10Y diario de Suameca (fechas de Bogotá, sin corrimiento de día).
+{
+  const co = out.co.kpis.find((k) => k.key === 'y10');
+  assert.ok(/cero cupón/.test(co.label) && /Suameca/.test(co.source), 'Colombia debería usar el TES diario de Suameca');
+  assert.ok((Date.parse(co.date) - Date.parse(co.prevDate)) / 864e5 <= 3, 'TES 10Y: dato diario');
+  assert.ok(![0, 6].includes(new Date(co.date + 'T12:00:00Z').getUTCDay()), 'TES 10Y: la fecha no debe caer en fin de semana');
+  console.log('✓ Colombia TES 10Y diario (Suameca)');
+}
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);
 console.log('OK – src/mock-data.json actualizado');

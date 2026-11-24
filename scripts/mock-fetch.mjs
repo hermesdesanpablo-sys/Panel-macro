@@ -156,6 +156,20 @@ export async function mockFetch(input) {
     };
     return rss(...(ITEMS[k] || []));
   }
+  // BanRep Suameca: curva cero cupón de TES (1, 5 y 10 años), diaria; fechas en epoch ms de la medianoche de Bogotá.
+  if (url.host === 'suameca.banrep.gov.co') {
+    const id = Number(url.searchParams.get('idSerie'));
+    const base = { 15272: 9.5, 15273: 11, 15274: 12 }[id];
+    if (!base) return json([]);
+    const data = [];
+    for (let i = 900; i >= 7; i--) {
+      const t = new Date(Date.now() - i * 864e5);
+      if ([0, 6].includes(t.getUTCDay())) continue;
+      const mid = Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()) + 5 * 3600e3; // 00:00 en Bogotá
+      data.push([mid, +(base + Math.sin(i / 40)).toFixed(2)]);
+    }
+    return json([{ id, nombre: `Tasa de interés Cero Cupón, TES, pesos - ${id}`, fechaUltimoCargue: '17 de noviembre de 2026', data }]);
+  }
   if (url.host === 'www.finanzas.gob.ec' && u.includes('deuda-publica-nueva-metodologia')) {
     // Página del boletín: links de descarga (los ids no van en orden; el último mes se elige por el rótulo).
     const a = (id, t) => `<a class="download-link" href="https://www.finanzas.gob.ec/wp-content/plugins/download-monitor/download.php?id=${id}">${t}</a>`;
