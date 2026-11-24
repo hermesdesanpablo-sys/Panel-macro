@@ -58,6 +58,21 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
     fails += problems.length;
     continue;
   }
+  if (id === 'cal') {
+    const by = (re) => p.events.find((e) => re.test(e.title));
+    const cpi = by(/^CPI m\/m$/), rs = by(/^Retail Sales/), cl = by(/Claims/), ifo = by(/ifo/), auct = p.events.filter((e) => e.kind === 'auct');
+    if (!cpi?.actual || !/%$/.test(cpi.actual) || !cpi.surprise || !/FRED CPIAUCSL/.test(cpi.actualSrc)) problems.push('calendario: dato real de EE.UU. (FRED) o sorpresa');
+    if (rs?.actual) problems.push('calendario: no debe tomar un dato de FRED publicado antes del evento');
+    if (cl?.actual || ifo?.actual) problems.push('calendario: evento futuro o sin fuente con dato real');
+    const two = auct.find((e) => /^2-Year Note/.test(e.title));
+    // Esperado = promedio de las 6 previas (2,52…2,62 → 2,57), sin la 7.ª (9,99); anterior = la del mes previo; dato = resultado de TreasuryDirect.
+    if (!two || two.forecast !== 'BTC 2.57' || !/4\.690% · BTC 2\.52/.test(two.previous || '') || !/4\.700% · BTC 2\.65/.test(two.actual || '')) problems.push(`calendario: licitación 2Y (${two?.actual} | ${two?.forecast} | ${two?.previous})`);
+    if (p.events.some((e, i) => i && e.time < p.events[i - 1].time)) problems.push('calendario: orden por hora');
+    console.log(`${problems.length ? '✗' : '✓'} cal: ${p.events.length} eventos, ${auct.length} licitaciones`);
+    problems.forEach((x) => console.log('    ' + x));
+    fails += problems.length;
+    continue;
+  }
   if (id === 'news') {
     const it = p.items, byT = (re) => it.find((i) => re.test(i.title));
     if (it.length !== 13) problems.push(`noticias: ${it.length} titulares (esperados 13: sin duplicado ni el de hace 60 h)`);
@@ -259,6 +274,21 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   const past = auctionEvents([{ term: '2-Year', type: 'NOTE', date: '2026-11-23' }], [], [{ securityType: 'Note', securityTerm: '2-Year', type: 'Note', floatingRate: 'No', auctionDate: '2026-11-23T00:00:00', offeringAmount: '69000000000', highYield: '4.700', bidToCoverRatio: '2.65' }]);
   assert.ok(/corte 4,700% · bid-to-cover 2,65/.test(past[0].event), 'Tesoro: resultado de la licitación');
   console.log('✓ Tesoro: licitaciones');
+}
+// Calendario: formato de números, transformaciones y hora de Nueva York.
+{
+  const { parseNum, transform, etIso, withSurprise } = await import('../api/_lib/sources/cal.js');
+  assert.deepEqual(parseNum('-135.9B'), { v: -135.9, unit: 'B', dec: 1 });
+  assert.deepEqual(parseNum('201K'), { v: 201, unit: 'K', dec: 0 });
+  assert.equal(parseNum(''), null);
+  const desc = [{ value: '110' }, { value: '100' }, ...Array(10).fill({ value: '99' }), { value: '88' }];
+  assert.equal(transform(desc, 'diff'), 10);
+  assert.ok(Math.abs(transform(desc, 'mom') - 10) < 1e-9 && Math.abs(transform(desc, 'yoy') - 25) < 1e-9);
+  assert.equal(etIso('2026-11-24', '13:00'), '2026-11-24T18:00:00.000Z'); // EST
+  assert.equal(etIso('2026-07-15', '13:00'), '2026-07-15T17:00:00.000Z'); // EDT
+  const e = withSurprise({ forecast: '201K', previous: '203K' }, 215.4);
+  assert.equal(e.actual, '215K'); assert.deepEqual(e.surprise, { diff: 14, unit: 'K', dir: 'up' });
+  console.log('✓ calendario: formato, transformaciones y hora ET');
 }
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);

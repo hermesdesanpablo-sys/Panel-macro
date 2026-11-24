@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.17.0 — 2026-11-24 (Calendario económico: dato, consenso y anterior)
+- Agenda: nueva subsolapa **Calendario económico** (semana en curso, estilo terminal). La agenda de meses pasa a "Agenda (próximos meses)".
+  - Esperado y anterior: planilla semanal pública de Forex Factory, todas las monedas (`api/_lib/sources/cal.js`, endpoint `cal`, caché de 3 min).
+  - Dato real de EE.UU.: FRED, con la misma transformación que el titular (35 títulos mapeados). Solo se toma si FRED lo publicó el día del
+    evento o después. Michigan queda afuera porque FRED la publica con un mes de atraso. Para el resto de las monedas no hay fuente gratuita
+    del dato real: queda "—".
+  - Licitaciones del Tesoro de la semana: corte (en FRN, margen de descuento) y bid-to-cover de TreasuryDirect. Esperado = bid-to-cover
+    promedio de las 6 anteriores del mismo plazo; anterior = la licitación previa.
+  - Filtros por impacto y moneda. Los días anteriores van plegados.
+  - Verificado con el 24-nov: Case-Shiller 20 2,6% (esp. 2,7%), FHFA 0,0% (esp. 0,2%) y 5 años con bid-to-cover 2,37 (prom. 2,31).
+- Descartadas como fuente del consenso: Bloomberg (Terminal), FinancialJuice (Cloudflare Turnstile), Investing/MarketWatch/Nasdaq (bloquean
+  consultas automáticas) y Trading Economics (pago).
+- Verificado: `npm test` OK (formato, transformaciones, hora ET, dato viejo de FRED, licitación); `npm run build` OK; capturas en escritorio y celular.
+
 ## 0.16.1 — 2026-11-24 (FRED: reintentos)
 - En producción, apenas desplegado 0.16.0, una carga del panel de EE.UU. falló en todas las series de FRED: las 21 consultas de la agenda
   salían juntas con las 10 series. Ahora la agenda pide de a 4 y `fredGet` reintenta ante 429/5xx. La siguiente carga había salido bien.

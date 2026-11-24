@@ -1888,3 +1888,102 @@ export function NewsPanel({ data }) {
     </div>
   );
 }
+
+// ---------- Calendario económico (dato vs consenso) ----------
+const IMPACT = { high: ['Alto', 'imp-high'], medium: ['Medio', 'imp-med'], low: ['Bajo', 'imp-low'], holiday: ['Feriado', 'imp-hol'] };
+const IMPACT_FILTERS = [['high', 'Alto'], ['medium', 'Alto y medio'], ['all', 'Todos']];
+const CAL_CCY = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'CNY', 'AUD', 'NZD', 'CHF'];
+const keepCal = (k, v) => { try { localStorage.setItem(`cal.${k}`, v); } catch { /* sin almacenamiento */ } };
+const readCal = (k, d) => { try { return localStorage.getItem(`cal.${k}`) ?? d; } catch { return d; } };
+const calDay = (iso) => {
+  const d = new Date(iso), t = new Date();
+  const key = (x) => x.toDateString();
+  const lbl = d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' }).replace('.', '').toUpperCase();
+  if (key(d) === key(t)) return `HOY · ${lbl}`;
+  if (key(d) === key(new Date(t.getTime() + 864e5))) return `MAÑANA · ${lbl}`;
+  if (key(d) === key(new Date(t.getTime() - 864e5))) return `AYER · ${lbl}`;
+  return lbl;
+};
+
+export function EconCalendar({ data }) {
+  const events = data?.events || [];
+  const [imp, setImpS] = useState(() => readCal('imp', 'medium'));
+  const [off, setOffS] = useState(() => { try { return JSON.parse(readCal('off', '[]')); } catch { return []; } });
+  const setImp = (v) => { setImpS(v); keepCal('imp', v); };
+  const toggle = (c) => setOffS((cur) => { const n = cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c]; keepCal('off', JSON.stringify(n)); return n; });
+  const rank = { high: 3, medium: 2, low: 1, holiday: 0 };
+  const [showPast, setShowPast] = useState(false);
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const matches = events.filter((e) => (imp === 'all' || rank[e.impact] >= rank[imp]) && !off.includes(e.ccy));
+  const pastN = matches.filter((e) => Date.parse(e.time) < todayStart.getTime()).length;
+  const shown = showPast ? matches : matches.filter((e) => Date.parse(e.time) >= todayStart.getTime());
+  const now = Date.now();
+  const nextId = shown.find((e) => Date.parse(e.time) > now)?.id;
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const present = [...new Set(events.map((e) => e.ccy))];
+  let lastDay = null;
+  return (
+    <section className="card ecal" id="ecal">
+      <h3>Calendario económico de la semana: dato, consenso y anterior</h3>
+      <div className="news-bar">
+        <div className="seg" role="group" aria-label="Impacto">
+          {IMPACT_FILTERS.map(([k, l]) => <button key={k} className={imp === k ? 'on' : ''} aria-pressed={imp === k} onClick={() => setImp(k)}>{l}</button>)}
+        </div>
+        <div className="chips" role="group" aria-label="Monedas">
+          {CAL_CCY.filter((c) => present.includes(c)).map((c) => {
+            const ev = events.find((e) => e.ccy === c);
+            return (
+              <button key={c} className={`chip ${off.includes(c) ? '' : 'on'}`} aria-pressed={!off.includes(c)} onClick={() => toggle(c)}>
+                {ev?.flag && <Flag id={ev.flag} />}{c}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {pastN > 0 && (
+        <button className="btn ecal-past" onClick={() => setShowPast((v) => !v)} aria-expanded={showPast}>
+          {showPast ? 'Ocultar días anteriores' : `Ver días anteriores de la semana (${pastN})`}
+        </button>
+      )}
+      <div className="ecal-head" aria-hidden="true"><span>Hora</span><span>Evento</span><span>Dato</span><span>Esperado</span><span>Anterior</span></div>
+      {!shown.length ? <div className="empty">Sin eventos con estos filtros</div> : (
+        <ul className="ecal-list">
+          {shown.map((e) => {
+            const day = calDay(e.time);
+            const sep = day !== lastDay ? <li key={`d-${e.time}`} className="ecal-day">{day}</li> : null;
+            lastDay = day;
+            const [impLbl, impCls] = IMPACT[e.impact] || IMPACT.low;
+            const s = e.surprise;
+            const sTxt = s ? `${s.diff > 0 ? '+' : s.diff < 0 ? '−' : ''}${fmtNum(Math.abs(s.diff), String(s.diff).split('.')[1]?.length || 1)}${s.unit === '%' ? ' pp' : s.unit}` : null;
+            return [sep, (
+              <li key={e.id} className={`ecal-row ${impCls} ${e.id === nextId ? 'is-next' : ''}`}>
+                <span className="ecal-time">{e.kind === 'auct' && !e.timeKnown ? '—' : new Date(e.time).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}</span>
+                <span className="ecal-ev">
+                  <span className={`imp-dot ${impCls}`} title={`Impacto ${impLbl.toLowerCase()}`} aria-label={`Impacto ${impLbl.toLowerCase()}`} />
+                  {e.flag && <Flag id={e.flag} />}
+                  {e.url ? <a href={e.url} target="_blank" rel="noreferrer">{e.title}</a> : e.title}
+                  {e.kind === 'auct' && e.offering && <span className="muted"> · USD {fmtNum(e.offering / 1e6, 0)} M</span>}
+                  {e.id === nextId && <span className="news-new">próximo</span>}
+                </span>
+                <span className={`ecal-val ecal-act ${s ? `s-${s.dir}` : ''}`} title={e.actualSrc ? `Dato: ${e.actualSrc}` : e.actual ? undefined : e.ccy !== 'USD' && Date.parse(e.time) < now ? 'Sin fuente del dato real para esta moneda' : undefined}>
+                  {e.actual ? <>{s && s.dir !== 'flat' ? (s.dir === 'up' ? '▲ ' : '▼ ') : ''}{e.actual}{sTxt && <small title={s.label || 'Dato − esperado'}>{sTxt} vs esperado</small>}</> : <span className="muted">—</span>}
+                </span>
+                <span className="ecal-val" title={e.forecastNote}>{e.forecast || <span className="muted">—</span>}</span>
+                <span className="ecal-val muted">{e.previous || '—'}</span>
+              </li>
+            )];
+          })}
+        </ul>
+      )}
+      <div className="card-foot">
+        <span>
+          Horario de {tz.replace('_', ' ')}. <b>Esperado</b>: consenso de Forex Factory (semana en curso). <b>Dato</b>: EE.UU. desde FRED, con la misma transformación
+          que el titular, apenas FRED lo publica; para el resto de las monedas Forex Factory no trae el dato real (queda "—"). ▲/▼ y color: dato por encima / por debajo
+          del esperado, con la diferencia al lado (pp = puntos porcentuales). <b>Licitaciones</b>: tasa de corte (en FRN, margen de descuento) y bid-to-cover de TreasuryDirect;
+          esperado = bid-to-cover promedio de las últimas 6 del mismo plazo; anterior = la licitación previa del mismo plazo.
+        </span>
+        <Source source="Forex Factory · FRED · TreasuryDirect" url={data?.sources?.consensus?.url} />
+      </div>
+    </section>
+  );
+}
