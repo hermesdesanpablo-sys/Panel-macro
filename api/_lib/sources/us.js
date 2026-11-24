@@ -1,7 +1,9 @@
 // Estados Unidos: FRED (requiere FRED_API_KEY gratuita) + Yahoo (futuros Fed funds, índices).
 import { getJson, clean, iso, daysAgo, daysAhead, settle, kpi, merge, thin, last, yoyFromIndex, upcoming, today, fmtMonthEs } from '../util.js';
 import { equityBlock, fedFundsStrip, yahooSeries, fedFundsContractHistory } from '../yahoo.js';
-import { agendaEvents } from '../calendar.js';
+import { agendaEvents, POLICY_MEETINGS } from '../calendar.js';
+import { treasuryAuctions } from '../treasury.js';
+import { fedWatch, polymarketFed } from '../fedprobs.js';
 
 const KEY = () => {
   const k = process.env.FRED_API_KEY;
@@ -18,13 +20,27 @@ export async function fred(id, from) {
 
 // Releases de FRED que entran en la agenda (IDs verificados contra /fred/release).
 export const FRED_RELEASES = {
+  50: 'BLS – Empleo (nóminas no agrícolas, desempleo)',
   10: 'BLS – IPC (CPI)',
-  50: 'BLS – Empleo (nóminas no agrícolas)',
-  53: 'BEA – PIB (GDP)',
-  54: 'BEA – Ingreso y gasto personal (PCE)',
   46: 'BLS – Precios mayoristas (PPI)',
+  54: 'BEA – Ingreso y gasto personal (PCE)',
+  53: 'BEA – PIB (GDP)',
   9: 'Census – Ventas minoristas',
   192: 'BLS – Vacantes laborales (JOLTS)',
+  194: 'ADP – Empleo privado',
+  180: 'DOL – Pedidos de subsidio por desempleo (semanal)',
+  11: 'BLS – Costo laboral (ECI)',
+  47: 'BLS – Productividad y costo laboral unitario',
+  91: 'U. de Michigan – Confianza del consumidor',
+  13: 'Fed – Producción industrial',
+  95: 'Census – Órdenes de fábrica y bienes durables',
+  51: 'Census/BEA – Balanza comercial',
+  27: 'Census – Inicios de viviendas y permisos',
+  97: 'Census – Ventas de viviendas nuevas',
+  291: 'NAR – Ventas de viviendas usadas',
+  321: 'Fed de Nueva York – Encuesta manufacturera (Empire State)',
+  351: 'Fed de Filadelfia – Encuesta manufacturera',
+  363: 'Tesoro – Resultado fiscal mensual',
 };
 
 /**
@@ -64,6 +80,8 @@ export default async function unitedStates() {
       'Yahoo ZQ +12m (historia)': () => fedFundsContractHistory(12),
       'Yahoo EUSA/^GSPC': () => equityBlock('EUSA', 'iShares MSCI USA (EUSA)', '^GSPC', 'S&P 500'),
       'FRED calendario': fredCalendar,
+      'Tesoro licitaciones': treasuryAuctions,
+      'Polymarket Fed': () => polymarketFed(POLICY_MEETINGS.us.dates, today()),
     },
     errors
   );
@@ -82,6 +100,20 @@ export default async function unitedStates() {
   const strip = d['Yahoo futuros ZQ'];
   const zq12 = d['Yahoo ZQ +12m (historia)'];
   const from1y = iso(daysAgo(400));
+  // Probabilidades por reunión: futuros (método FedWatch, cálculo propio) y Polymarket.
+  let fedProbs = null;
+  try {
+    const effr = last(d['FRED EFFR'] || []);
+    if (strip && effr && last(lower) && last(upper)) {
+      fedProbs = {
+        futures: fedWatch({ strip, meetings: POLICY_MEETINGS.us.dates, effr: effr.v, lower: last(lower).v, upper: last(upper).v, asOf: today() }),
+        futuresAsOf: strip[0]?.date, effrDate: effr.d,
+        polymarket: d['Polymarket Fed'] || [],
+      };
+    }
+  } catch (e) {
+    errors.push({ source: 'Probabilidades Fed (cálculo propio)', message: e.message });
+  }
 
   return {
     id: 'us',
@@ -168,7 +200,9 @@ export default async function unitedStates() {
           note: 'Promedio mensual esperado de EFFR. Con una baja a mitad de mes, el contrato refleja solo parte del movimiento.',
         }
       : null,
-    calendar: upcoming([...agendaEvents('us'), ...(d['FRED calendario'] || [])], 20),
+    fedProbs,
+    // Más eventos que el resto de los países: datos semanales (subsidios) y licitaciones del Tesoro.
+    calendar: upcoming([...agendaEvents('us'), ...(d['FRED calendario'] || []), ...(d['Tesoro licitaciones'] || [])], 45),
     errors,
   };
 }

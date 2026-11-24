@@ -230,6 +230,36 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   assert.ok(![0, 6].includes(new Date(co.date + 'T12:00:00Z').getUTCDay()), 'TES 10Y: la fecha no debe caer en fin de semana');
   console.log('✓ Colombia TES 10Y diario (Suameca)');
 }
+// Fed: método FedWatch con una tira sintética (+25 pb en la 1.ª reunión, ~50% de +25 en la 2.ª) y el payload de EE.UU.
+{
+  const { fedWatch } = await import('../api/_lib/fedprobs.js');
+  const strip = [{ month: '2027-01', implied: 4.0 }, { month: '2027-02', implied: 4.0 }, { month: '2027-03', implied: 4.0 + 0.125 * (14 / 31) }, { month: '2027-04', implied: 4.125 }];
+  const fw = fedWatch({ strip, meetings: ['2027-01-31', '2027-03-17'], effr: 3.75, lower: 3.5, upper: 3.75, asOf: '2026-12-15' });
+  // Enero: reunión el último día → posterior = febrero (4,00), previa = EFFR (3,75): +25 pb seguro.
+  assert.ok(Math.abs(fw.meetings[0].hike - 1) < 1e-9 && fw.meetings[0].moves.length === 1, 'FedWatch: suba segura en la 1.ª reunión');
+  const m2 = fw.meetings[1];
+  assert.ok(Math.abs(m2.hike - 0.5) < 1e-6 && Math.abs(m2.hold - 0.5) < 1e-6, `FedWatch: 50/50 en la 2.ª reunión (${m2.hike})`);
+  assert.ok(Math.abs(m2.cumHike - 1) < 1e-9 && m2.ranges.length === 2, 'FedWatch: distribución acumulada');
+  const us = out.us;
+  assert.ok(us.fedProbs?.futures?.meetings?.length > 0, 'EE.UU.: faltan las probabilidades de futuros');
+  const pmk = us.fedProbs.polymarket;
+  assert.ok(pmk.length === 1 && Math.abs(pmk[0].hold - 0.75) < 1e-9 && Math.abs(pmk[0].cut - 0.2) < 1e-9, 'Polymarket: lectura y normalización');
+  assert.equal(pmk[0].date, us.fedProbs.futures.meetings[0].date, 'Polymarket: asignación a la reunión del FOMC');
+  console.log('✓ Fed: FedWatch y Polymarket');
+}
+// Licitaciones del Tesoro: cronograma tentativo + anunciadas + resultados; sin letras.
+{
+  const auct = out.us.calendar.filter((e) => e.kind === 'auct');
+  const by = (re) => auct.find((e) => re.test(e.event));
+  assert.ok(!auct.some((e) => /semanas/.test(e.event)), 'Tesoro: las letras no van a la agenda');
+  assert.ok(/USD 70\.000 M · cierre 13:00 ET/.test(by(/5 años \(Nota\)/)?.event || ''), 'Tesoro: monto y hora de la licitación anunciada');
+  assert.ok(/FRN, reapertura\) · USD 28\.000 M · cierre 11:30 ET/.test(by(/FRN/)?.event || ''), 'Tesoro: FRN emparejada por plazo original');
+  assert.ok(/tentativa/.test(by(/TIPS/)?.event || ''), 'Tesoro: licitación tentativa');
+  const { auctionEvents } = await import('../api/_lib/treasury.js');
+  const past = auctionEvents([{ term: '2-Year', type: 'NOTE', date: '2026-11-23' }], [], [{ securityType: 'Note', securityTerm: '2-Year', type: 'Note', floatingRate: 'No', auctionDate: '2026-11-23T00:00:00', offeringAmount: '69000000000', highYield: '4.700', bidToCoverRatio: '2.65' }]);
+  assert.ok(/corte 4,700% · bid-to-cover 2,65/.test(past[0].event), 'Tesoro: resultado de la licitación');
+  console.log('✓ Tesoro: licitaciones');
+}
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);
 console.log('OK – src/mock-data.json actualizado');

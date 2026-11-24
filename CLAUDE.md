@@ -36,6 +36,8 @@ api/_lib/ssga.js            State Street: planilla de productos SPDR (P/E FY1, P
 api/_lib/sources/sust.js    Sostenibilidad: FMI WEO (API SDMX) + Banco Mundial (WDI). Payload propio: countries[].rows por año
 api/_lib/xlsx.js            Lector mínimo de .xlsx sin dependencias (zlib): readFirstSheet / readSheet(buf, n)
 api/_lib/sources/news.js    Noticias: feeds RSS públicos (Bloomberg, WSJ, MarketWatch, Fed, BCE, Google Noticias, FinancialJuice); etiquetas por palabras clave
+api/_lib/fedprobs.js        Probabilidades de la Fed por reunión: futuros ZQ (método FedWatch, cálculo propio) y Polymarket (API Gamma)
+api/_lib/treasury.js        Licitaciones del Tesoro: cronograma tentativo (PDF) + TreasuryDirect (anunciadas y resultados)
 api/_lib/sources/rank.js    Ranking de emisores (8 de LatAm): 5 pilares ponderados, solo datos 2025+, vs spread EMBI
 api/_lib/debtcomp.js        Composición de la deuda pública (Banco Mundial QPSD): moneda, residencia del acreedor, vencimientos a 12 meses
 api/_lib/ecdebt.js          Ecuador: composición de la deuda con el Boletín de Deuda Pública del Ministerio de Economía (no reporta a QPSD)
@@ -149,7 +151,7 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 | País | Tasa política | Inflación | Expectativas | Tasas mercado | FX | Índice | Agenda |
 |---|---|---|---|---|---|---|---|
 | 🇧🇷 | ✔ SGS 432 (cortada en hoy) | ✔ SGS 13522/433 | ✔ Focus anual, Selic por reunión, Focus IPCA 12m; ✔ breakeven 10Y (NTN-F/NTN-B) | ✔ Prefijado 2Y/10Y y real 10Y (Tesouro Direto, interpolado); ❌ DI futuro | ✔ SGS 1 | ✔ EWZ/^BVSP | ✔ Copom + IBGE |
-| 🇺🇸 | ✔ FRED | ✔ FRED (a/a calculado) | ✔ ZQ en Yahoo; ✔ breakeven 5Y | ✔ DGS2/10 | ✔ DXY | ✔ EUSA/^GSPC | ✔ FOMC + FRED releases (por ID) |
+| 🇺🇸 | ✔ FRED | ✔ FRED (a/a calculado) | ✔ ZQ en Yahoo; ✔ probabilidades por reunión (ZQ con método FedWatch + Polymarket); ✔ breakeven 5Y | ✔ DGS2/10 | ✔ DXY | ✔ EUSA/^GSPC | ✔ FOMC + 21 releases de FRED (por ID) + licitaciones del Tesoro |
 | 🇪🇺 | ✔ DFR | ✔ HICP (dataset `HICP`, proveedor `4D0`) | ✔ forwards AAA `IF_*`; ✔ SPF LT | ✔ AAA 2Y/10Y | ✔ | ✔ EZU/^STOXX50E | ✅ BCE |
 | 🇲🇽 | ✔ SF61745 | ✔ SP30578 | ✔ Encuesta Banxico (trayectoria de tasa, infl. 12m, tabla) | ✔ Cetes/TIIE; ✔ Bono M 3Y/10Y (subasta) | ✔ FIX | ✔ EWW/^MXX | ✔ dic-2026; ❌ 2027 (no publicado) |
 | 🇨🇦 | ✔ V39079 | ✔ V41690973; ✔ CPI-trim/median | proxy 2Y − overnight; ✔ breakeven LP (LONG − RRB) | ✔ GoC 2Y/10Y | ✔ | ✔ EWC/^GSPTSE | ✅ BoC |
@@ -258,6 +260,15 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
   En un entorno con proxy, probar con `NODE_USE_ENV_PROXY=1`.
 - Variables opcionales para sobreescribir: `BANREP_FLOW_POLICY`, `BANREP_IBR_ON`, `BANREP_IBR_6M`.
 - `startPeriod` solo respeta el año; el filtro fino de fechas se hace del lado del cliente.
+
+### Notas de la Fed y el Tesoro
+- FedWatch (`fedWatch`): la tasa previa a cada reunión sale del contrato del mes anterior si ese mes no tiene reunión (si no, de la posterior
+  de la reunión anterior; para la primera, la EFFR spot). La posterior sale del contrato del mes siguiente si no tiene reunión; si no, se despeja
+  del promedio del mes. Movimientos de 25 pb, repartidos entre los dos más cercanos. Incluye prima por plazo: en reuniones lejanas exagera.
+- Polymarket: `gamma-api.polymarket.com/events?closed=false&tag_slug=fed-rates`, eventos "Fed Decision in <Mes>?" (mercados 50+/25 bps
+  decrease, No change, 25/50+ bps increase). Precio del "Sí" = probabilidad; se normaliza a 100%. Solo lectura, sin cuenta.
+- Tesoro: `home.treasury.gov/system/files/221/Tentative-Auction-Schedule.pdf` (se lee con unpdf) y `treasurydirect.gov/TA_WS/securities/upcoming|auctioned?format=json`.
+  Se emparejan por fecha + tipo (Note/Bond/TIPS/FRN) + plazo original (`originalSecurityTerm`: las reaperturas figuran como "9-Year 8-Month").
 
 ### Notas de la Agenda
 - `calendar.js`: `POLICY_MEETINGS` (bancos centrales) y `DATA_RELEASES` (IPC y PIB) con la fuente de cada calendario;
