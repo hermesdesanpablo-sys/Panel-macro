@@ -38,7 +38,7 @@ api/_lib/xlsx.js            Lector mínimo de .xlsx sin dependencias (zlib): rea
 api/_lib/sources/news.js    Noticias: feeds RSS públicos (Bloomberg, WSJ, MarketWatch, Fed, BCE, Google Noticias, FinancialJuice); etiquetas por palabras clave
 api/_lib/sources/cal.js     Calendario económico de la semana: consenso y anterior (Forex Factory) + dato real de EE.UU. (FRED) + licitaciones (TreasuryDirect)
 api/_lib/officialActuals.js Dato oficial fuera de EE.UU. para el calendario: StatCan (CA), ONS (UK), BCE y Eurostat (EZ)
-api/_lib/latamCal.js        IPCA/IPCA-15 (IBGE + Focus + SGS) e IPC de Argentina (INDEC + REM + BCRA) para el calendario
+api/_lib/latamCal.js        Inflación de AR, BR, CL, CO y MX para el calendario (fecha oficial + encuesta del banco central + dato oficial)
 api/_lib/fedprobs.js        Probabilidades de la Fed por reunión: futuros ZQ (método FedWatch, cálculo propio) y Polymarket (API Gamma)
 api/_lib/treasury.js        Licitaciones del Tesoro: cronograma tentativo (PDF) + TreasuryDirect (anunciadas y resultados)
 api/_lib/sources/rank.js    Ranking de emisores (8 de LatAm): 5 pilares ponderados, solo datos 2025+, vs spread EMBI
@@ -284,6 +284,11 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
   `updatedAfter` (404 = sin dato nuevo); Eurostat `namq_10_gdp` y `une_rt_m` con geo EA21. El flash del HICP no está en ninguna API pública.
 - América Latina: Focus mensual `ExpectativaMercadoMensais` (IPCA, DataReferencia MM/AAAA, última encuesta anterior a la publicación);
   el IBGE informa la hora en UTC (12:00 = 09:00 de Brasilia). Argentina usa `DATA_RELEASES.ar` (actualizar con el calendario del INDEC de 2027).
+- México: SIE SP30577 (m/m) y SP30578 (a/a); la encuesta de Banxico (CR154) no releva la inflación mensual. Chile: EOF `F089.EOF.VII.MA.D`
+  (mes actual, se usa la última encuesta del mes de referencia), IPC `F074.IPC.VAR.Z.Z.C.M` (m/m) y `F074.IPC.IND.Z.EP09.C.M` (a/a, pese al "IND").
+  Colombia: m/m = UVR(15/M+2)/UVR(15/M+1) − 1; la UVR se conoce antes que el DANE, por eso el dato se muestra recién después de la hora de publicación.
+- Semana siguiente: `US_NEXT` en cal.js (release de FRED → títulos, hora oficial ET, unidad). Sin durables (release 95 mezcla anticipo y órdenes de fábrica).
+  Ventana: domingo de la semana en curso (ET) + 13 días. Monedas excluidas en `EXCLUDE` (AUD).
 - Licitaciones: historia por tipo con `TA_WS/securities/auctioned?type=Note|Bond|TIPS|FRN&days=400` (el endpoint `search` responde 500).
 
 ### Notas de la Agenda
