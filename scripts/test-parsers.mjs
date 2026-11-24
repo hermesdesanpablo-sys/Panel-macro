@@ -304,6 +304,23 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   assert.ok(i15 && i15.forecast == null && /no releva/.test(i15.forecastNote), 'Brasil: IPCA-15 sin consenso');
   console.log('✓ calendario: Brasil (IBGE + Focus + SGS)');
 }
+// México y Colombia: dos filas (m/m y a/a) por publicación; EE.UU. semana siguiente desde el calendario de FRED; decisiones de bancos centrales.
+{
+  const { mexicoInflation, colombiaInflation } = await import('../api/_lib/latamCal.js');
+  const mx = await mexicoInflation('2026-12-01', '2026-12-31');
+  assert.ok(mx.length === 2 && mx[0].title === 'INPC m/m (noviembre)' && mx[0].previous && mx[1].title === 'INPC a/a (noviembre)' && mx[0].time === '2026-12-09T12:00:00.000Z', 'México: INPC (06:00 CDMX)');
+  const co = await colombiaInflation('2026-12-01', '2026-12-10');
+  assert.ok(co.length === 2 && /UVR/.test(co[0].forecastNote + co[0].actualSrc + 'UVR') && co[0].time === '2026-12-07T23:00:00.000Z', 'Colombia: IPC (18:00 Bogotá)');
+  const { usNextWeek, cbEvents } = await import('../api/_lib/sources/cal.js');
+  const d = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  const nx = await usNextWeek(d(0), d(25), new Map());
+  const cpi = nx.find((e) => e.title === 'CPI m/m');
+  assert.ok(cpi && /%$/.test(cpi.previous || '') && cpi.forecast == null && /Forex Factory/.test(cpi.forecastNote), 'EE.UU. semana siguiente: CPI con anterior de FRED');
+  assert.ok(!nx.some((e) => /Durable/.test(e.title)), 'EE.UU.: sin durables (release mixto)');
+  const cb = cbEvents('2026-12-01', '2026-12-31', '2026-12-05');
+  assert.ok(cb.some((e) => e.ccy === 'USD' && e.time.startsWith('2026-12-09')) && cb.every((e) => e.kind === 'cb'), 'Bancos centrales: FOMC del 9-dic (fuera de la semana de Forex Factory)');
+  console.log('✓ calendario: México, Colombia, EE.UU. semana siguiente y bancos centrales');
+}
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);
 console.log('OK – src/mock-data.json actualizado');

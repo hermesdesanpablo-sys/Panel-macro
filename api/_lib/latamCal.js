@@ -76,3 +76,77 @@ export async function argentinaInflation(from, to) {
     };
   });
 }
+
+// ---------- México, Chile y Colombia ----------
+import { sie } from './sources/mx.js';
+import { bdeApi } from './sources/cl.js';
+import { banrep, BANREP_FLOWS, SERIES_PICK, pick, ipcFromUvr } from './sources/co.js';
+
+const monthRef = (ev, date) => {
+  const mes = MESES.indexOf((/de (\w+)/.exec(ev)?.[1] || '').toLowerCase());
+  if (mes < 0) return null;
+  const y = Number(date.slice(0, 4)) - (mes + 1 > Number(date.slice(5, 7)) ? 1 : 0);
+  return { mes, ref: `${y}-${String(mes + 1).padStart(2, '0')}` };
+};
+const at = (s, ym) => s.find((p) => p.d.startsWith(ym))?.v ?? null;
+/** Dos filas (m/m y a/a) por publicación mensual de IPC. timeLocal: hora oficial con desvío, o null si no se conoce. */
+function cpiRows({ id, ccy, flag, date, timeLocal, ref, mes, mom, yoy, dec, forecast, forecastNote, src, url, label = 'IPC' }) {
+  const time = new Date(`${date}T${timeLocal || '12:00:00-03:00'}`).toISOString();
+  const released = Date.parse(time) <= Date.now();
+  const row = (kind, s, f, fNote) => {
+    const a = released ? at(s, ref) : null;
+    return {
+      id: `${id}-${kind}-${ref}`, time, timeKnown: !!timeLocal, ccy, flag, impact: kind === 'mom' ? 'high' : 'medium', kind: 'data',
+      title: `${label} ${kind === 'mom' ? 'm/m' : 'a/a'} (${MESES[mes]})`, actual: pct(a, dec), previous: pct(at(s, prevMonth(ref)), dec),
+      forecast: pct(f, dec), forecastNote: fNote, surprise: surprise(a, f), actualSrc: a != null ? src : undefined, url,
+    };
+  };
+  return [row('mom', mom, forecast, forecastNote), ...(yoy ? [row('yoy', yoy, null, undefined)] : [])];
+}
+
+/** México: INPC mensual (INEGI, 06:00 CDMX). Dato: Banxico SIE (SP30577 m/m, SP30578 a/a). Sin consenso: la encuesta de Banxico no releva la inflación mensual. */
+export async function mexicoInflation(from, to) {
+  const items = (DATA_RELEASES.mx?.items || []).filter(([d, ev]) => d >= from && d <= to && /INPC de \w+/.test(ev));
+  if (!items.length) return [];
+  const s = await sie(['SP30577', 'SP30578'], new Date(Date.now() - 500 * 864e5));
+  return items.flatMap(([date, ev]) => {
+    const r = monthRef(ev, date);
+    return r ? cpiRows({ id: 'mx-inpc', ccy: 'MXN', flag: 'mx', date, timeLocal: '06:00:00-06:00', ...r, mom: s.SP30577 || [], yoy: s.SP30578 || [], dec: 2,
+      forecastNote: 'La encuesta de Banxico no releva la inflación mensual', src: 'Banxico SIE (INEGI)', url: DATA_RELEASES.mx.src, label: 'INPC' }) : [];
+  });
+}
+
+/** Chile: IPC (INE, 08:00). Consenso: EOF del BCCh, inflación del "mes actual" de la última encuesta de ese mes. Dato: BCCh (variaciones del INE). */
+export async function chileInflation(from, to) {
+  const items = (DATA_RELEASES.cl?.items || []).filter(([d, ev]) => d >= from && d <= to && /IPC de \w+/.test(ev));
+  if (!items.length) return [];
+  if (!process.env.BCCH_API_TOKEN) return []; // sin token de la API del BCCh no hay series de IPC ni EOF (los cuadros públicos no traen la EOF diaria)
+  const since = new Date(Date.now() - 500 * 864e5);
+  // F074.IPC.VAR.Z.Z.C.M = variación mensual; F074.IPC.IND.Z.EP09.C.M = variación anual (pese al "IND" del código).
+  const [mom, yoy, eof] = await Promise.all([bdeApi('F074.IPC.VAR.Z.Z.C.M', since), bdeApi('F074.IPC.IND.Z.EP09.C.M', since), bdeApi('F089.EOF.VII.MA.D', new Date(Date.now() - 120 * 864e5))]);
+  return items.flatMap(([date, ev]) => {
+    const r = monthRef(ev, date);
+    if (!r) return [];
+    const f = eof.filter((p) => p.d.startsWith(r.ref) && p.d < date).at(-1);
+    return cpiRows({ id: 'cl-ipc', ccy: 'CLP', flag: 'cl', date, timeLocal: '08:00:00-03:00', ...r, mom, yoy, dec: 1,
+      forecast: f?.v ?? null, forecastNote: f ? `Mediana EOF (BCCh) del ${f.d}, mes en curso` : 'Sin EOF de ese mes', src: 'BCCh BDE (INE)', url: DATA_RELEASES.cl.src });
+  });
+}
+
+/** Colombia: IPC (DANE). Dato: derivado de la UVR del BanRep (coincide con el DANE); se muestra recién después de la publicación. Sin consenso público. */
+export async function colombiaInflation(from, to) {
+  const items = (DATA_RELEASES.co?.items || []).filter(([d, ev]) => d >= from && d <= to && /IPC de \w+/.test(ev));
+  if (!items.length) return [];
+  const uvr = pick(await banrep(BANREP_FLOWS.uvr, new Date().getUTCFullYear() - 2), SERIES_PICK.uvr, 'UVR').series;
+  const yoy = ipcFromUvr(uvr);
+  // m/m de M = UVR(15 de M+2) / UVR(15 de M+1) − 1 (la UVR traslada el IPC del mes anterior entre el 16 y el 15).
+  const um = new Map(uvr.map((p) => [p.d, p.v]));
+  const d15 = (y, m) => new Date(Date.UTC(y, m, 15)).toISOString().slice(0, 10);
+  const mom = yoy.map((p) => { const [y, m] = p.d.split('-').map(Number); const a = um.get(d15(y, m + 1)), b = um.get(d15(y, m)); return a && b ? { d: p.d, v: Math.round((a / b - 1) * 10000) / 100 } : null; }).filter(Boolean);
+  return items.flatMap(([date, ev]) => {
+    const r = monthRef(ev, date);
+    // DANE publica el IPC a las 18:00 de Bogotá.
+    return r ? cpiRows({ id: 'co-ipc', ccy: 'COP', flag: 'co', date, timeLocal: '18:00:00-05:00', ...r, mom, yoy, dec: 2,
+      forecastNote: 'Sin consenso público (la encuesta del BanRep tiene captcha)', src: 'Cálculo propio con la UVR (BanRep), igual al DANE', url: DATA_RELEASES.co.src }) : [];
+  });
+}

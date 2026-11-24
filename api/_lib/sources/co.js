@@ -135,7 +135,7 @@ export async function banrep(flow, fromYear) {
 }
 
 /** Elige una serie de un flujo: por regex sobre la clave, o la única/la más larga. */
-function pick(all, re, label) {
+export function pick(all, re, label) {
   if (all.length === 1) return all[0];
   const rx = typeof re === 'string' ? new RegExp(re) : re;
   const hit = rx && all.find((s) => rx.test(s.key));

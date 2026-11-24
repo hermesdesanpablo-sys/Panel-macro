@@ -1892,7 +1892,7 @@ export function NewsPanel({ data }) {
 // ---------- Calendario económico (dato vs consenso) ----------
 const IMPACT = { high: ['Alto', 'imp-high'], medium: ['Medio', 'imp-med'], low: ['Bajo', 'imp-low'], holiday: ['Feriado', 'imp-hol'] };
 const IMPACT_FILTERS = [['high', 'Alto'], ['medium', 'Alto y medio'], ['all', 'Todos']];
-const CAL_CCY = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'CNY', 'AUD', 'NZD', 'CHF', 'BRL', 'ARS'];
+const CAL_CCY = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'CNY', 'NZD', 'CHF', 'BRL', 'MXN', 'ARS', 'CLP', 'COP', 'PEN', 'INR'];
 const keepCal = (k, v) => { try { localStorage.setItem(`cal.${k}`, v); } catch { /* sin almacenamiento */ } };
 const readCal = (k, d) => { try { return localStorage.getItem(`cal.${k}`) ?? d; } catch { return d; } };
 const calDay = (iso) => {
@@ -1924,7 +1924,7 @@ export function EconCalendar({ data }) {
   let lastDay = null;
   return (
     <section className="card ecal" id="ecal">
-      <h3>Calendario económico de la semana: dato, consenso y anterior</h3>
+      <h3>Calendario económico: esta semana y la siguiente (dato, consenso y anterior)</h3>
       <div className="news-bar">
         <div className="seg" role="group" aria-label="Impacto">
           {IMPACT_FILTERS.map(([k, l]) => <button key={k} className={imp === k ? 'on' : ''} aria-pressed={imp === k} onClick={() => setImp(k)}>{l}</button>)}
@@ -1949,7 +1949,7 @@ export function EconCalendar({ data }) {
       {!shown.length ? <div className="empty">Sin eventos con estos filtros</div> : (
         <ul className="ecal-list">
           {shown.map((e) => {
-            const day = calDay(e.time);
+            const day = calDay(e.time) + (data?.window?.ffLast && e.time.slice(0, 10) > data.window.ffLast && Date.parse(e.time) > Date.parse(`${data.window.ffLast}T23:59:59-05:00`) ? ' · SEMANA PRÓXIMA' : '');
             const sep = day !== lastDay ? <li key={`d-${e.time}`} className="ecal-day">{day}</li> : null;
             lastDay = day;
             const [impLbl, impCls] = IMPACT[e.impact] || IMPACT.low;
@@ -1957,7 +1957,7 @@ export function EconCalendar({ data }) {
             const sTxt = s ? `${s.diff > 0 ? '+' : s.diff < 0 ? '−' : ''}${fmtNum(Math.abs(s.diff), String(s.diff).split('.')[1]?.length || 1)}${s.unit === '%' ? ' pp' : s.unit}` : null;
             return [sep, (
               <li key={e.id} className={`ecal-row ${impCls} ${e.id === nextId ? 'is-next' : ''}`}>
-                <span className="ecal-time">{e.kind === 'auct' && !e.timeKnown ? '—' : new Date(e.time).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}</span>
+                <span className="ecal-time">{e.timeKnown === false ? '—' : new Date(e.time).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}</span>
                 <span className="ecal-ev">
                   <span className={`imp-dot ${impCls}`} title={`Impacto ${impLbl.toLowerCase()}`} aria-label={`Impacto ${impLbl.toLowerCase()}`} />
                   {e.flag && <Flag id={e.flag} />}
@@ -1977,10 +1977,13 @@ export function EconCalendar({ data }) {
       )}
       <div className="card-foot">
         <span>
-          Horario de {tz.replace('_', ' ')}. <b>Esperado</b>: consenso de Forex Factory (semana en curso); en Brasil, mediana Focus del BCB; en Argentina, mediana REM del BCRA.
+          Horario de {tz.replace('_', ' ')}. <b>Esperado</b>: consenso de Forex Factory (semana en curso); en Brasil, mediana Focus del BCB; en Argentina, mediana REM del BCRA;
+          en Chile, mediana de la EOF del BCCh. México (la encuesta de Banxico no releva la inflación mensual) y Colombia: sin consenso público.
           <b> Dato</b>, de la fuente oficial apenas se publica: EE.UU. FRED; Canadá StatCan; Reino Unido ONS; Eurozona BCE (HICP final) y Eurostat (PIB, desempleo);
-          Brasil IBGE vía BCB; Argentina INDEC vía BCRA. Sin fuente oficial abierta (PMI, encuestas privadas, flash del HICP, Japón, Australia, Suiza, China): queda "—".
-          Pasá el mouse sobre el dato para ver la serie. ▲/▼ y color: dato por encima / por debajo del esperado, con la diferencia (pp = puntos porcentuales). <b>Licitaciones</b>: tasa de corte (en FRN, margen de descuento) y bid-to-cover de TreasuryDirect;
+          Brasil IBGE vía BCB; Argentina INDEC vía BCRA; México INEGI vía Banxico; Chile INE vía BCCh; Colombia: cálculo con la UVR del BanRep (igual al DANE).
+          Sin fuente oficial abierta (PMI, encuestas privadas, flash del HICP, Japón, Suiza, China): queda "—".
+          <b> Semana próxima</b>: Forex Factory publica su planilla semana por semana; hasta entonces se muestran EE.UU. (fecha del calendario de FRED, hora oficial y anterior),
+          América Latina, licitaciones y decisiones de bancos centrales, sin consenso. Pasá el mouse sobre el dato o el esperado para ver la fuente. ▲/▼ y color: dato por encima / por debajo del esperado, con la diferencia (pp = puntos porcentuales). <b>Licitaciones</b>: tasa de corte (en FRN, margen de descuento) y bid-to-cover de TreasuryDirect;
           esperado = bid-to-cover promedio de las últimas 6 del mismo plazo; anterior = la licitación previa del mismo plazo.
         </span>
         <Source source="Forex Factory · FRED · StatCan · ONS · BCE · Eurostat · BCB · BCRA · TreasuryDirect" url={data?.sources?.consensus?.url} />

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.19.0 — 2026-11-24 (Calendario: México, Chile, Colombia y semana siguiente)
+- Calendario económico: inflación de **México** (INEGI; dato de Banxico SIE SP30577/SP30578), **Chile** (INE; consenso = mediana de la EOF
+  del BCCh "mes actual"; dato de la BDE F074.IPC.VAR.Z.Z.C.M y EP09) y **Colombia** (DANE; dato calculado con la UVR del BanRep, igual al DANE,
+  que se muestra recién a la hora de publicación). Cada publicación tiene dos filas: m/m y a/a. México y Colombia, sin consenso público.
+- **Esta semana y la siguiente.** Forex Factory solo publica la semana en curso, así que la siguiente se arma con:
+  - EE.UU.: fecha del calendario de FRED, hora oficial de cada organismo y el anterior calculado desde FRED. El consenso aparece cuando Forex
+    Factory publica la semana.
+  - Licitaciones del Tesoro, América Latina y decisiones de bancos centrales (`POLICY_MEETINGS`).
+- Sin Australia (AUD), a pedido de Hermes.
+- Verificado con datos reales: Chile IPC oct 0,5% m/m (EOF 0,5%), México INPC oct 0,65% m/m y 3,75% a/a, Colombia IPC oct 0,20% m/m y 6,32% a/a.
+  `npm test` OK; `npm run build` OK.
+
 ## 0.18.0 — 2026-11-24 (Calendario: dato oficial fuera de EE.UU. y América Latina)
 - Calendario económico: dato real desde la fuente oficial para Canadá, Reino Unido y Eurozona (`api/_lib/officialActuals.js`).
   - Canadá (StatCan WDS): IPC m/m y a/a, IPC común/mediana/recortado, empleo, desempleo, PIB m/m y ventas minoristas.

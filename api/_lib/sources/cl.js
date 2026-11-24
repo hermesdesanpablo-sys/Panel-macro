@@ -54,7 +54,7 @@ export function parseBdeApi(j, code) {
     return { d: `${yy}-${mm}-${dd}`, v: parseFloat(o.value) };
   }));
 }
-async function bdeApi(code, from) {
+export async function bdeApi(code, from) {
   const qs = new URLSearchParams({ token: process.env.BCCH_API_TOKEN, function: 'GetSeries', timeseries: code, firstdate: iso(from) });
   const r = await fetch(`${API}?${qs}`, { signal: AbortSignal.timeout(20000) });
   if (!r.ok) throw new Error(`HTTP ${r.status} en la API del BCCh`);
