@@ -1892,7 +1892,7 @@ export function NewsPanel({ data }) {
 // ---------- Calendario económico (dato vs consenso) ----------
 const IMPACT = { high: ['Alto', 'imp-high'], medium: ['Medio', 'imp-med'], low: ['Bajo', 'imp-low'], holiday: ['Feriado', 'imp-hol'] };
 const IMPACT_FILTERS = [['high', 'Alto'], ['medium', 'Alto y medio'], ['all', 'Todos']];
-const CAL_CCY = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'CNY', 'AUD', 'NZD', 'CHF'];
+const CAL_CCY = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'CNY', 'AUD', 'NZD', 'CHF', 'BRL', 'ARS'];
 const keepCal = (k, v) => { try { localStorage.setItem(`cal.${k}`, v); } catch { /* sin almacenamiento */ } };
 const readCal = (k, d) => { try { return localStorage.getItem(`cal.${k}`) ?? d; } catch { return d; } };
 const calDay = (iso) => {
@@ -1977,12 +1977,13 @@ export function EconCalendar({ data }) {
       )}
       <div className="card-foot">
         <span>
-          Horario de {tz.replace('_', ' ')}. <b>Esperado</b>: consenso de Forex Factory (semana en curso). <b>Dato</b>: EE.UU. desde FRED, con la misma transformación
-          que el titular, apenas FRED lo publica; para el resto de las monedas Forex Factory no trae el dato real (queda "—"). ▲/▼ y color: dato por encima / por debajo
-          del esperado, con la diferencia al lado (pp = puntos porcentuales). <b>Licitaciones</b>: tasa de corte (en FRN, margen de descuento) y bid-to-cover de TreasuryDirect;
+          Horario de {tz.replace('_', ' ')}. <b>Esperado</b>: consenso de Forex Factory (semana en curso); en Brasil, mediana Focus del BCB; en Argentina, mediana REM del BCRA.
+          <b> Dato</b>, de la fuente oficial apenas se publica: EE.UU. FRED; Canadá StatCan; Reino Unido ONS; Eurozona BCE (HICP final) y Eurostat (PIB, desempleo);
+          Brasil IBGE vía BCB; Argentina INDEC vía BCRA. Sin fuente oficial abierta (PMI, encuestas privadas, flash del HICP, Japón, Australia, Suiza, China): queda "—".
+          Pasá el mouse sobre el dato para ver la serie. ▲/▼ y color: dato por encima / por debajo del esperado, con la diferencia (pp = puntos porcentuales). <b>Licitaciones</b>: tasa de corte (en FRN, margen de descuento) y bid-to-cover de TreasuryDirect;
           esperado = bid-to-cover promedio de las últimas 6 del mismo plazo; anterior = la licitación previa del mismo plazo.
         </span>
-        <Source source="Forex Factory · FRED · TreasuryDirect" url={data?.sources?.consensus?.url} />
+        <Source source="Forex Factory · FRED · StatCan · ONS · BCE · Eurostat · BCB · BCRA · TreasuryDirect" url={data?.sources?.consensus?.url} />
       </div>
     </section>
   );

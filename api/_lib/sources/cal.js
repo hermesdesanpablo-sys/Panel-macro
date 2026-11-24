@@ -8,10 +8,12 @@
 import { getJson, settle } from '../util.js';
 import { fredGet } from './us.js';
 import { treasuryAuctionsRaw, auctionHistory } from '../treasury.js';
+import { officialActual } from '../officialActuals.js';
+import { brazilInflation, argentinaInflation } from '../latamCal.js';
 
 export const FF_URL = 'https://nfs.faireconomy.media/ff_calendar_thisweek.json';
 export const FF_PAGE = 'https://www.forexfactory.com/calendar';
-const CCY_FLAG = { USD: 'us', EUR: 'eu', GBP: 'gb', JPY: 'jp', CAD: 'ca', AUD: 'au', NZD: 'nz', CHF: 'ch', CNY: 'cn' };
+const CCY_FLAG = { USD: 'us', EUR: 'eu', GBP: 'gb', JPY: 'jp', CAD: 'ca', AUD: 'au', NZD: 'nz', CHF: 'ch', CNY: 'cn', BRL: 'br', ARS: 'ar' };
 
 // Títulos de Forex Factory → serie de FRED y transformación. unit: formato del titular.
 const t = (series, fn, extra = {}) => ({ series, fn, ...extra });
@@ -165,6 +167,28 @@ export default async function cal() {
       }));
     }
   }
+  // Dato real oficial fuera de EE.UU. (StatCan, ONS, BCE, Eurostat), para los eventos ya ocurridos con mapa.
+  const other = events.map((e, i) => [e, i]).filter(([e]) => e.ccy !== 'USD' && Date.parse(e.time) <= now);
+  for (let k = 0; k < other.length; k += 4) {
+    await Promise.all(other.slice(k, k + 4).map(async ([e, i]) => {
+      try {
+        const a = await officialActual(e);
+        if (a) events[i] = { ...withSurprise(e, a.raw), actualSrc: `${a.src} (${a.period})`, actualUrl: a.url };
+      } catch (err) {
+        const src = `Dato oficial ${e.ccy} (${e.title})`;
+        if (!errors.some((x) => x.source === src)) errors.push({ source: src, message: err.message });
+      }
+    }));
+  }
+  // América Latina (Forex Factory no la cubre): IPCA/IPCA-15 de Brasil e IPC de Argentina en la semana, con consenso Focus/REM.
+  const span = events.map((e) => etDate(e.time)).sort();
+  if (span.length) {
+    const lat = await settle({
+      'Brasil: IPCA (IBGE, Focus, SGS)': () => brazilInflation(span[0], span.at(-1)),
+      'Argentina: IPC (INDEC, REM, BCRA)': () => argentinaInflation(span[0], span.at(-1)),
+    }, errors);
+    events = events.concat(...Object.values(lat).filter(Array.isArray));
+  }
   // Licitaciones del Tesoro en el rango de la semana de Forex Factory.
   const raw = d['Tesoro (licitaciones)'];
   if (raw && events.length) {
@@ -174,7 +198,7 @@ export default async function cal() {
   events.sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
   return {
     id: 'cal', name: 'Calendario económico', events,
-    sources: { consensus: { label: 'Forex Factory', url: FF_PAGE }, actualUs: { label: 'FRED', url: 'https://fred.stlouisfed.org/' }, auctions: { label: 'TreasuryDirect', url: 'https://www.treasurydirect.gov/auctions/upcoming/' } },
+    sources: { consensus: { label: 'Forex Factory', url: FF_PAGE }, official: 'StatCan, ONS, BCE, Eurostat, IBGE/BCB, INDEC/BCRA', actualUs: { label: 'FRED', url: 'https://fred.stlouisfed.org/' }, auctions: { label: 'TreasuryDirect', url: 'https://www.treasurydirect.gov/auctions/upcoming/' } },
     errors,
   };
 }

@@ -44,7 +44,7 @@ export function parseRem(rows) {
   if (!Object.keys(out).length) throw new Error('REM: planilla sin secciones (¿cambió el formato?)');
   return { secciones: out, relevamiento: fuente?.match(/\(([^)]+)\)/)?.[1] || null };
 }
-async function rem() {
+export async function rem() {
   const html = await getText(REM_PAGE, { timeout: 20000 });
   const path = html.match(/href="([^"]*relevamiento-expectativas-mercado-tablas-\d{4}-\d{2}\.xlsx)"/)?.[1];
   if (!path) throw new Error('REM: no encuentro el link a la planilla de resultados');

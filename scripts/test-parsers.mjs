@@ -59,8 +59,8 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
     continue;
   }
   if (id === 'cal') {
-    const by = (re) => p.events.find((e) => re.test(e.title));
-    const cpi = by(/^CPI m\/m$/), rs = by(/^Retail Sales/), cl = by(/Claims/), ifo = by(/ifo/), auct = p.events.filter((e) => e.kind === 'auct');
+    const by = (re) => p.events.find((e) => e.ccy === 'USD' && re.test(e.title));
+    const cpi = by(/^CPI m\/m$/), rs = by(/^Retail Sales/), cl = by(/Claims/), ifo = p.events.find((e) => /ifo/.test(e.title)), auct = p.events.filter((e) => e.kind === 'auct');
     if (!cpi?.actual || !/%$/.test(cpi.actual) || !cpi.surprise || !/FRED CPIAUCSL/.test(cpi.actualSrc)) problems.push('calendario: dato real de EE.UU. (FRED) o sorpresa');
     if (rs?.actual) problems.push('calendario: no debe tomar un dato de FRED publicado antes del evento');
     if (cl?.actual || ifo?.actual) problems.push('calendario: evento futuro o sin fuente con dato real');
@@ -68,6 +68,11 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
     // Esperado = promedio de las 6 previas (2,52…2,62 → 2,57), sin la 7.ª (9,99); anterior = la del mes previo; dato = resultado de TreasuryDirect.
     if (!two || two.forecast !== 'BTC 2.57' || !/4\.690% · BTC 2\.52/.test(two.previous || '') || !/4\.700% · BTC 2\.65/.test(two.actual || '')) problems.push(`calendario: licitación 2Y (${two?.actual} | ${two?.forecast} | ${two?.previous})`);
     if (p.events.some((e, i) => i && e.time < p.events[i - 1].time)) problems.push('calendario: orden por hora');
+    // Dato oficial fuera de EE.UU.: StatCan (índice → m/m: 1,002 → 0,2%) y ONS (nivel 3,6%); el PMI no tiene fuente oficial.
+    const ca = p.events.find((e) => e.ccy === 'CAD' && e.title === 'CPI m/m'), gb = p.events.find((e) => e.ccy === 'GBP' && e.title === 'CPI y/y');
+    if (ca?.actual !== '0.2%' || !/StatCan v41690973/.test(ca?.actualSrc || '')) problems.push(`calendario: dato de StatCan (${ca?.actual})`);
+    if (gb?.actual !== '3.6%' || gb?.surprise?.diff !== -0.1 || !/ONS D7G7/.test(gb?.actualSrc || '')) problems.push(`calendario: dato de ONS (${gb?.actual})`);
+    if (p.events.find((e) => e.ccy === 'GBP' && /PMI/.test(e.title))?.actual) problems.push('calendario: PMI sin fuente oficial no debe tener dato');
     console.log(`${problems.length ? '✗' : '✓'} cal: ${p.events.length} eventos, ${auct.length} licitaciones`);
     problems.forEach((x) => console.log('    ' + x));
     fails += problems.length;
@@ -289,6 +294,15 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   const e = withSurprise({ forecast: '201K', previous: '203K' }, 215.4);
   assert.equal(e.actual, '215K'); assert.deepEqual(e.surprise, { diff: 14, unit: 'K', dir: 'up' });
   console.log('✓ calendario: formato, transformaciones y hora ET');
+}
+// América Latina: IPCA con consenso Focus (mes anterior a la publicación) e IPCA-15 sin consenso.
+{
+  const { brazilInflation } = await import('../api/_lib/latamCal.js');
+  const ev = await brazilInflation(new Date().toISOString().slice(0, 10), new Date(Date.now() + 40 * 864e5).toISOString().slice(0, 10));
+  const ipca = ev.find((e) => /^IPCA m\/m/.test(e.title)), i15 = ev.find((e) => /^IPCA-15/.test(e.title));
+  assert.ok(ipca && ipca.forecast === '0.38%' && /Focus/.test(ipca.forecastNote) && ipca.actual == null, 'Brasil: IPCA con Focus');
+  assert.ok(i15 && i15.forecast == null && /no releva/.test(i15.forecastNote), 'Brasil: IPCA-15 sin consenso');
+  console.log('✓ calendario: Brasil (IBGE + Focus + SGS)');
 }
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);

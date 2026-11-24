@@ -47,6 +47,7 @@ const SGS = {
   432: () => steps([15, 15, 14.5, 14, 13.75], 730),
   13522: () => walk(5, 36, 0.03, 'M', 4.6),
   433: () => walk(0.3, 12, 0.3, 'M', 0.3),
+  7478: () => walk(0.3, 12, 0.3, 'M', 0.3),
   1: () => walk(5.5, 400, 0.006),
   13621: () => walk(350000, 400, 0.002),
   24369: () => walk(6, 24, 0.02, 'M', 5.8),
@@ -144,7 +145,7 @@ function mockPdf(lines) {
   return new Response(Buffer.from(pdf, 'latin1'), { status: 200, headers: { 'content-type': 'application/pdf' } });
 }
 
-export async function mockFetch(input) {
+export async function mockFetch(input, init = {}) {
   const url = new URL(typeof input === 'string' ? input : input.url);
   const u = url.toString();
 
@@ -226,8 +227,22 @@ export async function mockFetch(input) {
       { title: 'Unemployment Claims', country: 'USD', date: at(20), impact: 'Medium', forecast: '201K', previous: '203K' },
       { title: 'German ifo Business Climate', country: 'EUR', date: at(-3), impact: 'Medium', forecast: '90.5', previous: '90.2' },
       { title: 'Flash Manufacturing PMI', country: 'USD', date: at(-30), impact: 'Medium', forecast: '54.5', previous: '56.0' },
+      { title: 'CPI m/m', country: 'CAD', date: at(-2), impact: 'High', forecast: '0.1%', previous: '0.4%' },
+      { title: 'CPI y/y', country: 'GBP', date: at(-2), impact: 'High', forecast: '3.7%', previous: '3.8%' },
+      { title: 'Flash Manufacturing PMI', country: 'GBP', date: at(-2), impact: 'Medium', forecast: '53.0', previous: '52.8' },
       { title: 'Bank Holiday', country: 'JPY', date: at(30), impact: 'Holiday', forecast: '', previous: '' },
     ]);
+  }
+  // StatCan WDS (POST con vectores) y ONS (series temporales): dato publicado hoy, con fecha de publicación.
+  if (url.host === 'www150.statcan.gc.ca' && u.includes('getDataFromVectorsAndLatestNPeriods')) {
+    const body = JSON.parse(init.body || '[]');
+    return json(body.map(({ vectorId }) => ({ status: 'SUCCESS', object: { vectorId, productId: 18100004, vectorDataPoint: Array.from({ length: 14 }, (_, k) => {
+      const d = new Date(Date.now() - (13 - k) * 31 * DAY);
+      return { refPer: `${iso(d).slice(0, 7)}-01`, value: +(150 * 1.002 ** k).toFixed(1), releaseTime: k === 13 ? `${iso(Date.now())}T08:30` : '2020-01-01T08:30' };
+    }) } })));
+  }
+  if (url.host === 'www.ons.gov.uk' && u.endsWith('/data')) {
+    return json({ description: { title: 'CPI ANNUAL RATE', releaseDate: `${iso(Date.now())}T00:00:00.000Z` }, months: [{ date: '2026 SEP', value: '3.8' }, { date: '2026 OCT', value: '3.6' }], quarters: [] });
   }
   if (url.host === 'www.finanzas.gob.ec' && u.includes('deuda-publica-nueva-metodologia')) {
     // Página del boletín: links de descarga (los ids no van en orden; el último mes se elige por el rótulo).
@@ -282,6 +297,10 @@ export async function mockFetch(input) {
       const lv = { IPCA: 4.0, Selic: 12.25, 'Câmbio': 5.55 };
       for (const [ind, l] of Object.entries(lv)) walk(l, 400, ind === 'Selic' ? 0.004 : 0.005).forEach((p) => value.push({ Indicador: ind, Data: p.d, Mediana: +p.v.toFixed(2) }));
       return json({ value });
+    }
+    if (u.includes('ExpectativaMercadoMensais')) {
+      const ref = decodeURIComponent(u).match(/DataReferencia eq '(\d\d\/\d{4})'/)?.[1];
+      return json({ value: [{ Indicador: 'IPCA', Data: iso(Date.now() - 5 * DAY), DataReferencia: ref, Mediana: 0.38, Media: 0.37, numeroRespondentes: 140, baseCalculo: 0 }] });
     }
     if (u.includes('ExpectativasMercadoSelic')) {
       const value = [];
