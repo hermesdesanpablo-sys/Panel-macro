@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.16.1 — 2026-11-24 (FRED: reintentos)
+- En producción, apenas desplegado 0.16.0, una carga del panel de EE.UU. falló en todas las series de FRED: las 21 consultas de la agenda
+  salían juntas con las 10 series. Ahora la agenda pide de a 4 y `fredGet` reintenta ante 429/5xx. La siguiente carga había salido bien.
+
 ## 0.16.0 — 2026-11-24 (Fed: probabilidades por reunión; agenda de EE.UU. ampliada y licitaciones del Tesoro)
 - EE.UU., Expectativas: **probabilidad de la decisión de la Fed en cada reunión**, de dos fuentes lado a lado.
   - Futuros de fed funds (CBOT ZQ vía Yahoo): cálculo propio con el método de CME FedWatch (`api/_lib/fedprobs.js`).

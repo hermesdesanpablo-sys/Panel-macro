@@ -12,9 +12,21 @@ const KEY = () => {
 };
 const fredUrl = (id) => `https://fred.stlouisfed.org/series/${id}`;
 
+/** GET a FRED con reintentos ante límite de consultas (429) o errores del servidor: FRED corta ráfagas de pedidos simultáneos. */
+export async function fredGet(url, tries = 3) {
+  for (let i = 0; ; i++) {
+    try {
+      return await getJson(url);
+    } catch (e) {
+      if (i >= tries - 1 || !/HTTP (429|5\d\d)/.test(e.message)) throw e;
+      await new Promise((r) => setTimeout(r, 800 * (i + 1) + Math.random() * 400));
+    }
+  }
+}
+
 export async function fred(id, from) {
   const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${id}&api_key=${KEY()}&file_type=json&observation_start=${iso(from)}`;
-  const j = await getJson(url);
+  const j = await fredGet(url);
   return clean((j.observations || []).map((o) => ({ d: o.date, v: o.value === '.' ? NaN : parseFloat(o.value) })));
 }
 
@@ -49,12 +61,15 @@ export const FRED_RELEASES = {
  */
 async function fredCalendar() {
   const qs = `api_key=${KEY()}&file_type=json&realtime_start=${today()}&realtime_end=${iso(daysAhead(60))}&include_release_dates_with_no_data=true`;
-  const res = await Promise.allSettled(
-    Object.entries(FRED_RELEASES).map(async ([id, name]) => {
-      const j = await getJson(`https://api.stlouisfed.org/fred/release/dates?release_id=${id}&${qs}`);
+  // De a 4 pedidos por vez (21 juntos, más las series del panel, disparan el límite de FRED).
+  const entries = Object.entries(FRED_RELEASES);
+  const res = [];
+  for (let i = 0; i < entries.length; i += 4) {
+    res.push(...await Promise.allSettled(entries.slice(i, i + 4).map(async ([id, name]) => {
+      const j = await fredGet(`https://api.stlouisfed.org/fred/release/dates?release_id=${id}&${qs}`);
       return (j.release_dates || []).map((r) => ({ date: r.date, event: name, kind: 'data', url: `https://fred.stlouisfed.org/releases/calendar?rid=${id}` }));
-    })
-  );
+    })));
+  }
   const ok = res.filter((r) => r.status === 'fulfilled');
   if (!ok.length) throw new Error(res[0]?.reason?.message || 'FRED calendario sin datos');
   return ok.flatMap((r) => r.value).sort((a, b) => (a.date < b.date ? -1 : 1));
