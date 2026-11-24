@@ -2,8 +2,9 @@
 
 const UA = 'Mozilla/5.0 (macro-dashboard; +https://vercel.com)';
 
-export async function getJson(url, { headers = {}, timeout = 15000 } = {}) {
+export async function getJson(url, { headers = {}, timeout = 15000, method, body } = {}) {
   const r = await fetch(url, {
+    method, body,
     headers: { 'User-Agent': UA, Accept: 'application/json', ...headers },
     signal: AbortSignal.timeout(timeout),
   });

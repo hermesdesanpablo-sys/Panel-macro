@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.18.0 — 2026-11-24 (Calendario: dato oficial fuera de EE.UU. y América Latina)
+- Calendario económico: dato real desde la fuente oficial para Canadá, Reino Unido y Eurozona (`api/_lib/officialActuals.js`).
+  - Canadá (StatCan WDS): IPC m/m y a/a, IPC común/mediana/recortado, empleo, desempleo, PIB m/m y ventas minoristas.
+  - Reino Unido (ONS): IPC a/a, núcleo y m/m, PIB m/m y trimestral (1.ª estimación en PN2, revisada en QNA), desempleo y ventas minoristas.
+  - Eurozona: HICP final y núcleo (BCE, `updatedAfter`), PIB y desempleo (Eurostat, EA21).
+  - Cada dato se toma solo si la fuente lo publicó el día del evento o después: StatCan `releaseTime`, ONS `releaseDate`, BCE `updatedAfter`;
+    en Eurostat, el último período con dato tiene que ser el esperado.
+  - Verificado contra lo publicado en noviembre: CA IPC 0,2% m/m, mediana 2,0%, desempleo 6,7%; UK IPC 3,6%, núcleo 2,8%, PIB 3T 0,7%;
+    EZ HICP final 4,0%, núcleo 2,6%, PIB 3T 0,4%.
+- América Latina, que Forex Factory no cubre (`api/_lib/latamCal.js`):
+  - Brasil: IPCA e IPCA-15 con fecha del IBGE, consenso = mediana Focus mensual del BCB (Focus no releva el IPCA-15) y dato del SGS 433/7478.
+  - Argentina: IPC con fecha del INDEC, consenso = mediana REM del BCRA y dato de la serie 27 del BCRA.
+- Sin fuente oficial abierta, quedan "—": flash del HICP (BCE y Eurostat solo tienen el definitivo), PMI y encuestas privadas;
+  Japón (e-Stat pide registro); Australia (ABS: falta identificar los datasets); Suiza y China.
+- Verificado: `npm test` OK (StatCan, ONS, PMI sin dato, Brasil con Focus); datos reales sin errores; `npm run build` OK.
+
 ## 0.17.0 — 2026-11-24 (Calendario económico: dato, consenso y anterior)
 - Agenda: nueva subsolapa **Calendario económico** (semana en curso, estilo terminal). La agenda de meses pasa a "Agenda (próximos meses)".
   - Esperado y anterior: planilla semanal pública de Forex Factory, todas las monedas (`api/_lib/sources/cal.js`, endpoint `cal`, caché de 3 min).
