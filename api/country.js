@@ -1,4 +1,4 @@
-// GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val|rank|news
+// GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val|rank|news|cal
 // Devuelve un payload normalizado por país. Vercel cachea en el edge 30 min.
 import br from './_lib/sources/br.js';
 import us from './_lib/sources/us.js';
@@ -16,12 +16,14 @@ import usd from './_lib/sources/usd.js';
 import val from './_lib/sources/val.js';
 import rank from './_lib/sources/rank.js';
 import news from './_lib/sources/news.js';
+import cal from './_lib/sources/cal.js';
 import world from './_lib/sources/world.js';
 
 import { politicalEvents } from './_lib/calendar.js';
 import { upcoming } from './_lib/util.js';
 
-const TTL = { world: 60, news: 60, usd: 900, sust: 21600, val: 3600, rank: 3600 };
+// cal: 3 min (Forex Factory pide no bajar su planilla más de un par de veces cada 5 minutos).
+const TTL = { world: 60, news: 60, cal: 180, usd: 900, sust: 21600, val: 3600, rank: 3600 };
 
 /** Agrega a la agenda de cada país el calendario político (aparte del tope de 20 eventos económicos). */
 const withPolitics = (id, fn) => async () => {
@@ -39,6 +41,7 @@ export const ADAPTERS = {
   val,
   rank,
   news,
+  cal,
 };
 
 export default async function handler(req, res) {

@@ -48,17 +48,44 @@ export function auctionEvents(tentative, announced = [], auctioned = []) {
   });
 }
 
-export async function treasuryAuctions() {
-  const getPdf = async () => {
-    const r = await fetch(TENTATIVE_URL, { signal: AbortSignal.timeout(20000) });
-    if (!r.ok) throw new Error(`HTTP ${r.status} en el cronograma tentativo del Tesoro`);
-    return r.arrayBuffer();
+/** Registro de TreasuryDirect → { date, type, term, closeTime 'HH:MM' (ET), offering, rate, btc }. */
+export function normTd(x) {
+  const t = /(\d{1,2}):(\d{2}) (AM|PM)/.exec(x.competitiveAuctionCloseTime || '');
+  let closeTime = null;
+  if (t) { let h = Number(t[1]) % 12; if (t[3] === 'PM') h += 12; closeTime = `${String(h).padStart(2, '0')}:${t[2]}`; }
+  const num = (v) => (v == null || v === '' ? null : Number(v));
+  return {
+    date: (x.auctionDate || x.competitiveAuctionCloseDate || '').slice(0, 10), type: tdType(x), term: tdTerm(x), closeTime,
+    offering: num(x.offeringAmount), rate: num(x.highYield) ?? num(x.highDiscountMargin), btc: num(x.bidToCoverRatio),
   };
-  const [pdf, announced, auctioned] = await Promise.all([
-    getPdf(),
+}
+
+async function tentativeSchedule() {
+  const r = await fetch(TENTATIVE_URL, { signal: AbortSignal.timeout(20000) });
+  if (!r.ok) throw new Error(`HTTP ${r.status} en el cronograma tentativo del Tesoro`);
+  const { text } = await extractText(await getDocumentProxy(new Uint8Array(await r.arrayBuffer())), { mergePages: true });
+  return parseTentative(text);
+}
+
+/** Cronograma tentativo + anunciadas + licitadas en los últimos 7 días (crudo, para la agenda y el calendario). */
+export async function treasuryAuctionsRaw() {
+  const [tentative, announced, auctioned] = await Promise.all([
+    tentativeSchedule(),
     getJson(`${TD}/upcoming?format=json`).catch(() => []),
     getJson(`${TD}/auctioned?format=json&days=7`).catch(() => []),
   ]);
-  const { text } = await extractText(await getDocumentProxy(new Uint8Array(pdf)), { mergePages: true });
-  return auctionEvents(parseTentative(text), announced, auctioned);
+  return { tentative, announced, auctioned, td: [...announced, ...auctioned].filter((x) => x.securityType !== 'Bill').map(normTd) };
+}
+
+/** Licitaciones de cupón de los últimos ~13 meses (para el anterior y el bid-to-cover promedio). */
+export async function auctionHistory() {
+  const lists = await Promise.all(['Note', 'Bond', 'TIPS', 'FRN'].map((ty) => getJson(`${TD}/auctioned?format=json&type=${ty}&days=400`, { timeout: 20000 }).catch(() => [])));
+  const all = lists.flat().map(normTd).filter((x) => x.date);
+  if (!all.length) throw new Error('TreasuryDirect: sin historia de licitaciones');
+  return all;
+}
+
+export async function treasuryAuctions() {
+  const { tentative, announced, auctioned } = await treasuryAuctionsRaw();
+  return auctionEvents(tentative, announced, auctioned);
 }

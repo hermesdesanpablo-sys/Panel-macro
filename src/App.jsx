@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { CountryPanel, WorldPanel, AgendaPanel, ComparePanel, UsdPanel, SustPanel, ValPanel, RankPanel, NewsPanel } from './components/Panels.jsx';
+import { CountryPanel, WorldPanel, AgendaPanel, ComparePanel, UsdPanel, SustPanel, ValPanel, RankPanel, NewsPanel, EconCalendar } from './components/Panels.jsx';
 import { CountryMenu } from './components/CountryMenu.jsx';
 import { POLITICAL_UNDATED } from '../api/_lib/calendar.js';
 import { fmtDate } from './format.js';
@@ -44,6 +44,31 @@ async function load(id, fresh = false) {
   return j;
 }
 
+/** Agenda: subsolapas "Calendario económico" (semana, dato vs consenso) y "Agenda" (bancos centrales, datos y política, meses). */
+function AgendaTabs({ cal, calState, agenda }) {
+  const [sub, setSub] = useState(() => { try { return localStorage.getItem('agendaSub') || 'cal'; } catch { return 'cal'; } });
+  const pick = (v) => { setSub(v); try { localStorage.setItem('agendaSub', v); } catch { /* sin almacenamiento */ } };
+  return (
+    <>
+      <div className="subtabs">
+        <div className="seg" role="tablist" aria-label="Agenda">
+          {[['cal', 'Calendario económico'], ['agenda', 'Agenda (próximos meses)']].map(([k, l]) => (
+            <button key={k} role="tab" aria-selected={sub === k} className={sub === k ? 'on' : ''} onClick={() => pick(k)}>{l}</button>
+          ))}
+        </div>
+      </div>
+      {sub === 'cal' ? (
+        cal ? <EconCalendar data={cal} /> : <div className="empty big">{calState && calState !== 'loading' ? `Error: ${calState}` : 'Cargando…'}</div>
+      ) : (
+        <section className="card" id="agenda-all">
+          <h2 className="title"><Flag id="agenda" /> Agenda consolidada</h2>
+          <AgendaPanel events={agenda} undated={POLITICAL_UNDATED} />
+        </section>
+      )}
+    </>
+  );
+}
+
 export default function App() {
   const [tab, setTab] = useState(() => (TABS.some((t) => t.id === location.hash.slice(1)) ? location.hash.slice(1) : 'world'));
   const [data, setData] = useState({});
@@ -72,6 +97,8 @@ export default function App() {
     if (['usd', 'sust', 'val', 'news'].includes(tab) && !data[tab] && state[tab] !== 'loading') fetchOne(tab);
     // El ranking de emisores se muestra en Crédito USD: se pide junto con esa solapa.
     if (tab === 'usd' && !data.rank && state.rank !== 'loading') fetchOne('rank');
+    // Calendario económico (dato vs consenso): con la Agenda.
+    if (tab === 'agenda' && !data.cal && state.cal !== 'loading') fetchOne('cal');
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
@@ -85,6 +112,7 @@ export default function App() {
       if (!visible()) return;
       fetchOne('world');
       if (tabRef.current === 'news') fetchOne('news');
+      if (tabRef.current === 'agenda') fetchOne('cal'); // el CDN lo guarda 3 min: los datos nuevos entran en ≤3 min
     }, 60_000);
     const t = setInterval(() => {
       const id = tabRef.current;
@@ -159,10 +187,7 @@ export default function App() {
             <UsdPanel data={current} />
           </>
         ) : tab === 'agenda' ? (
-          <section className="card" id="agenda-all">
-            <h2 className="title"><Flag id="agenda" /> Agenda consolidada</h2>
-            <AgendaPanel events={agenda} undated={POLITICAL_UNDATED} />
-          </section>
+          <AgendaTabs cal={data.cal} calState={state.cal} agenda={agenda} />
         ) : !current ? (
           <div className="empty big">{st && st !== 'loading' ? `Error: ${st}` : 'Cargando…'}</div>
         ) : tab === 'world' ? (

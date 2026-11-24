@@ -21,7 +21,7 @@ Objetivo de cada panel:
 ## Arquitectura
 
 ```
-api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val|rank|news  (función serverless Vercel, cache edge 30 min)
+api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val|rank|news|cal  (función serverless Vercel, cache edge 30 min)
 api/_lib/util.js            HTTP, fechas, series, kpi(), trend(), spreadSeries(), settle()
 api/_lib/yahoo.js           Yahoo Finance: precios, perf, futuros Fed funds (ZQ)
 api/_lib/calendar.js        Reuniones de bancos centrales + publicaciones de IPC/PIB con fecha oficial (estático; revisar cada semestre)
@@ -36,6 +36,7 @@ api/_lib/ssga.js            State Street: planilla de productos SPDR (P/E FY1, P
 api/_lib/sources/sust.js    Sostenibilidad: FMI WEO (API SDMX) + Banco Mundial (WDI). Payload propio: countries[].rows por año
 api/_lib/xlsx.js            Lector mínimo de .xlsx sin dependencias (zlib): readFirstSheet / readSheet(buf, n)
 api/_lib/sources/news.js    Noticias: feeds RSS públicos (Bloomberg, WSJ, MarketWatch, Fed, BCE, Google Noticias, FinancialJuice); etiquetas por palabras clave
+api/_lib/sources/cal.js     Calendario económico de la semana: consenso y anterior (Forex Factory) + dato real de EE.UU. (FRED) + licitaciones (TreasuryDirect)
 api/_lib/fedprobs.js        Probabilidades de la Fed por reunión: futuros ZQ (método FedWatch, cálculo propio) y Polymarket (API Gamma)
 api/_lib/treasury.js        Licitaciones del Tesoro: cronograma tentativo (PDF) + TreasuryDirect (anunciadas y resultados)
 api/_lib/sources/rank.js    Ranking de emisores (8 de LatAm): 5 pilares ponderados, solo datos 2025+, vs spread EMBI
@@ -269,6 +270,13 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
   decrease, No change, 25/50+ bps increase). Precio del "Sí" = probabilidad; se normaliza a 100%. Solo lectura, sin cuenta.
 - Tesoro: `home.treasury.gov/system/files/221/Tentative-Auction-Schedule.pdf` (se lee con unpdf) y `treasurydirect.gov/TA_WS/securities/upcoming|auctioned?format=json`.
   Se emparejan por fecha + tipo (Note/Bond/TIPS/FRN) + plazo original (`originalSecurityTerm`: las reaperturas figuran como "9-Year 8-Month").
+
+### Notas del calendario económico
+- Forex Factory: `nfs.faireconomy.media/ff_calendar_thisweek.json` (title, country = moneda, date con desvío ET, impact, forecast, previous; sin dato real
+  ni semana siguiente). Piden no bajarla más de un par de veces cada 5 minutos: por eso el endpoint `cal` tiene caché de 3 min.
+- Dato real de EE.UU.: `US_ACTUALS` en cal.js (regex del título → serie de FRED + transformación level/diff/mom/yoy + escala). Si Forex Factory
+  cambia un título, ese dato queda "—" hasta actualizar el mapa. Se usa `realtime_start` de la última observación para no confundir el dato anterior.
+- Licitaciones: historia por tipo con `TA_WS/securities/auctioned?type=Note|Bond|TIPS|FRN&days=400` (el endpoint `search` responde 500).
 
 ### Notas de la Agenda
 - `calendar.js`: `POLICY_MEETINGS` (bancos centrales) y `DATA_RELEASES` (IPC y PIB) con la fuente de cada calendario;

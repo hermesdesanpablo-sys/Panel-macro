@@ -62,6 +62,7 @@ const FRED = {
   DFEDTARL: () => steps([4.25, 4.0, 3.75, 3.5], 1100),
   EFFR: () => steps([3.83, 3.64], 400),
   CPIAUCSL: () => index(300, 40, 2.9),
+  RSAFS: () => index(700000, 40, 3),
   CPILFESL: () => index(310, 40, 3.0),
   PCEPILFE: () => index(120, 40, 2.7),
   DGS2: () => walk(3.6, 400, 0.01),
@@ -199,6 +200,9 @@ export async function mockFetch(input) {
       { securityType: 'Note', securityTerm: '1-Year 11-Month', originalSecurityTerm: '2-Year', type: 'FRN', floatingRate: 'Yes', competitiveAuctionCloseDate: d(1), competitiveAuctionCloseTime: '11:30 AM', offeringAmount: '28000000000' },
       { securityType: 'Bill', securityTerm: '13-Week', type: 'Bill', competitiveAuctionCloseDate: d(1), offeringAmount: '90000000000' },
     ]);
+    if (url.searchParams.get('type') === 'Note') return json([0, 1, 2, 3, 4, 5, 6, 7].map((k) => ({ securityType: 'Note', securityTerm: '2-Year', type: 'Note', floatingRate: 'No',
+      auctionDate: d(-1 - 30 * k), offeringAmount: '69000000000', highYield: (4.7 - k / 100).toFixed(3), bidToCoverRatio: k === 7 ? '9.99' : (2.5 + k * 0.02).toFixed(2) })));
+    if (url.searchParams.get('type')) return json([]);
     return json([{ securityType: 'Note', securityTerm: '2-Year', type: 'Note', floatingRate: 'No', auctionDate: d(-1), offeringAmount: '69000000000', highYield: '4.700', bidToCoverRatio: '2.65' }]);
   }
   // Polymarket (API Gamma): un evento "Fed Decision in <mes>?" para la próxima reunión del FOMC y uno ajeno que se ignora.
@@ -211,6 +215,18 @@ export async function mockFetch(input) {
       { slug: 'fed-decision-test', title: `Fed Decision in ${mon}?`, volume: '1000000', liquidity: '50000',
         markets: [mk('50+ bps decrease', 0.01), mk('25 bps decrease', 0.19), mk('No change', 0.75), mk('25 bps increase', 0.04), mk('50+ bps increase', 0.01)] },
       { slug: 'how-many-cuts', title: 'How many Fed rate cuts in 2027?', markets: [mk('3', 0.2)] },
+    ]);
+  }
+  // Forex Factory: planilla semanal (consenso y anterior, sin dato real). Horas relativas a ahora, en ET (-05:00).
+  if (url.host === 'nfs.faireconomy.media') {
+    const at = (h) => new Date(Date.now() + h * 3600e3 - 5 * 3600e3).toISOString().replace(/\.\d+Z$/, '-05:00');
+    return json([
+      { title: 'CPI m/m', country: 'USD', date: at(-1), impact: 'High', forecast: '0.3%', previous: '0.4%' },
+      { title: 'Retail Sales m/m', country: 'USD', date: at(-0.5), impact: 'High', forecast: '0.2%', previous: '0.5%' },
+      { title: 'Unemployment Claims', country: 'USD', date: at(20), impact: 'Medium', forecast: '201K', previous: '203K' },
+      { title: 'German ifo Business Climate', country: 'EUR', date: at(-3), impact: 'Medium', forecast: '90.5', previous: '90.2' },
+      { title: 'Flash Manufacturing PMI', country: 'USD', date: at(-30), impact: 'Medium', forecast: '54.5', previous: '56.0' },
+      { title: 'Bank Holiday', country: 'JPY', date: at(30), impact: 'Holiday', forecast: '', previous: '' },
     ]);
   }
   if (url.host === 'www.finanzas.gob.ec' && u.includes('deuda-publica-nueva-metodologia')) {
@@ -291,7 +307,13 @@ export async function mockFetch(input) {
       return json({ release_dates: off ? [{ release_id: rid, date: iso(Date.now() + off * DAY) }] : [] });
     }
     const id = url.searchParams.get('series_id');
-    return json({ observations: (FRED[id] || (() => []))().map((p) => ({ date: p.d, value: p.v.toFixed(3) })) });
+    let obs = (FRED[id] || (() => []))().map((p) => ({ date: p.d, value: p.v.toFixed(3) }));
+    // Calendario económico: pide las últimas observaciones (desc) y mira la fecha de publicación (realtime_start).
+    if (url.searchParams.get('sort_order') === 'desc') {
+      const pub = iso(Date.now() - ({ RSAFS: 10 }[id] || 0) * DAY); // RSAFS: dato viejo (publicado hace 10 días)
+      obs = obs.reverse().slice(0, Number(url.searchParams.get('limit') || 1e9)).map((o) => ({ ...o, realtime_start: pub }));
+    }
+    return json({ observations: obs });
   }
   if (url.host === 'data-api.ecb.europa.eu') {
     if (u.includes('.IF_') && u.includes('startPeriod')) {
