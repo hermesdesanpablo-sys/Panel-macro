@@ -129,6 +129,20 @@ function mockXlsx(...sheets) {
   return Buffer.concat([...parts, cd, end]);
 }
 
+/** PDF mínimo válido (Helvetica, texto sin comprimir), una línea por renglón. */
+function mockPdf(lines) {
+  const esc = (x) => x.replace(/[—–]/g, '-').replace(/([()\\])/g, '\\$1');
+  const content = `BT /F1 10 Tf 14 TL 40 760 Td ${lines.map((l) => `(${esc(l)}) Tj T*`).join(' ')} ET`;
+  const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+  let pdf = '%PDF-1.4\n';
+  const off = objs.map((o, i) => { const at = pdf.length; pdf += `${i + 1} 0 obj\n${o}\nendobj\n`; return at; });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${off.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return new Response(Buffer.from(pdf, 'latin1'), { status: 200, headers: { 'content-type': 'application/pdf' } });
+}
+
 export async function mockFetch(input) {
   const url = new URL(typeof input === 'string' ? input : input.url);
   const u = url.toString();
@@ -169,6 +183,35 @@ export async function mockFetch(input) {
       data.push([mid, +(base + Math.sin(i / 40)).toFixed(2)]);
     }
     return json([{ id, nombre: `Tasa de interés Cero Cupón, TES, pesos - ${id}`, fechaUltimoCargue: '17 de noviembre de 2026', data }]);
+  }
+  // Tesoro de EE.UU.: cronograma tentativo (PDF), licitaciones anunciadas y resultados (TreasuryDirect).
+  if (url.host === 'home.treasury.gov' && u.includes('Tentative-Auction-Schedule')) {
+    const DW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const f = (n) => { const d = new Date(Date.now() + n * DAY); return `${DW[d.getUTCDay()]}, ${MN[d.getUTCMonth()]} ${String(d.getUTCDate()).padStart(2, '0')}, ${d.getUTCFullYear()}`; };
+    return mockPdf(['Tentative Auction Schedule of U.S. Treasury Securities', 'Security Type Announcement Date Auction Date Settlement Date Maturity Date',
+      `2-Year NOTE ${f(-5)} ${f(-1)} ${f(6)} ${f(730)}`, `13-Week BILL ${f(-3)} ${f(1)} ${f(4)} ${f(95)}`,
+      `5-Year NOTE ${f(-4)} ${f(1)} ${f(7)} ${f(1800)}`, `10-Year TIPS R T ${f(10)} ${f(15)} ${f(20)} ${f(3600)}`, `2-Year FRN R ${f(-4)} ${f(1)} ${f(4)} ${f(700)}`]);
+  }
+  if (url.host === 'www.treasurydirect.gov' && u.includes('/TA_WS/securities/')) {
+    const d = (n) => `${iso(Date.now() + n * DAY)}T00:00:00`;
+    if (u.includes('/upcoming')) return json([
+      { securityType: 'Note', securityTerm: '5-Year', type: 'Note', floatingRate: 'No', competitiveAuctionCloseDate: d(1), competitiveAuctionCloseTime: '01:00 PM', offeringAmount: '70000000000' },
+      { securityType: 'Note', securityTerm: '1-Year 11-Month', originalSecurityTerm: '2-Year', type: 'FRN', floatingRate: 'Yes', competitiveAuctionCloseDate: d(1), competitiveAuctionCloseTime: '11:30 AM', offeringAmount: '28000000000' },
+      { securityType: 'Bill', securityTerm: '13-Week', type: 'Bill', competitiveAuctionCloseDate: d(1), offeringAmount: '90000000000' },
+    ]);
+    return json([{ securityType: 'Note', securityTerm: '2-Year', type: 'Note', floatingRate: 'No', auctionDate: d(-1), offeringAmount: '69000000000', highYield: '4.700', bidToCoverRatio: '2.65' }]);
+  }
+  // Polymarket (API Gamma): un evento "Fed Decision in <mes>?" para la próxima reunión del FOMC y uno ajeno que se ignora.
+  if (url.host === 'gamma-api.polymarket.com') {
+    const { POLICY_MEETINGS } = await import('../api/_lib/calendar.js');
+    const next = POLICY_MEETINGS.us.dates.find((x) => x > iso(Date.now()));
+    const mon = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][Number(next.slice(5, 7)) - 1];
+    const mk = (t, p, closed = false) => ({ groupItemTitle: t, outcomePrices: JSON.stringify([String(p), String(1 - p)]), closed });
+    return json([
+      { slug: 'fed-decision-test', title: `Fed Decision in ${mon}?`, volume: '1000000', liquidity: '50000',
+        markets: [mk('50+ bps decrease', 0.01), mk('25 bps decrease', 0.19), mk('No change', 0.75), mk('25 bps increase', 0.04), mk('50+ bps increase', 0.01)] },
+      { slug: 'how-many-cuts', title: 'How many Fed rate cuts in 2027?', markets: [mk('3', 0.2)] },
+    ]);
   }
   if (url.host === 'www.finanzas.gob.ec' && u.includes('deuda-publica-nueva-metodologia')) {
     // Página del boletín: links de descarga (los ids no van en orden; el último mes se elige por el rótulo).
@@ -494,16 +537,7 @@ export async function mockFetch(input) {
     // PDF mínimo válido (fuente Helvetica, texto sin comprimir) con la leyenda y la sección FUNDAMENTALS del factsheet real.
     const lines = ['CUMULATIVE INDEX PERFORMANCE — NET RETURNS (USD)', '(OCT 2011 – OCT 2026)', 'MSCI Test', 'MSCI Emerging Markets', 'MSCI ACWI', 'ANNUAL PERFORMANCE (%)',
       'FUNDAMENTALS (OCT 30, 2026)', 'Div Yld (%) P/E P/E Fwd P/BV', '5.80 8.89 7.58 1.71', '2.19 13.68 12.10 2.20', '1.61 20.82 15.64 3.71', 'INDEX RISK AND RETURN CHARACTERISTICS'];
-    const esc = (x) => x.replace(/[—–]/g, '-').replace(/([()\\])/g, '\\$1');
-    const content = `BT /F1 10 Tf 14 TL 40 760 Td ${lines.map((l) => `(${esc(l)}) Tj T*`).join(' ')} ET`;
-    const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
-      `<< /Length ${content.length} >>\nstream\n${content}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
-    let pdf = '%PDF-1.4\n';
-    const off = objs.map((o, i) => { const at = pdf.length; pdf += `${i + 1} 0 obj\n${o}\nendobj\n`; return at; });
-    const xref = pdf.length;
-    pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${off.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-    return new Response(Buffer.from(pdf, 'latin1'), { status: 200, headers: { 'content-type': 'application/pdf' } });
+    return mockPdf(lines);
   }
   if (url.host === 'www.ssga.com') {
     const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

@@ -149,6 +149,7 @@ a.src:hover { color: var(--accent); }
 .ev-tag { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; padding: 3px 8px; border-radius: 6px; justify-self: start; color: var(--text-secondary); background: var(--surface-3); white-space: nowrap; }
 .ev-cb .ev-tag { color: #cfe0f8; background: rgba(57, 135, 229, 0.2); }
 .ev-pol .ev-tag { color: #f3dcae; background: rgba(214, 150, 40, 0.2); }
+.ev-auct .ev-tag { color: #c9ecdd; background: rgba(25, 158, 112, 0.2); }
 .agenda-bar { display: flex; justify-content: flex-start; margin: 4px 0 12px; }
 .agenda-bar .seg .muted { font-size: 11.5px; margin-left: 4px; }
 .agenda-undated { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--grid); }
@@ -378,3 +379,18 @@ a.src:hover { color: var(--accent); }
   .news-time { flex-direction: row; gap: 6px; }
   .news-item { grid-template-columns: auto 1fr; }
 }
+
+/* ---------- Probabilidades de la Fed ---------- */
+.fedprobs { margin-bottom: 20px; }
+.fp-cur { font-size: 12.5px; margin: -4px 0 10px; }
+.fp-tbl td { vertical-align: top; }
+.fp-tbl td:nth-child(2), .fp-tbl td:nth-child(3) { min-width: 220px; }
+.pbar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: var(--surface-2); font-size: 11.5px; font-weight: 600; }
+.pbar span { display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; }
+.pb-cut { background: var(--down-bg); color: var(--down); box-shadow: inset 0 0 0 1px var(--down); }
+.pb-hold { background: var(--flat-bg); color: var(--text-secondary); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.pb-hike { background: var(--up-bg); color: var(--up); box-shadow: inset 0 0 0 1px var(--up); }
+.fp-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
+.fp-tbl th { text-align: left; }
+.fp-tbl th:last-child { text-align: right; }
+@media (max-width: 760px) { .fp-tbl td:nth-child(2), .fp-tbl td:nth-child(3) { min-width: 170px; } }

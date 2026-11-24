@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.16.0 — 2026-11-24 (Fed: probabilidades por reunión; agenda de EE.UU. ampliada y licitaciones del Tesoro)
+- EE.UU., Expectativas: **probabilidad de la decisión de la Fed en cada reunión**, de dos fuentes lado a lado.
+  - Futuros de fed funds (CBOT ZQ vía Yahoo): cálculo propio con el método de CME FedWatch (`api/_lib/fedprobs.js`).
+  - Polymarket: mercados "Fed Decision in <mes>?" de la API pública Gamma (sin cuenta ni clave).
+  - Al 24-nov: diciembre +25 pb 96% (futuros) y 95% (Polymarket); enero, suba 66% y 54%.
+- Agenda de EE.UU.: de 7 a 21 publicaciones de FRED: ADP, subsidios por desempleo, ECI, productividad, Michigan, producción industrial,
+  bienes durables, balanza comercial, viviendas, Empire State, Filadelfia y resultado fiscal. Tope de 45 eventos para EE.UU.
+- **Licitaciones del Tesoro** (`api/_lib/treasury.js`): notas, bonos, TIPS y FRN, sin letras.
+  - Cronograma tentativo del Tesoro (PDF, ~3 meses).
+  - TreasuryDirect: monto y hora de cierre de las anunciadas, y corte y bid-to-cover de las ya licitadas.
+  - En la Agenda aparecen con la etiqueta "Licitación".
+- Verificado: `npm test` OK (FedWatch con una tira sintética, Polymarket, cronograma, anunciadas y resultados); datos reales sin errores; `npm run build` OK.
+
 ## 0.15.2 — 2026-11-20 (Colombia: TES diario)
 - Colombia: TES 10Y y 2Y pasan del promedio mensual (SDMX) a la curva cero cupón **diaria** del BanRep, leída de Suameca, su API de estadísticas
   (`api/_lib/suameca.js`). BanRep la carga una vez por semana: al 20-nov, el último dato es del 13-nov (12,94%). El promedio mensual queda de respaldo.

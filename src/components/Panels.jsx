@@ -145,8 +145,8 @@ function ExpTable({ e }) {
   );
 }
 
-const EV_TAG = { cb: 'Decisión', data: 'Dato', pol: 'Político' };
-const EV_CLASS = { cb: 'ev-cb', data: 'ev-data', pol: 'ev-pol' };
+const EV_TAG = { cb: 'Decisión', data: 'Dato', pol: 'Político', auct: 'Licitación' };
+const EV_CLASS = { cb: 'ev-cb', data: 'ev-data', pol: 'ev-pol', auct: 'ev-auct' };
 
 export function AgendaList({ events, showFlag = false }) {
   if (!events?.length) return <div className="empty">Sin eventos cargados</div>;
@@ -213,6 +213,74 @@ export function Errors({ errors }) {
   );
 }
 
+/** Barra apilada baja / mantiene / sube, con el porcentaje escrito (nunca solo color). */
+function ProbBar({ cut, hold, hike }) {
+  const seg = [['cut', cut, 'Baja'], ['hold', hold, 'Mantiene'], ['hike', hike, 'Sube']];
+  const pctTxt = (v) => `${Math.round(v * 100)}%`;
+  return (
+    <div className="pbar" role="img" aria-label={seg.map(([, v, l]) => `${l} ${pctTxt(v)}`).join(', ')}>
+      {seg.map(([k, v, l]) => v >= 0.005 && (
+        <span key={k} className={`pb-${k}`} style={{ width: `${v * 100}%` }} title={`${l} ${pctTxt(v)}`}>{v >= 0.4 ? `${l} ${pctTxt(v)}` : v >= 0.12 ? pctTxt(v) : ''}</span>
+      ))}
+    </div>
+  );
+}
+const MONTHS_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const moveTxt = (m) => (m === 0 ? 'mantiene' : `${m > 0 ? '+' : '−'}${Math.abs(m)} pb`);
+
+/** Probabilidades de decisión de la Fed por reunión: futuros (método FedWatch) y Polymarket, lado a lado. */
+function FedProbsCard({ fp }) {
+  const fut = fp.futures?.meetings || [];
+  const pm = new Map((fp.polymarket || []).map((m) => [m.date, m]));
+  const cur = fp.futures?.current;
+  const rows = fut.slice(0, 6);
+  return (
+    <section className="card fedprobs" id="fed-probs">
+      <h3>Probabilidad de la próxima decisión de la Fed, por reunión</h3>
+      {cur && <div className="muted fp-cur">Rango actual {fmtNum(cur.lower, 2)}–{fmtNum(cur.upper, 2)}% · EFFR {fmtNum(cur.effr, 2)}%</div>}
+      <div className="tbl-wrap">
+        <table className="tbl fp-tbl">
+          <thead><tr><th>Reunión</th><th>Futuros de fed funds</th><th>Polymarket</th><th>Rango más probable después</th></tr></thead>
+          <tbody>
+            {rows.map((m) => {
+              const p = pm.get(m.date);
+              const top = [...m.ranges].sort((a, b) => b.p - a.p)[0];
+              const [y, mo, d] = m.date.split('-');
+              return (
+                <tr key={m.date}>
+                  <td className="name">{Number(d)} {MONTHS_ES[Number(mo) - 1]} {y.slice(2)}</td>
+                  <td>
+                    <ProbBar cut={m.cut} hold={m.hold} hike={m.hike} />
+                    <div className="fp-sub">{m.moves.map((o) => `${moveTxt(o.move)} ${Math.round(o.p * 100)}%`).join(' · ')} · esperado {m.moveBp > 0 ? '+' : ''}{fmtNum(m.moveBp, 1)} pb</div>
+                  </td>
+                  <td>
+                    {p ? (
+                      <>
+                        <ProbBar cut={p.cut} hold={p.hold} hike={p.hike} />
+                        <div className="fp-sub"><a href={p.url} target="_blank" rel="noreferrer">vol. USD {fmtNum(p.volume / 1e6, 1)} M</a></div>
+                      </>
+                    ) : <span className="muted">sin mercado</span>}
+                  </td>
+                  <td className="num">{fmtNum(top.lower, 2)}–{fmtNum(top.upper, 2)}% <span className="muted">({Math.round(top.p * 100)}%)</span></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="card-foot">
+        <span>
+          <b>Futuros</b>: cálculo propio con el método de CME FedWatch sobre los contratos de fed funds a 30 días (CBOT ZQ, Yahoo, con demora) al {fmtDate(fp.futuresAsOf)},
+          partiendo de la EFFR del {fmtDate(fp.effrDate)}. Supone movimientos de 25 pb y reparte la probabilidad entre los dos más cercanos a lo que descuenta el mercado; incluye prima por plazo,
+          así que en reuniones lejanas exagera la dirección. <b>Polymarket</b>: mercados de predicción por reunión (precio del "Sí", normalizado a 100%); en reuniones lejanas tiene poco volumen.
+          Cada columna es la decisión de esa reunión respecto de la anterior.
+        </span>
+        <Source source="CBOT ZQ vía Yahoo · Polymarket" url="https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" />
+      </div>
+    </section>
+  );
+}
+
 export function CountryPanel({ p }) {
   const policy = kpiByKey(p, 'policy');
   const msci = p.equity?.msci;
@@ -241,6 +309,7 @@ export function CountryPanel({ p }) {
       </div>
 
       <h2 className="section" id="expectativas">Expectativas: hoy y cómo se movieron</h2>
+      {p.fedProbs && <FedProbsCard fp={p.fedProbs} />}
       <div className="grid">
         {exp.map((c) => (
           <Card key={c.id} id={`chart-${c.id}`} title={c.title}>
