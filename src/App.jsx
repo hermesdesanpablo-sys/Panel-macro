@@ -39,10 +39,17 @@ async function load(id, fresh = false) {
     return all[id];
   }
   const r = await fetch(`/api/country?c=${id}${fresh ? `&fresh=${Date.now()}` : ''}`, fresh ? { cache: 'no-store' } : undefined);
+  // Sesión vencida (el middleware responde 401): volver al ingreso y luego a la misma solapa.
+  if (r.status === 401) {
+    location.href = `/login?next=${encodeURIComponent(location.pathname + location.search + location.hash)}`;
+    throw new Error('Sesión vencida');
+  }
   const j = await r.json();
   if (!r.ok) throw new Error(j.error || r.statusText);
   return j;
 }
+// Usuario de la sesión (cookie pm_u, la escribe el middleware al ingresar; la sesión en sí va en una cookie HttpOnly).
+const sessionUser = () => { try { return decodeURIComponent(document.cookie.match(/(?:^|; )pm_u=([^;]*)/)?.[1] || ''); } catch { return ''; } };
 
 /** Agenda: subsolapas "Calendario económico" (semana, dato vs consenso) y "Agenda" (bancos centrales, datos y política, meses). */
 function AgendaTabs({ cal, calState, agenda }) {
@@ -160,6 +167,9 @@ export default function App() {
             <span className="muted upd" title={`Datos generados ${new Date(updated).toLocaleString('es-AR')}`}>
               Act. {new Date(updated).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
             </span>
+          )}
+          {!MOCK && sessionUser() && (
+            <span className="muted user">{sessionUser()} · <a href="/logout">Salir</a></span>
           )}
           <button className="btn" onClick={() => { fetchAll(true); ['usd', 'sust', 'val', 'rank', 'news'].forEach((t) => data[t] && fetchOne(t, true)); }}>Recargar</button>
         </div>
