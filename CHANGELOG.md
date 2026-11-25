@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.20.0 — 2026-11-25 (Acceso con usuario y contraseña)
+- `middleware.js` (Routing Middleware de Vercel, corre antes de la caché) exige sesión en todo el sitio, incluidas las APIs (401).
+  - `/login` es un formulario propio y `/logout` cierra la sesión.
+  - Usuarios: una variable de entorno por usuario, `AUTH_PASS_<USUARIO>`. Iniciales: HDSP y JV.
+  - El valor puede ser la contraseña (marcada "Sensitive") o un hash PBKDF2 (`node scripts/hash-password.mjs <contraseña>`).
+  - Sesión: cookie HttpOnly firmada con HMAC-SHA256, 30 días. Al cambiar una contraseña se cierran todas las sesiones.
+  - Sin usuarios configurados, el sitio responde 503: nunca queda abierto por error.
+  - En el panel: usuario y "Salir" arriba a la derecha; con la sesión vencida vuelve al ingreso.
+- Verificado: `npm test` OK (bloqueo sin usuarios, redirección, API 401, contraseña mala, usuario inexistente, redirección externa bloqueada,
+  cookie adulterada o vencida, hash PBKDF2, cierre de sesiones al cambiar la contraseña); `npm run build` OK.
+
 ## 0.19.0 — 2026-11-24 (Calendario: México, Chile, Colombia y semana siguiente)
 - Calendario económico: inflación de **México** (INEGI; dato de Banxico SIE SP30577/SP30578), **Chile** (INE; consenso = mediana de la EOF
   del BCCh "mes actual"; dato de la BDE F074.IPC.VAR.Z.Z.C.M y EP09) y **Colombia** (DANE; dato calculado con la UVR del BanRep, igual al DANE,

@@ -321,6 +321,40 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   assert.ok(cb.some((e) => e.ccy === 'USD' && e.time.startsWith('2026-12-09')) && cb.every((e) => e.kind === 'cb'), 'Bancos centrales: FOMC del 9-dic (fuera de la semana de Forex Factory)');
   console.log('✓ calendario: México, Colombia, EE.UU. semana siguiente y bancos centrales');
 }
+// Acceso: middleware con usuarios por variable de entorno (contraseña directa o hash PBKDF2) y cookie firmada.
+{
+  const auth = await import('../api/_lib/auth.js');
+  const { default: middleware } = await import('../middleware.js');
+  const saved = { ...process.env };
+  for (const k of Object.keys(process.env)) if (k.startsWith('AUTH_')) delete process.env[k];
+  const req = (path, init = {}) => new Request(`https://panel.test${path}`, init);
+  let r = await middleware(req('/'));
+  assert.equal(r.status, 503, 'sin usuarios configurados el panel queda cerrado');
+  process.env.AUTH_PASS_HDSP = 'clave-de-prueba';
+  process.env.AUTH_PASS_JV = await auth.hashPassword('otra clave', 1000);
+  r = await middleware(req('/?mock=0#val'));
+  assert.equal(r.status, 302); assert.equal(r.headers.get('location'), 'https://panel.test/login?next=%2F%3Fmock%3D0');
+  assert.equal((await middleware(req('/api/country?c=us'))).status, 401, 'la API también exige sesión');
+  assert.equal((await middleware(req('/login'))).status, 200);
+  const post = (user, password, next = '/') => middleware(req('/login', { method: 'POST', body: new URLSearchParams({ user, password, next }) }));
+  assert.equal((await post('HDSP', 'mal')).status, 401, 'contraseña incorrecta');
+  assert.equal((await post('NADIE', 'clave-de-prueba')).status, 401, 'usuario inexistente');
+  r = await post('hdsp', 'clave-de-prueba', '//evil.com');
+  assert.equal(r.status, 303); assert.equal(r.headers.get('location'), '/', 'no redirige afuera del sitio');
+  const set = r.headers.getSetCookie();
+  const session = set.find((c) => c.startsWith('pm_s='));
+  assert.ok(/HttpOnly/.test(session) && /Secure/.test(session) && set.some((c) => c.startsWith('pm_u=HDSP')), 'cookies de sesión');
+  const value = session.split(';')[0].slice(5);
+  assert.equal(await middleware(req('/api/country?c=us', { headers: { cookie: `pm_s=${value}` } })), undefined, 'con sesión pasa');
+  assert.equal(await auth.readSession(value.replace('HDSP', 'JV')), null, 'cookie adulterada');
+  assert.equal(await auth.readSession(value, process.env, Date.now() + 31 * 864e5), null, 'sesión vencida');
+  assert.equal(await auth.checkLogin('jv', 'otra clave'), 'JV', 'hash PBKDF2');
+  process.env.AUTH_PASS_HDSP = 'nueva';
+  assert.equal(await auth.readSession(value), null, 'al cambiar una contraseña se cierran las sesiones');
+  for (const k of Object.keys(process.env)) if (k.startsWith('AUTH_')) delete process.env[k];
+  Object.assign(process.env, Object.fromEntries(Object.entries(saved).filter(([k]) => k.startsWith('AUTH_'))));
+  console.log('✓ acceso: login, sesión firmada, API protegida y cierre de sesiones');
+}
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);
 console.log('OK – src/mock-data.json actualizado');

@@ -21,6 +21,8 @@ Objetivo de cada panel:
 ## Arquitectura
 
 ```
+middleware.js               Acceso: exige sesión en todo el sitio (y 401 en /api); /login y /logout. Usuarios en AUTH_PASS_<USUARIO>
+api/_lib/auth.js            Login, hash PBKDF2, cookie de sesión firmada (Web Crypto)
 api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val|rank|news|cal  (función serverless Vercel, cache edge 30 min)
 api/_lib/util.js            HTTP, fechas, series, kpi(), trend(), spreadSeries(), settle()
 api/_lib/yahoo.js           Yahoo Finance: precios, perf, futuros Fed funds (ZQ)
@@ -108,6 +110,7 @@ formato) y `smoke` para ese país.
 | 3 | FRED API key | EE.UU. completo; IPC Colombia fallback | https://fredaccount.stlouisfed.org/apikeys | `FRED_API_KEY` | ☐ |
 | 4 | Banxico SIE token | México completo | https://www.banxico.org.mx/SieAPIRest/service/v1/token | `BANXICO_TOKEN` | ☐ |
 | 4b | BCCh API Key Token (**vence ~19-nov-2027**) | Chile por la API oficial (sin token: cuadros públicos) | https://si3.bcentral.cl/Siete/es/Siete/API → Mi Cuenta → Apikey Token | `BCCH_API_TOKEN` | ☐ |
+| 4c | Contraseñas del panel (una por usuario) | Acceso al sitio | Vercel → Settings → Environment Variables (marcar Sensitive) | `AUTH_PASS_HDSP`, `AUTH_PASS_JV` (opcional `AUTH_SECRET`) | ☐ |
 | 5 | (opcional) Token de app datos.gov.co | Evita rate limit de la TRM | https://www.datos.gov.co/profile/edit/developer_settings | `SOCRATA_APP_TOKEN` (no implementado aún) | ☐ |
 | 6 | (opcional) LSEG / Trading Economics | DI futuro, OIS, swaps, TES, encuestas | Conectores ya usados por Hermes | a definir | ☐ |
 
@@ -326,6 +329,11 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 - Calidad de worldperatio (`wpeQuality` en val.js, `ETF_LAUNCH`): >10% de meses repetidos o ventana anterior al lanzamiento del ETF →
   "Baja calidad". Al 20-nov-2026 todas las series pasan a 5 años; a 10/20 años fallan muchas (sobre todo sectores).
 - worldperatio: `/sector/sp-500-<sector>` (base XLK, XLF…) e `/index/sp-500` (SPY), mismo formato que países.
+
+## Acceso (usuarios)
+- Alta de usuario: agregar `AUTH_PASS_<USUARIO>` (mayúsculas, letras/números/_) en Vercel y redeploy. Baja: borrar la variable (sus sesiones dejan de valer).
+- El valor puede ser la contraseña o un hash `pbkdf2$…` (`node scripts/hash-password.mjs <contraseña>`). Nunca en el repo ni en el chat.
+- Local (`vite` + `dev-api`) no pasa por el middleware: el acceso solo rige en Vercel.
 
 ## Pendientes priorizados
 
