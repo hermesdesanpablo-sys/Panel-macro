@@ -56,6 +56,15 @@ export default async function middleware(request) {
   }
   const user = await readSession(getCookie(request, COOKIE), env);
   if (user) return undefined; // sesión válida: sigue a la página o a la API
+  // Verificaciones automáticas (p. ej. Claude Code): mismo usuario y contraseña en un encabezado Authorization: Basic, solo por HTTPS.
+  // No crea sesión ni cookie; el navegador no lo usa porque nunca se pide (no se envía WWW-Authenticate).
+  const basic = /^Basic\s+(.+)$/i.exec(request.headers.get('authorization') || '')?.[1];
+  if (basic) {
+    let u = '', p = '';
+    try { [u, ...p] = atob(basic).split(':'); p = p.join(':'); } catch { /* encabezado mal formado */ }
+    if (await checkLogin(u, p, env)) return undefined;
+    await new Promise((r) => setTimeout(r, 700));
+  }
   if (url.pathname.startsWith('/api/')) {
     return new Response(JSON.stringify({ error: 'Sesión vencida o inexistente' }), { status: 401, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
   }

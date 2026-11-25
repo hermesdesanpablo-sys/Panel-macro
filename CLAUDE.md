@@ -334,6 +334,8 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 - Alta de usuario: agregar `AUTH_PASS_<USUARIO>` (mayúsculas, letras/números/_) en Vercel y redeploy. Baja: borrar la variable (sus sesiones dejan de valer).
 - El valor puede ser la contraseña o un hash `pbkdf2$…` (`node scripts/hash-password.mjs <contraseña>`). Nunca en el repo ni en el chat.
 - Local (`vite` + `dev-api`) no pasa por el middleware: el acceso solo rige en Vercel.
+- Verificaciones automáticas: el middleware acepta `Authorization: Basic` con el mismo usuario y contraseña (sin cookie). En Claude Code la
+  credencial está guardada en el entorno (secreto de red para panel-macro.vercel.app, la inyecta el proxy): no hace falta ni se debe escribir la contraseña.
 
 ## Pendientes priorizados
 
