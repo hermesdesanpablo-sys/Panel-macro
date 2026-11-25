@@ -240,6 +240,23 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   const m = mergeNews([{ feed: { key: 'fj', label: 'FinancialJuice', strip: /^FinancialJuice:\s*/i }, items }], now);
   assert.equal(m[0].title, 'US CPI & core beat');
   assert.ok(m[0].tags.includes('data'));
+  // Misma noticia en dos medios → un titular con "+1 fuente"; generalista sin tema de mercado → afuera; "medio" que no es noticia → afuera.
+  const { parseBsky, similarity } = await import('../api/_lib/sources/news.js');
+  const T = (min) => new Date(now - min * 60e3).toISOString();
+  const merged = mergeNews([
+    { feed: { key: 'a', label: 'Bloomberg' }, items: [{ title: 'Brazil real slides as Haddad exit rumors hit local markets', time: T(30) }] },
+    { feed: { key: 'b', label: 'Google Noticias', viaPublisher: true, finance: true }, items: [
+      { title: 'Brazil real slides as rumors of Haddad exit hit markets - Reuters', time: T(20) },
+      { title: 'Recipe of the day: apple pie - Cooking', time: T(10) },
+      { title: 'European stocks fall as banks drop - Facebook', time: T(5) },
+    ] },
+  ], now);
+  assert.equal(merged.length, 1, 'duplicado, receta y Facebook afuera');
+  assert.ok(merged[0].source === 'Bloomberg' && merged[0].also?.[0]?.source === 'Reuters' && merged[0].countries.includes('br'), 'queda el primero, con el otro medio en "también en"');
+  assert.ok(similarity('Fed holds rates steady', 'Apple launches new iPhone') < 0.2);
+  assert.ok(!classify('Dax Shepard reveals new podcast').countries.includes('eu') && classify('DAX falls 2% as German exports slump').tags.includes('mkts'), 'DAX solo en mayúsculas');
+  const bs = parseBsky({ feed: [{ post: { uri: 'at://did:x/app.bsky.feed.post/abc', record: { text: 'Oil jumps 3% after OPEC+ cut', createdAt: T(3) }, embed: { external: { uri: 'https://reut.rs/x', title: 'Oil jumps' } } } }, { reason: { $type: 'repost' }, post: { record: { text: 'repost', createdAt: T(1) } } }] }, 'reuters.com');
+  assert.ok(bs.length === 1 && bs[0].link === 'https://reut.rs/x' && bs[0].title.startsWith('Oil jumps 3%'), 'Bluesky: post propio con el link de la nota, sin reposts');
   console.log('✓ classify / mergeNews');
 }
 // Colombia: TES 10Y diario de Suameca (fechas de Bogotá, sin corrimiento de día).

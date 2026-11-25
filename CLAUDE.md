@@ -37,7 +37,7 @@ api/_lib/msci.js            Lector del factsheet mensual de MSCI (PDF, con unpdf
 api/_lib/ssga.js            State Street: planilla de productos SPDR (P/E FY1, P/B, crec. EPS…) y NAV/cuotas diarias por ETF
 api/_lib/sources/sust.js    Sostenibilidad: FMI WEO (API SDMX) + Banco Mundial (WDI). Payload propio: countries[].rows por año
 api/_lib/xlsx.js            Lector mínimo de .xlsx sin dependencias (zlib): readFirstSheet / readSheet(buf, n)
-api/_lib/sources/news.js    Noticias: feeds RSS públicos (Bloomberg, WSJ, MarketWatch, Fed, BCE, Google Noticias, FinancialJuice); etiquetas por palabras clave
+api/_lib/sources/news.js    Noticias: ~30 feeds RSS públicos + cuentas de Bluesky (Reuters, AP, Unusual Whales); Google Noticias por país; etiquetas por palabras clave; duplicados agrupados
 api/_lib/sources/cal.js     Calendario económico de la semana: consenso y anterior (Forex Factory) + dato real de EE.UU. (FRED) + licitaciones (TreasuryDirect)
 api/_lib/officialActuals.js Dato oficial fuera de EE.UU. para el calendario: StatCan (CA), ONS (UK), BCE y Eurostat (EZ)
 api/_lib/latamCal.js        Inflación de AR, BR, CL, CO y MX para el calendario (fecha oficial + encuesta del banco central + dato oficial)

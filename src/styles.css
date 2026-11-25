@@ -430,3 +430,4 @@ a.src:hover { color: var(--accent); }
   .ecal-val::before { display: block; font-size: 10px; text-transform: uppercase; color: var(--text-muted); font-weight: 500; }
   .ecal-act::before { content: 'Dato'; } .ecal-val:nth-child(4)::before { content: 'Esperado'; } .ecal-val:nth-child(5)::before { content: 'Anterior'; }
 }
+.news-also { font-size: 10.5px; font-weight: 600; color: var(--text-secondary); border: 1px solid var(--border-strong); border-radius: 4px; padding: 0 5px; margin-left: 6px; cursor: help; }

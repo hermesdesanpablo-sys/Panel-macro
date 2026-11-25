@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.21.0 — 2026-11-25 (Noticias: más regiones, mercado global, Bluesky y duplicados)
+- Fuentes nuevas:
+  - Mercado global: Financial Times, Investing.com y Seeking Alpha; Reuters, AP y Unusual Whales vía sus cuentas públicas de Bluesky (API abierta).
+  - Bancos centrales: BoJ y BoE.
+  - Brasil: Valor e InfoMoney; Chile: Diario Financiero; Europa: Euronews; Japón: Japan Times.
+  - Google Noticias por país (AR, BR en portugués, MX, CL, CO, Europa, Japón, China), cada búsqueda con su país, para no sesgar hacia Argentina.
+- Las fuentes generalistas (Google Noticias, Bluesky, Euronews, Japan Times) solo aportan titulares con tema de mercado. Se descartan "medios"
+  que no son noticias (Facebook, Britannica, YouTube…). DAX/STOXX/FTSE solo cuentan en mayúsculas ("Dax Shepard" no es el DAX).
+- La misma noticia en varios medios (parecido de palabras ≥ 50% en 12 h) se muestra una vez, con "+N fuentes" y la lista al pasar el mouse.
+- Filtro nuevo: Reino Unido. Las descripciones con HTML dentro de atributos (InfoMoney) se limpian bien.
+- Descartadas: X (API paga; el scraping va contra sus términos), Yahoo Finance (solo queda el feed por ticker, con notas de baja calidad),
+  CNBC (403). FT y Valor responden 403 de forma intermitente: quedan como opcionales.
+- Con datos reales: 500 titulares; Brasil 50, Japón 42, China 43, Europa 37, Reino Unido 40, Chile 30, México 22. `npm test` y `npm run build` OK.
+
 ## 0.20.1 — 2026-11-25 (Acceso: verificación automática)
 - El middleware acepta también `Authorization: Basic` (mismo usuario y contraseña, sin crear sesión) para que Claude Code verifique el sitio
   con la credencial guardada como secreto del entorno, sin escribir la contraseña en el repo ni en las notas. Test agregado.
