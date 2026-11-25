@@ -1780,7 +1780,7 @@ export function RankPanel({ data, state }) {
 const NEWS_TOPICS = [['all', 'Todo'], ['cb', 'Bancos centrales'], ['data', 'Datos'], ['mkts', 'Mercados'], ['pol', 'Política']];
 const NEWS_REGIONS = [
   ['all', 'Todos los países'], ['latam', 'América Latina'], ['ar', 'Argentina'], ['br', 'Brasil'], ['mx', 'México'], ['cl', 'Chile'], ['co', 'Colombia'],
-  ['pe', 'Perú'], ['uy', 'Uruguay'], ['ec', 'Ecuador'], ['us', 'EE.UU.'], ['eu', 'Eurozona'], ['ca', 'Canadá'], ['jp', 'Japón'], ['cn', 'China'], ['in', 'India'],
+  ['pe', 'Perú'], ['uy', 'Uruguay'], ['ec', 'Ecuador'], ['us', 'EE.UU.'], ['eu', 'Eurozona'], ['gb', 'Reino Unido'], ['ca', 'Canadá'], ['jp', 'Japón'], ['cn', 'China'], ['in', 'India'],
 ];
 const LATAM = ['ar', 'br', 'mx', 'cl', 'co', 'pe', 'uy', 'ec'];
 const TOPIC_LABEL = { cb: 'Banco central', data: 'Dato', mkts: 'Mercados', pol: 'Política' };
@@ -1864,6 +1864,11 @@ export function NewsPanel({ data }) {
                   <span className="news-body">
                     {i.link ? <a href={i.link} target="_blank" rel="noreferrer">{i.title}</a> : i.title}
                     {fresh.has(i.id) && <span className="news-new">nuevo</span>}
+                    {i.also?.length > 0 && (
+                      <span className="news-also" title={`También en: ${[...new Set(i.also.map((a) => a.source))].join(', ')}`}>
+                        +{new Set(i.also.map((a) => a.source)).size} {new Set(i.also.map((a) => a.source)).size === 1 ? 'fuente' : 'fuentes'}
+                      </span>
+                    )}
                     <span className="news-meta">
                       {i.countries.filter((c) => c !== 'us' || i.countries.length === 1).slice(0, 4).map((c) => <Flag key={c} id={c} />)}
                       {i.tags.map((t) => <span key={t} className={`news-tag t-${t}`}>{TOPIC_LABEL[t]}</span>)}
@@ -1877,10 +1882,11 @@ export function NewsPanel({ data }) {
         )}
         <div className="card-foot">
           <span>
-            Titulares de feeds públicos (RSS), unificados y ordenados por hora: Bloomberg (mercados, economía, política), WSJ (mercados, mundo),
-            MarketWatch, comunicados de la Fed y del BCE, Google Noticias (búsquedas de finanzas de América Latina, en español e inglés; se muestra
-            el medio de origen) y FinancialJuice cuando responde. Las etiquetas de tema y país son automáticas por palabras clave (pueden fallar).
-            Sin Reuters: no tiene feed público (requiere LSEG).
+            Titulares de fuentes públicas, unificados y ordenados por hora. Mercados globales: Bloomberg, WSJ, MarketWatch, Financial Times, Investing.com,
+            Seeking Alpha y FinancialJuice; Reuters, AP y Unusual Whales vía sus cuentas públicas de Bluesky (X no tiene acceso gratuito). Bancos centrales: Fed, BCE,
+            BoJ y BoE. Regionales: Valor e InfoMoney (Brasil), Diario Financiero (Chile), Euronews, Japan Times y Google Noticias por país (Argentina, Brasil,
+            México, Chile, Colombia, Europa, Japón, China), con el medio de origen. Las fuentes generalistas solo aportan titulares de mercado.
+            La misma noticia en varios medios se muestra una vez ("+N fuentes"). Las etiquetas de tema y país son automáticas por palabras clave (pueden fallar).
           </span>
           <span>{sources.filter((s) => !s.ok).length ? `No disponibles ahora: ${[...new Set(sources.filter((s) => !s.ok).map((s) => s.label))].join(', ')}` : 'Todas las fuentes respondieron'}</span>
         </div>
