@@ -19,6 +19,19 @@ export async function yahooSeries(ticker, range = '1y') {
   return s;
 }
 
+/**
+ * Cierre anterior que Yahoo usa para la variación del día (meta.previousClose de range=1d).
+ * En monedas (=X) las barras diarias de range=1y no sirven para eso: la barra "de ayer" no es el cierre anterior de Yahoo
+ * (USDMXN el 25-nov-2026: barra 19,17 vs cierre anterior 19,41 → +2,2% en lugar de +1,0%).
+ */
+export async function yahooPrevClose(ticker) {
+  const j = await getJson(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1d&interval=5m`);
+  const m = j?.chart?.result?.[0]?.meta;
+  const v = m?.previousClose ?? m?.chartPreviousClose;
+  if (!Number.isFinite(v)) throw new Error(`Yahoo sin cierre anterior para ${ticker}`);
+  return v;
+}
+
 /** Resumen de performance: último, 1d, MTD, YTD, 1a. */
 export function perf(series) {
   const p = last(series);

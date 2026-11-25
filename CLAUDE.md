@@ -39,7 +39,7 @@ api/_lib/sources/sust.js    Sostenibilidad: FMI WEO (API SDMX) + Banco Mundial (
 api/_lib/xlsx.js            Lector mínimo de .xlsx sin dependencias (zlib): readFirstSheet / readSheet(buf, n)
 api/_lib/sources/news.js    Noticias: ~30 feeds RSS públicos + cuentas de Bluesky (Reuters, AP, Unusual Whales); Google Noticias por país; etiquetas por palabras clave; duplicados agrupados
 api/_lib/sources/cal.js     Calendario económico de la semana: consenso y anterior (Forex Factory) + dato real de EE.UU. (FRED) + licitaciones (TreasuryDirect)
-api/_lib/officialActuals.js Dato oficial fuera de EE.UU. para el calendario: StatCan (CA), ONS (UK), BCE y Eurostat (EZ)
+api/_lib/officialActuals.js Dato oficial fuera de EE.UU. para el calendario: StatCan (CA), ONS (UK), BCE y Eurostat (EZ), BoJ (JP)
 api/_lib/latamCal.js        Inflación de AR, BR, CL, CO y MX para el calendario (fecha oficial + encuesta del banco central + dato oficial)
 api/_lib/fedprobs.js        Probabilidades de la Fed por reunión: futuros ZQ (método FedWatch, cálculo propio) y Polymarket (API Gamma)
 api/_lib/treasury.js        Licitaciones del Tesoro: cronograma tentativo (PDF) + TreasuryDirect (anunciadas y resultados)
@@ -285,6 +285,10 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
   108785713/4/5 común/mediana/recortado, 2062811 empleo, 2062815 desempleo, 65201210 PIB, 52367097 ventas minoristas; `releaseTime`);
   ONS `www.ons.gov.uk/<ruta de la serie>/data` (D7G7, DKO8, D7OE, ECY2, IHYQ en pn2/qna, MGSX, J5EK; `releaseDate`); BCE HICP con
   `updatedAfter` (404 = sin dato nuevo); Eurostat `namq_10_gdp` y `une_rt_m` con geo EA21. El flash del HICP no está en ninguna API pública.
+- Japón (BoJ API): PPI a/a `PR01/PRCG20_2200000000%`, SPPI a/a `PR02/PRCS20_5200000000%` (el "%" va codificado en la URL), Tankan grandes
+  empresas `CO/TK99F1000601GCQ01000` (manufactura) y `TK99F2000601GCQ01000` (no manufactura). Frescura: `LAST_UPDATE` (AAAAMMDD, Tokio).
+  IPC, desempleo, ventas, producción y PIB: e-Stat (requiere appId gratuito, `ESTAT_APP_ID`; pendiente).
+- Mundo, monedas: la variación del día va contra `meta.previousClose` de `range=1d` (`yahooPrevClose`); las barras diarias de `range=1y` no sirven.
 - América Latina: Focus mensual `ExpectativaMercadoMensais` (IPCA, DataReferencia MM/AAAA, última encuesta anterior a la publicación);
   el IBGE informa la hora en UTC (12:00 = 09:00 de Brasilia). Argentina usa `DATA_RELEASES.ar` (actualizar con el calendario del INDEC de 2027).
 - México: SIE SP30577 (m/m) y SP30578 (a/a); la encuesta de Banxico (CR154) no releva la inflación mensual. Chile: EOF `F089.EOF.VII.MA.D`

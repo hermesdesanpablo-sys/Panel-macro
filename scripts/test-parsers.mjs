@@ -73,6 +73,8 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
     if (ca?.actual !== '0.2%' || !/StatCan v41690973/.test(ca?.actualSrc || '')) problems.push(`calendario: dato de StatCan (${ca?.actual})`);
     if (gb?.actual !== '3.6%' || gb?.surprise?.diff !== -0.1 || !/ONS D7G7/.test(gb?.actualSrc || '')) problems.push(`calendario: dato de ONS (${gb?.actual})`);
     if (p.events.find((e) => e.ccy === 'GBP' && /PMI/.test(e.title))?.actual) problems.push('calendario: PMI sin fuente oficial no debe tener dato');
+    const jp = p.events.find((e) => e.ccy === 'JPY' && e.title === 'SPPI y/y');
+    if (!/%$/.test(jp?.actual || '') || !/BoJ PRCS20_5200000000%/.test(jp?.actualSrc || '')) problems.push(`calendario: dato de la BoJ (${jp?.actual})`);
     console.log(`${problems.length ? '✗' : '✓'} cal: ${p.events.length} eventos, ${auct.length} licitaciones`);
     problems.forEach((x) => console.log('    ' + x));
     fails += problems.length;
@@ -374,6 +376,12 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   for (const k of Object.keys(process.env)) if (k.startsWith('AUTH_')) delete process.env[k];
   Object.assign(process.env, Object.fromEntries(Object.entries(saved).filter(([k]) => k.startsWith('AUTH_'))));
   console.log('✓ acceso: login, sesión firmada, API protegida y cierre de sesiones');
+}
+// Mundo: en monedas, la variación del día es contra el cierre anterior de Yahoo (range=1d), no contra la barra diaria anterior.
+{
+  const fx = out.world.markets.find((m) => m.ticker.endsWith('=X'));
+  assert.ok(fx?.perf?.prevClose && Math.abs(fx.perf.d1 - (fx.perf.last / fx.perf.prevClose - 1) * 100) < 1e-9, 'Mundo: variación de monedas contra el cierre anterior');
+  console.log('✓ Mundo: monedas contra el cierre anterior de Yahoo');
 }
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);
