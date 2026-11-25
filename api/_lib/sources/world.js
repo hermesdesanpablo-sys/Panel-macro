@@ -1,6 +1,6 @@
 // Mundo: proxies MSCI (ETFs en USD), índices locales, riesgo, tasas de EE.UU., monedas y commodities vía Yahoo.
 import { settle } from '../util.js';
-import { yahooSeries, perf } from '../yahoo.js';
+import { yahooSeries, yahooPrevClose, perf } from '../yahoo.js';
 
 const G = {
   msci: 'MSCI global (USD)',
@@ -103,7 +103,11 @@ function rebase(seriesByKey) {
 
 export default async function world() {
   const errors = [];
-  const tasks = limitTasks(Object.fromEntries(WORLD.map((w) => [`Yahoo ${w.ticker}`, () => yahooSeries(w.ticker)])));
+  const tasks = limitTasks(Object.fromEntries([
+    ...WORLD.map((w) => [`Yahoo ${w.ticker}`, () => yahooSeries(w.ticker)]),
+    // Monedas: la variación del día se calcula contra el cierre anterior de Yahoo (ver yahooPrevClose).
+    ...WORLD.filter((w) => w.ticker.endsWith('=X')).map((w) => [`Yahoo cierre anterior ${w.ticker}`, () => yahooPrevClose(w.ticker)]),
+  ]));
   const d = await settle(tasks, errors);
   const rows = WORLD.map((w) => {
     const s = d[`Yahoo ${w.ticker}`];
@@ -120,6 +124,8 @@ export default async function world() {
     }
     // Variación absoluta del día (en la unidad del activo; para tasas, en puntos porcentuales).
     if (p && s.length > 1) p.d1abs = p.last - s[s.length - 2].v;
+    const pc = d[`Yahoo cierre anterior ${w.ticker}`];
+    if (p && Number.isFinite(pc)) Object.assign(p, { d1: (p.last / pc - 1) * 100, d1abs: p.last - pc, prevClose: pc });
     return { ...w, perf: p, spark: s ? s.filter((_, i) => i % 3 === 0 || i === s.length - 1) : [] };
   });
   const S = (t) => d[`Yahoo ${t}`] || [];

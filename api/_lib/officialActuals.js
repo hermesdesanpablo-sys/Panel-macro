@@ -64,7 +64,26 @@ async function eurostat(ev, { dataset, query, freq }) {
   return { raw: pts[0][1], period: pts[0][0], src: `Eurostat ${dataset}`, url: `https://ec.europa.eu/eurostat/databrowser/view/${dataset}/default/table` };
 }
 
-const R = { statcan, ons, ecb, eurostat };
+// ---------- Japón: API del Banco de Japón (sin clave) ----------
+// Cada serie trae LAST_UPDATE (AAAAMMDD, hora de Tokio): el dato vale si se actualizó el día del evento (en Tokio) o después.
+const jstDate = (iso) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(new Date(iso));
+async function boj(ev, { db, code, fn, quarterly = false }) {
+  const y = new Date().getUTCFullYear() - 2;
+  const j = await getJson(`https://www.stat-search.boj.or.jp/api/v1/getDataCode?format=json&lang=en&db=${db}&code=${encodeURIComponent(code)}&startDate=${y}01`);
+  const s = j?.RESULTSET?.[0];
+  if (!s) throw new Error(`BoJ ${code}: ${j?.MESSAGE || 'sin datos'}`);
+  const upd = String(s.LAST_UPDATE || '');
+  if (`${upd.slice(0, 4)}-${upd.slice(4, 6)}-${upd.slice(6, 8)}` < jstDate(ev.time)) return null;
+  const pts = s.VALUES.SURVEY_DATES.map((d, i) => [String(d), s.VALUES.VALUES[i]]).filter(([, v]) => v != null && v !== '').reverse();
+  if (!pts.length) return null;
+  const p = pts[0][0]; // 'AAAAMM' o, en trimestrales, 'AAAA0T'
+  return {
+    raw: apply(pts.map(([, v]) => Number(v)), fn), period: quarterly ? `${p.slice(0, 4)}-Q${Number(p.slice(4))}` : `${p.slice(0, 4)}-${p.slice(4)}`,
+    src: `BoJ ${code}`, url: 'https://www.stat-search.boj.or.jp/index_en.html',
+  };
+}
+
+const R = { statcan, ons, ecb, eurostat, boj };
 const S = (src, opts) => ({ src, ...opts });
 // Títulos de Forex Factory por moneda → fuente oficial.
 export const OFFICIAL_ACTUALS = {
@@ -89,6 +108,14 @@ export const OFFICIAL_ACTUALS = {
     [/^(Revised |Final )?GDP q\/q$/, S('ons', { path: 'economy/grossdomesticproductgdp/timeseries/ihyq/qna', fn: 'level', freq: 'quarters' })],
     [/^Unemployment Rate$/, S('ons', { path: 'employmentandlabourmarket/peoplenotinwork/unemployment/timeseries/mgsx/lms', fn: 'level' })],
     [/^Retail Sales m\/m$/, S('ons', { path: 'businessindustryandtrade/retailindustry/timeseries/j5ek/drsi', fn: 'mom' })],
+  ],
+  // IPC (nacional y Tokio), desempleo, ventas minoristas, producción industrial y PIB: e-Stat (requiere appId gratuito; pendiente).
+  JPY: [
+    [/^PPI y\/y$/, S('boj', { db: 'PR01', code: 'PRCG20_2200000000%', fn: 'level' })], // variación a/a publicada por la BoJ
+    [/^PPI m\/m$/, S('boj', { db: 'PR01', code: 'PRCG20_2200000000', fn: 'mom' })],
+    [/^SPPI y\/y$/, S('boj', { db: 'PR02', code: 'PRCS20_5200000000%', fn: 'level' })],
+    [/^Tankan Manufacturing Index$/, S('boj', { db: 'CO', code: 'TK99F1000601GCQ01000', fn: 'level', quarterly: true })],
+    [/^Tankan Non-Manufacturing Index$/, S('boj', { db: 'CO', code: 'TK99F2000601GCQ01000', fn: 'level', quarterly: true })],
   ],
   EUR: [
     // El flash de HICP no está en ninguna API pública (BCE y Eurostat solo tienen el definitivo): queda "—".

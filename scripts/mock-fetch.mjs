@@ -230,6 +230,7 @@ export async function mockFetch(input, init = {}) {
       { title: 'Flash Manufacturing PMI', country: 'USD', date: at(-30), impact: 'Medium', forecast: '54.5', previous: '56.0' },
       { title: 'CPI m/m', country: 'CAD', date: at(-2), impact: 'High', forecast: '0.1%', previous: '0.4%' },
       { title: 'CPI y/y', country: 'GBP', date: at(-2), impact: 'High', forecast: '3.7%', previous: '3.8%' },
+      { title: 'SPPI y/y', country: 'JPY', date: at(-2), impact: 'Low', forecast: '3.6%', previous: '3.7%' },
       { title: 'Flash Manufacturing PMI', country: 'GBP', date: at(-2), impact: 'Medium', forecast: '53.0', previous: '52.8' },
       { title: 'Bank Holiday', country: 'JPY', date: at(30), impact: 'Holiday', forecast: '', previous: '' },
     ]);
@@ -369,7 +370,7 @@ export async function mockFetch(input, init = {}) {
     } else if (YLEVEL[t]) s = walk(YLEVEL[t], 370, 0.01);
     else if (t === 'NOEXISTE') return new Response('{"chart":{"result":null}}', { status: 404 });
     else s = walk(100, 370, 0.01); // resto de los tickers de Mundo: nivel genérico
-    return json({ chart: { result: [{ meta: { regularMarketPrice: s[s.length - 1].v, regularMarketTime: Date.parse(s[s.length - 1].d) / 1000 }, timestamp: s.map((p) => Date.parse(p.d) / 1000), indicators: { quote: [{ close: s.map((p) => p.v) }] } }] } });
+    return json({ chart: { result: [{ meta: { regularMarketPrice: s[s.length - 1].v, regularMarketTime: Date.parse(s[s.length - 1].d) / 1000, ...(u.includes('range=1d') ? { previousClose: s[s.length - 1].v / 1.01 } : {}) }, timestamp: s.map((p) => Date.parse(p.d) / 1000), indicators: { quote: [{ close: s.map((p) => p.v) }] } }] } });
   }
   if (url.host === 'www.datos.gov.co') {
     return json(walk(3900, 400, 0.005).map((p) => ({ valor: p.v.toFixed(2), vigenciadesde: p.d + 'T00:00:00.000' })));
@@ -526,6 +527,11 @@ export async function mockFetch(input, init = {}) {
     const code = url.searchParams.get('code');
     const s = code.startsWith('TK') ? walk(2.5, 12, 0.02, 'M').filter((_, i) => i % 3 === 0) : steps([0.25, 0.5, 0.75, 1.0], 1100);
     const fmt = code.startsWith('TK') ? (d) => Number(d.slice(0, 4) + '0' + (Math.floor((+d.slice(5, 7) - 1) / 3) + 1)) : (d) => Number(d.replace(/-/g, ''));
+    // Precios (PR01/PR02, variación a/a publicada): mensual, actualizado hoy (fecha de Tokio, como informa la BoJ).
+    if (/^PRC/.test(code)) {
+      const m = walk(3, 24, 0.05, 'M');
+      return json({ STATUS: 200, RESULTSET: [{ SERIES_CODE: code, FREQUENCY: 'MONTHLY', LAST_UPDATE: Number(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(new Date()).replace(/-/g, '')), VALUES: { SURVEY_DATES: m.map((p) => Number(p.d.slice(0, 7).replace('-', ''))), VALUES: m.map((p) => +p.v.toFixed(1)) } }] });
+    }
     return json({ STATUS: 200, RESULTSET: [{ SERIES_CODE: code, FREQUENCY: code.startsWith('TK') ? 'QUARTERLY' : 'DAILY', VALUES: { SURVEY_DATES: s.map((p) => fmt(p.d)), VALUES: s.map((p) => +p.v.toFixed(3)) } }] });
   }
   if (url.host === 'www.mof.go.jp') {

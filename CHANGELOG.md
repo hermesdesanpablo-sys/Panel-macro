@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.21.1 — 2026-11-25 (Mundo: variación de monedas; calendario: Japón)
+- **Mundo, monedas.** La variación del día estaba mal: se calculaba contra la barra diaria anterior de Yahoo, que en monedas no es el cierre
+  anterior que usa Yahoo. USDMXN mostraba +2,17% cuando Yahoo daba +0,95%; USDCLP +2,15% contra +0,52%. Ahora se usa `meta.previousClose`
+  de `range=1d` (`yahooPrevClose`), igual que Yahoo. Test agregado.
+- **Calendario, Japón** (API del BoJ, sin clave): PPI y SPPI a/a (las variaciones que publica la BoJ) y Tankan manufacturero y no
+  manufacturero de grandes empresas. El dato se toma si la serie se actualizó (`LAST_UPDATE`, hora de Tokio) el día del evento o después.
+  Verificado: SPPI oct 4,2% (esp. 3,6%), PPI oct 7,1%, Tankan 3T 24 y 35.
+- Pendiente: IPC nacional y de Tokio, desempleo, ventas minoristas, producción industrial y PIB de Japón están en e-Stat, que pide un appId gratuito.
+
 ## 0.21.0 — 2026-11-25 (Noticias: más regiones, mercado global, Bluesky y duplicados)
 - Fuentes nuevas:
   - Mercado global: Financial Times, Investing.com y Seeking Alpha; Reuters, AP y Unusual Whales vía sus cuentas públicas de Bluesky (API abierta).
