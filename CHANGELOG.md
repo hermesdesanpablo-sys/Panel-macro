@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.20.1 — 2026-11-25 (Acceso: verificación automática)
+- El middleware acepta también `Authorization: Basic` (mismo usuario y contraseña, sin crear sesión) para que Claude Code verifique el sitio
+  con la credencial guardada como secreto del entorno, sin escribir la contraseña en el repo ni en las notas. Test agregado.
+
 ## 0.20.0 — 2026-11-25 (Acceso con usuario y contraseña)
 - `middleware.js` (Routing Middleware de Vercel, corre antes de la caché) exige sesión en todo el sitio, incluidas las APIs (401).
   - `/login` es un formulario propio y `/logout` cierra la sesión.

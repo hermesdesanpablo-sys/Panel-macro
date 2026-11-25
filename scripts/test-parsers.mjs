@@ -349,6 +349,9 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   assert.equal(await auth.readSession(value.replace('HDSP', 'JV')), null, 'cookie adulterada');
   assert.equal(await auth.readSession(value, process.env, Date.now() + 31 * 864e5), null, 'sesión vencida');
   assert.equal(await auth.checkLogin('jv', 'otra clave'), 'JV', 'hash PBKDF2');
+  const basic = (u, p) => ({ headers: { authorization: `Basic ${btoa(`${u}:${p}`)}` } });
+  assert.equal(await middleware(req('/api/country?c=us', basic('HDSP', 'clave-de-prueba'))), undefined, 'Authorization: Basic correcto');
+  assert.equal((await middleware(req('/api/country?c=us', basic('HDSP', 'mal')))).status, 401, 'Authorization: Basic incorrecto');
   process.env.AUTH_PASS_HDSP = 'nueva';
   assert.equal(await auth.readSession(value), null, 'al cambiar una contraseña se cierran las sesiones');
   for (const k of Object.keys(process.env)) if (k.startsWith('AUTH_')) delete process.env[k];
