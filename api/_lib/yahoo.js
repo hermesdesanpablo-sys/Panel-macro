@@ -1,13 +1,18 @@
 // Yahoo Finance (endpoint chart no oficial; el mismo que usás en portfolio-terminal).
 import { getJson, iso, clean, last, valueAt } from './util.js';
 
-export async function yahooSeries(ticker, range = '1y') {
+/**
+ * Serie diaria de Yahoo. Por defecto, precio AJUSTADO por dividendos (adjclose): en ETF y acciones es el retorno total; en índices de
+ * precio, monedas, tasas y futuros Yahoo devuelve adjclose igual al cierre (o no lo trae), así que no cambia nada.
+ */
+export async function yahooSeries(ticker, range = '1y', { adjusted = true } = {}) {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=${range}&interval=1d`;
   const j = await getJson(url);
   const r = j?.chart?.result?.[0];
   if (!r) throw new Error(`Yahoo sin datos para ${ticker}`);
   const ts = r.timestamp || [];
-  const close = r.indicators?.quote?.[0]?.close || [];
+  const adj = adjusted ? r.indicators?.adjclose?.[0]?.adjclose : null;
+  const close = adj?.length === ts.length ? adj : r.indicators?.quote?.[0]?.close || [];
   const s = clean(ts.map((t, i) => ({ d: iso(new Date(t * 1000)), v: close[i] })));
   // el precio de mercado intradía suele ser más fresco que el último close
   const live = r.meta?.regularMarketPrice;

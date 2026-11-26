@@ -431,3 +431,27 @@ a.src:hover { color: var(--accent); }
   .ecal-act::before { content: 'Dato'; } .ecal-val:nth-child(4)::before { content: 'Esperado'; } .ecal-val:nth-child(5)::before { content: 'Anterior'; }
 }
 .news-also { font-size: 10.5px; font-weight: 600; color: var(--text-secondary); border: 1px solid var(--border-strong); border-radius: 4px; padding: 0 5px; margin-left: 6px; cursor: help; }
+.mt-src { display: block; font-size: 10.5px; font-weight: 500; color: var(--text-muted); }
+
+/* ---------- Velas del cociente (Comparar) ---------- */
+.candles { width: 100%; height: auto; display: block; }
+.cd-band { stroke: var(--text-muted); stroke-width: 1; }
+.cd-mean { stroke: var(--text-secondary); stroke-width: 1.4; }
+.cd-dash { stroke-dasharray: 6 4; }
+.cd-dot { stroke-dasharray: 2 4; }
+.cd-lbl, .cd-tick { fill: var(--text-muted); font-size: 11px; font-family: inherit; }
+.cd-up .cd-wick { stroke: var(--mk-pos); } .cd-up .cd-body { fill: var(--mk-pos); }
+.cd-dn .cd-wick { stroke: var(--mk-neg); } .cd-dn .cd-body { fill: none; stroke: var(--mk-neg); stroke-width: 1; }
+
+/* ---------- Conclusión de Comparar ---------- */
+.ratio-head { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-bottom: 8px; }
+.ratio-stat { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.verdict-box { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 10px; border: 1px solid var(--border-strong); margin-bottom: 14px; }
+.verdict-text { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 650; }
+.v-strong { border-color: var(--accent); background: rgba(57,135,229,.10); }
+.v-tilt { background: var(--surface-2); }
+.v-neutral { background: var(--surface-1); }
+.sig-badge { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; }
+.sig-tbl td { vertical-align: middle; }
+.verdict-notes { margin: 12px 0 0; padding-left: 18px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+.w-src { margin-left: 6px; font-size: 10px; font-weight: 500; color: var(--text-muted); }

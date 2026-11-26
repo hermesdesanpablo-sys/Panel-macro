@@ -17,7 +17,7 @@ assert.deepEqual(parseCsv('a,b,c\n1,"x, y",3\n'), [['a', 'b', 'c'], ['1', 'x, y'
 const out = {};
 let fails = 0;
 for (const [id, fn] of Object.entries(ADAPTERS)) {
-  const p = await fn();
+  const p = await fn(id === 'pair' ? { a: 'br', b: 'mx' } : {});
   out[id] = { ...p, updatedAt: new Date().toISOString(), mock: true };
   const missing = (p.kpis || []).filter((k) => k.value == null && k.source !== 'Pendiente').map((k) => k.label);
   const problems = [...p.errors.map((e) => `${e.source}: ${e.message}`), ...missing.map((m) => `KPI vacío: ${m}`)];
@@ -54,6 +54,14 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
     if (sec.some((r) => r.ssga?.peFwd == null || r.wpe?.stats?.y5 == null || r.flows?.m1 == null)) problems.push('sectores: falta P/E fwd, historia o flujos');
     if ([...p.rows, ...sec].some((r) => r.wpe && !r.wpe.quality?.y5)) problems.push('worldperatio: falta el control de calidad');
     console.log(`${problems.length ? '✗' : '✓'} val: ${p.funds.length} ETF, ${sec.length} sectores, ${wpe.length} con historia de P/E, ${ms.length} con P/E fwd MSCI`);
+    problems.forEach((x) => console.log('    ' + x));
+    fails += problems.length;
+    continue;
+  }
+  if (id === 'pair') {
+    if (p.candles.length < 200 || !(p.stats.sd > 0) || !Number.isFinite(p.stats.z)) problems.push(`par: ${p.candles.length} velas, desvío ${p.stats.sd}`);
+    if (p.candles.some((c) => c.h < Math.max(c.o, c.c) || c.l > Math.min(c.o, c.c))) problems.push('par: velas con máximo/mínimo incoherentes');
+    console.log(`${problems.length ? '✗' : '✓'} pair: ${p.tickers.a}/${p.tickers.b}, ${p.candles.length} velas, z ${p.stats.z.toFixed(2)}`);
     problems.forEach((x) => console.log('    ' + x));
     fails += problems.length;
     continue;
@@ -381,7 +389,35 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
 {
   const fx = out.world.markets.find((m) => m.ticker.endsWith('=X'));
   assert.ok(fx?.perf?.prevClose && Math.abs(fx.perf.d1 - (fx.perf.last / fx.perf.prevClose - 1) * 100) < 1e-9, 'Mundo: variación de monedas contra el cierre anterior');
-  console.log('✓ Mundo: monedas contra el cierre anterior de Yahoo');
+  const ars = out.world.markets.find((m) => m.ticker === 'ARS=X');
+  assert.ok(ars.perf.last === 1605.5 && ars.perf.d1 === 0.31 && ars.quoteLabel === 'UST$T (A3)' && ars.spark.length > 10, 'USDARS: UST$T de A3 con historia del A3500');
+  const { a3Dollar, parseSnapshot } = await import('../api/_lib/a3.js');
+  const pre = a3Dollar({ totals: [{ id: 'UST$T000', value: 0, variation: 0 }, { id: 'BCRACOM3500', value: 1600, variation: -0.5, date: '2026-11-26T00:00:00' }] });
+  assert.ok(pre.label === 'A3500 (BCRA)' && pre.last === 1600, 'sin operaciones de UST$T: A3500 rotulado');
+  assert.equal(parseSnapshot('event: status\ndata: {}\n\nevent: snapshot\ndata: {"stream":"Dashboard","data":{"totals":[]}}\n\n').totals.length, 0);
+  console.log('✓ Mundo: monedas contra el cierre anterior de Yahoo; USDARS de A3');
+}
+// Comparar: cociente, velas semanales y señales.
+{
+  const { ratioSeries, weeklyCandles, ratioStats } = await import('../api/_lib/sources/pair.js');
+  const a = [{ d: '2026-11-16', v: 10 }, { d: '2026-11-17', v: 12 }, { d: '2026-11-18', v: 9 }, { d: '2026-11-20', v: 11 }, { d: '2026-11-23', v: 10 }];
+  const b = [{ d: '2026-11-16', v: 5 }, { d: '2026-11-17', v: 4 }, { d: '2026-11-18', v: 3 }, { d: '2026-11-19', v: 5 }, { d: '2026-11-20', v: 5 }, { d: '2026-11-23', v: 5 }];
+  const r = ratioSeries(a, b);
+  assert.deepEqual(r.map((x) => x.v), [2, 3, 3, 2.2, 2], 'cociente solo con fechas comunes');
+  const w = weeklyCandles(r);
+  assert.equal(w.length, 2); assert.deepEqual([w[0].o, w[0].h, w[0].l, w[0].c], [2, 3, 2, 2.2], 'vela semanal con cierres diarios');
+  const st = ratioStats(Array.from({ length: 60 }, (_, i) => ({ c: i < 59 ? 1 + (i % 2) * 0.2 : 0.7 })));
+  assert.ok(st.z < -2 && st.pctile < 5, 'último cierre muy por debajo de la media');
+  const { pairSignals } = await import('../src/signals.js');
+  {
+    const K = (fx, cpi, y2) => ({ kpis: [{ key: 'fx', trend: { m3: fx } }, { key: 'cpi', trend: { m3: cpi } }, { key: 'y2', trend: { m3: y2 } }] });
+    const A = { id: 'br', name: 'Brasil', ...K(-4, -80, -60) }, B = { id: 'mx', name: 'México', ...K(3, 40, 30) };
+    const sig = pairSignals(A, B, { stats: { z: -1.8, pctile: 2, chg13: 6, aboveMa26: true } });
+    assert.equal(sig.verdict.kind, 'strong', `señal contundente (${sig.total})`); assert.equal(sig.verdict.fav.id, 'br');
+    const neu = pairSignals(A, B, { stats: { z: 1.5, pctile: 95, chg13: -8, aboveMa26: false } });
+    assert.ok(neu.verdict.kind !== 'strong', 'con valuación y momentum en contra no es contundente');
+  }
+  console.log('✓ Comparar: cociente, velas y señales');
 }
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);

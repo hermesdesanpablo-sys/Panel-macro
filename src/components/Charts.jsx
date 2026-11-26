@@ -258,3 +258,47 @@ export function ScoreSpreadChart({ points, fit, height = 320 }) {
     </ResponsiveContainer>
   );
 }
+
+/**
+ * Velas (SVG propio: Recharts no tiene velas) con media y bandas de ±1σ (rayas) y ±2σ (puntos).
+ * candles: [{d, o, h, l, c}]. Color de mercado: sube (c ≥ o) verde, baja rojo; la forma (cuerpo lleno/vacío) refuerza el color.
+ */
+export function CandleChart({ candles, mean, sd, height = 320, fmt = (v) => v.toFixed(3) }) {
+  const W = 900, H = height, padL = 8, padR = 64, padT = 10, padB = 24;
+  if (!candles?.length) return <div className="empty">Sin datos</div>;
+  const lo = Math.min(...candles.map((c) => c.l), mean - 2.2 * sd);
+  const hi = Math.max(...candles.map((c) => c.h), mean + 2.2 * sd);
+  const y = (v) => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
+  const step = (W - padL - padR) / candles.length;
+  const x = (i) => padL + step * (i + 0.5);
+  const bw = Math.max(1, Math.min(9, step * 0.65));
+  const bands = [[2, 'dot', '+2σ'], [1, 'dash', '+1σ'], [0, 'mean', 'Media'], [-1, 'dash', '−1σ'], [-2, 'dot', '−2σ']];
+  // Marcas del eje X: primer dato de cada trimestre (o de cada año si hay muchos).
+  const many = candles.length > 120;
+  const ticks = candles.map((c, i) => [c, i]).filter(([c], i) => i === 0 || (many ? c.d.slice(0, 4) !== candles[i - 1].d.slice(0, 4)
+    : Math.floor((+c.d.slice(5, 7) - 1) / 3) !== Math.floor((+candles[i - 1].d.slice(5, 7) - 1) / 3)));
+  const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  return (
+    <svg className="candles" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Velas semanales; último cierre ${fmt(candles.at(-1).c)}`}>
+      {bands.map(([k, kind, lbl]) => (
+        <g key={lbl}>
+          <line x1={padL} x2={W - padR} y1={y(mean + k * sd)} y2={y(mean + k * sd)} className={`cd-band cd-${kind}`} />
+          <text x={W - padR + 6} y={y(mean + k * sd) + 4} className="cd-lbl">{lbl} {fmt(mean + k * sd)}</text>
+        </g>
+      ))}
+      {candles.map((c, i) => {
+        const up = c.c >= c.o;
+        return (
+          <g key={c.d} className={up ? 'cd-up' : 'cd-dn'}>
+            <title>{`Semana del ${c.d}: apertura ${fmt(c.o)} · máx. ${fmt(c.h)} · mín. ${fmt(c.l)} · cierre ${fmt(c.c)}`}</title>
+            <line x1={x(i)} x2={x(i)} y1={y(c.h)} y2={y(c.l)} className="cd-wick" />
+            <rect x={x(i) - bw / 2} width={bw} y={y(Math.max(c.o, c.c))} height={Math.max(1, Math.abs(y(c.o) - y(c.c)))} className="cd-body" />
+          </g>
+        );
+      })}
+      {ticks.map(([c, i]) => (
+        <text key={c.d} x={Math.max(x(i), padL + 18)} y={H - 6} className="cd-tick" textAnchor={x(i) < padL + 18 ? 'start' : 'middle'}>{many ? c.d.slice(0, 4) : `${MES[+c.d.slice(5, 7) - 1]} ${c.d.slice(2, 4)}`}</text>
+      ))}
+    </svg>
+  );
+}
