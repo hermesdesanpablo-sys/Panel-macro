@@ -23,7 +23,7 @@ Objetivo de cada panel:
 ```
 middleware.js               Acceso: exige sesión en todo el sitio (y 401 en /api); /login y /logout. Usuarios en AUTH_PASS_<USUARIO>
 api/_lib/auth.js            Login, hash PBKDF2, cookie de sesión firmada (Web Crypto)
-api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val|rank|news|cal  (función serverless Vercel, cache edge 30 min)
+api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val|rank|news|cal|pair  (función serverless Vercel, cache edge 30 min)
 api/_lib/util.js            HTTP, fechas, series, kpi(), trend(), spreadSeries(), settle()
 api/_lib/yahoo.js           Yahoo Finance: precios, perf, futuros Fed funds (ZQ)
 api/_lib/calendar.js        Reuniones de bancos centrales + publicaciones de IPC/PIB con fecha oficial (estático; revisar cada semestre)
@@ -41,6 +41,9 @@ api/_lib/sources/news.js    Noticias: ~30 feeds RSS públicos + cuentas de Blues
 api/_lib/sources/cal.js     Calendario económico de la semana: consenso y anterior (Forex Factory) + dato real de EE.UU. (FRED) + licitaciones (TreasuryDirect)
 api/_lib/officialActuals.js Dato oficial fuera de EE.UU. para el calendario: StatCan (CA), ONS (UK), BCE y Eurostat (EZ), BoJ (JP)
 api/_lib/latamCal.js        Inflación de AR, BR, CL, CO y MX para el calendario (fecha oficial + encuesta del banco central + dato oficial)
+api/_lib/sources/pair.js    Comparar: cociente de ETF MSCI (con dividendos), velas semanales, media y desvíos de 5 años (?c=pair&a=&b=)
+api/_lib/a3.js              A3 Mercados: dólar UST$T (stream SSE de la portada); sin operaciones, A3500 del BCRA
+src/signals.js              Señales y conclusión de Comparar (valuación relativa, momentum, FX, inflación, tasas)
 api/_lib/fedprobs.js        Probabilidades de la Fed por reunión: futuros ZQ (método FedWatch, cálculo propio) y Polymarket (API Gamma)
 api/_lib/treasury.js        Licitaciones del Tesoro: cronograma tentativo (PDF) + TreasuryDirect (anunciadas y resultados)
 api/_lib/sources/rank.js    Ranking de emisores (8 de LatAm): 5 pilares ponderados, solo datos 2025+, vs spread EMBI
@@ -288,7 +291,10 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 - Japón (BoJ API): PPI a/a `PR01/PRCG20_2200000000%`, SPPI a/a `PR02/PRCS20_5200000000%` (el "%" va codificado en la URL), Tankan grandes
   empresas `CO/TK99F1000601GCQ01000` (manufactura) y `TK99F2000601GCQ01000` (no manufactura). Frescura: `LAST_UPDATE` (AAAAMMDD, Tokio).
   IPC, desempleo, ventas, producción y PIB: e-Stat (requiere appId gratuito, `ESTAT_APP_ID`; pendiente).
-- Mundo, monedas: la variación del día va contra `meta.previousClose` de `range=1d` (`yahooPrevClose`); las barras diarias de `range=1y` no sirven.
+- Mundo: la variación del día de todas las cotizaciones va contra `meta.previousClose` de `range=1d` (`yahooPrevClose`); las barras diarias de
+  `range=1y` no sirven en monedas, futuros ni índices de Asia. Series de Yahoo ajustadas por dividendos (`adjclose`) por defecto.
+- USDARS: UST$T de A3 (`a3mercados.com.ar/api/market-data/stream?streams=Dashboard`, `totals[UST$T000]`); con value 0 (sin operaciones) se usa
+  `BCRACOM3500`. `/api/market-data/dollar-refs` solo trae BCRA y MATBA y limita consultas (429).
 - América Latina: Focus mensual `ExpectativaMercadoMensais` (IPCA, DataReferencia MM/AAAA, última encuesta anterior a la publicación);
   el IBGE informa la hora en UTC (12:00 = 09:00 de Brasilia). Argentina usa `DATA_RELEASES.ar` (actualizar con el calendario del INDEC de 2027).
 - México: SIE SP30577 (m/m) y SP30578 (a/a); la encuesta de Banxico (CR154) no releva la inflación mensual. Chile: EOF `F089.EOF.VII.MA.D`

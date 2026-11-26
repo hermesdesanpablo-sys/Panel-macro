@@ -1,6 +1,8 @@
 // Mundo: proxies MSCI (ETFs en USD), índices locales, riesgo, tasas de EE.UU., monedas y commodities vía Yahoo.
-import { settle } from '../util.js';
+import { settle, daysAgo } from '../util.js';
 import { yahooSeries, yahooPrevClose, perf } from '../yahoo.js';
+import { a3Snapshot, a3Dollar, A3_PAGE } from '../a3.js';
+import { bcra, BCRA } from './ar.js';
 
 const G = {
   msci: 'MSCI global (USD)',
@@ -105,8 +107,12 @@ export default async function world() {
   const errors = [];
   const tasks = limitTasks(Object.fromEntries([
     ...WORLD.map((w) => [`Yahoo ${w.ticker}`, () => yahooSeries(w.ticker)]),
-    // Monedas: la variación del día se calcula contra el cierre anterior de Yahoo (ver yahooPrevClose).
-    ...WORLD.filter((w) => w.ticker.endsWith('=X')).map((w) => [`Yahoo cierre anterior ${w.ticker}`, () => yahooPrevClose(w.ticker)]),
+    // Todas las cotizaciones: la variación del día se calcula contra el cierre anterior de Yahoo (ver yahooPrevClose). Las barras
+    // diarias de range=1y no sirven para eso en monedas, futuros (sesión que cruza la medianoche) ni índices de Asia.
+    ...WORLD.map((w) => [`Yahoo cierre anterior ${w.ticker}`, () => yahooPrevClose(w.ticker)]),
+    // USDARS: dólar UST$T de A3 Mercados (precio y variación) + historia del A3500 del BCRA.
+    ['A3 dólar UST$T', async () => a3Dollar(await a3Snapshot())],
+    ['BCRA A3500', () => bcra(BCRA.a3500, daysAgo(400))],
   ]));
   const d = await settle(tasks, errors);
   const rows = WORLD.map((w) => {
@@ -125,9 +131,25 @@ export default async function world() {
     // Variación absoluta del día (en la unidad del activo; para tasas, en puntos porcentuales).
     if (p && s.length > 1) p.d1abs = p.last - s[s.length - 2].v;
     const pc = d[`Yahoo cierre anterior ${w.ticker}`];
-    if (p && Number.isFinite(pc)) Object.assign(p, { d1: (p.last / pc - 1) * 100, d1abs: p.last - pc, prevClose: pc });
+    if (p && Number.isFinite(pc)) {
+      Object.assign(p, { d1abs: p.last - pc, prevClose: pc });
+      p.d1 = w.unit === '%' ? (p.last - pc) * 100 : (p.last / pc - 1) * 100; // tasas: en pb
+    }
     return { ...w, perf: p, spark: s ? s.filter((_, i) => i % 3 === 0 || i === s.length - 1) : [] };
   });
+  // USDARS desde A3 (UST$T; si no operó hoy, el A3500 del BCRA). Historia y variaciones largas sobre el A3500 oficial.
+  const a3 = d['A3 dólar UST$T'], a3500 = d['BCRA A3500'];
+  const ars = rows.find((r) => r.ticker === 'ARS=X');
+  if (ars && a3) {
+    const hist = (a3500 || []).filter((p) => p.d < a3.date);
+    const series = [...hist, { d: a3.date, v: a3.last }];
+    const p = perf(series) || {};
+    Object.assign(ars, {
+      perf: { ...p, last: a3.last, date: a3.date, d1: a3.d1, d1abs: a3.last - a3.prevClose, prevClose: a3.prevClose },
+      spark: series.filter((_, i) => i % 3 === 0 || i === series.length - 1),
+      quoteLabel: a3.label, quoteSource: `${a3.source}; historia: BCRA A3500`, quoteUrl: A3_PAGE,
+    });
+  }
   const S = (t) => d[`Yahoo ${t}`] || [];
   return {
     id: 'world',

@@ -246,6 +246,15 @@ export async function mockFetch(input, init = {}) {
   if (url.host === 'www.ons.gov.uk' && u.endsWith('/data')) {
     return json({ description: { title: 'CPI ANNUAL RATE', releaseDate: `${iso(Date.now())}T00:00:00.000Z` }, months: [{ date: '2026 SEP', value: '3.8' }, { date: '2026 OCT', value: '3.6' }], quarters: [] });
   }
+  // A3 Mercados: stream SSE de la portada (snapshot con UST$T000, BCRACOM3500 y DOLARMTR).
+  if (url.host === 'a3mercados.com.ar' && u.includes('/api/market-data/stream')) {
+    const totals = [
+      { id: 'BCRACOM3500', value: 1600.6872, variation: -0.49, date: `${iso(Date.now())}T00:00:00`, currency: 'ARS' },
+      { id: 'UST$T000', value: 1605.5, variation: 0.31, date: `${iso(Date.now())}T00:00:00`, currency: 'ARS' },
+      { id: 'DOLARMTR', value: 1598, variation: 0, date: `${iso(Date.now())}T00:00:00`, currency: 'ARS' },
+    ];
+    return text(`retry: 15000\n\nevent: status\ndata: {"stream":"Dashboard","status":"connected"}\n\nevent: snapshot\ndata: ${JSON.stringify({ stream: 'Dashboard', data: { agro: [], dollar: [], totals } })}\n\n`);
+  }
   if (url.host === 'www.finanzas.gob.ec' && u.includes('deuda-publica-nueva-metodologia')) {
     // Página del boletín: links de descarga (los ids no van en orden; el último mes se elige por el rótulo).
     const a = (id, t) => `<a class="download-link" href="https://www.finanzas.gob.ec/wp-content/plugins/download-monitor/download.php?id=${id}">${t}</a>`;
@@ -367,9 +376,9 @@ export async function mockFetch(input, init = {}) {
       const months = 'FGHJKMNQUVXZ'.indexOf(zq[1]) + Number(zq[2]) * 12 - ((new Date().getUTCFullYear() % 100) * 12 + new Date().getUTCMonth());
       const target = 100 - (3.64 - Math.min(months, 8) * 0.04);
       s = u.includes('range=1y') ? walk(target, 370, 0.0004).map((p, i, a) => ({ d: p.d, v: p.v + (a.length - i) * 0.0012 })) : [{ d: iso(Date.now() - DAY), v: target }];
-    } else if (YLEVEL[t]) s = walk(YLEVEL[t], 370, 0.01);
+    } else if (YLEVEL[t]) s = walk(YLEVEL[t], u.includes('range=5y') ? 1830 : 370, 0.01);
     else if (t === 'NOEXISTE') return new Response('{"chart":{"result":null}}', { status: 404 });
-    else s = walk(100, 370, 0.01); // resto de los tickers de Mundo: nivel genérico
+    else s = walk(100, u.includes('range=5y') ? 1830 : 370, 0.01); // resto (y ETF a 5 años para Comparar): nivel genérico
     return json({ chart: { result: [{ meta: { regularMarketPrice: s[s.length - 1].v, regularMarketTime: Date.parse(s[s.length - 1].d) / 1000, ...(u.includes('range=1d') ? { previousClose: s[s.length - 1].v / 1.01 } : {}) }, timestamp: s.map((p) => Date.parse(p.d) / 1000), indicators: { quote: [{ close: s.map((p) => p.v) }] } }] } });
   }
   if (url.host === 'www.datos.gov.co') {

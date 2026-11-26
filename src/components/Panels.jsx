@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { TimeChart, PathChart, Spark, AreaSpark, CurveChart, YearChart, PeBandChart, ScoreSpreadChart } from './Charts.jsx';
+import { TimeChart, PathChart, Spark, AreaSpark, CurveChart, YearChart, PeBandChart, ScoreSpreadChart, CandleChart } from './Charts.jsx';
 import { fmtNum, fmtDate, fmtMonth, daysUntil, kpiByKey, fmtChg, ARROW, DIR_WORD, GROUPS, chgDir } from '../format.js';
 import { Flag } from './Flag.jsx';
 import { CmdIcon } from './CmdIcon.jsx';
+import { pairSignals } from '../signals.js';
 
 function Source({ source, url }) {
   if (!source) return null;
@@ -566,7 +567,7 @@ function MiniTiles({ title, items }) {
       <div className="mini-tiles">
         {items.filter((m) => m.perf).map((m) => (
           <a key={m.ticker} className="mini-tile" href={yahoo(m.ticker)} target="_blank" rel="noreferrer">
-            <span className="mt-name">{m.cc === 'cmd' && <CmdIcon ticker={m.ticker} size={20} />}{m.label}</span>
+            <span className="mt-name" title={m.quoteSource}>{m.cc === 'cmd' && <CmdIcon ticker={m.ticker} size={20} />}{m.label}{m.quoteLabel && <span className="mt-src">{m.quoteLabel}</span>}</span>
             <span className="mt-last">{fmtNum(m.perf.last, decFor(m))}</span>
             <span className={`mt-chg ${pn(m.perf.d1)}`}>{m.perf.chgUnit === 'pb' ? `${sign(m.perf.d1, 0)} pb` : `${sign(m.perf.d1, 2)}%`}</span>
           </a>
@@ -591,8 +592,8 @@ function Watchlist({ markets }) {
               const p = m.perf;
               const isRate = p?.chgUnit === 'pb';
               return (
-                <tr key={m.ticker} title={m.label} onClick={() => window.open(yahoo(m.ticker), '_blank', 'noopener')}>
-                  <td><span className="w-sym"><AssetIcon m={m} size={16} />{m.code}</span></td>
+                <tr key={m.ticker} title={m.quoteSource || m.label} onClick={() => window.open(m.quoteUrl || yahoo(m.ticker), '_blank', 'noopener')}>
+                  <td><span className="w-sym"><AssetIcon m={m} size={16} />{m.code}{m.quoteLabel && <span className="w-src">{m.quoteLabel}</span>}</span></td>
                   <td className="num">{p ? fmtNum(p.last, decFor(m)) : '—'}</td>
                   <td className={`num ${pn(p?.d1abs)}`}>{p ? sign(p.d1abs, isRate ? 3 : decFor(m)) : '—'}</td>
                   <td className={`num ${pn(p?.d1)}`}>{p ? (isRate ? `${sign(p.d1, 0)} pb` : `${sign(p.d1, 2)}%`) : '—'}</td>
@@ -647,7 +648,7 @@ export function WorldPanel({ world, countries }) {
                   <tbody>
                     {markets.filter((m) => m.group === g).map((m) => (
                       <tr key={m.ticker}>
-                        <td className="name"><a href={yahoo(m.ticker)} target="_blank" rel="noreferrer" className="cell-flag"><AssetIcon m={m} size={18} />{m.label}</a></td>
+                        <td className="name"><a href={m.quoteUrl || yahoo(m.ticker)} title={m.quoteSource} target="_blank" rel="noreferrer" className="cell-flag"><AssetIcon m={m} size={18} />{m.label}{m.quoteLabel && <span className="w-src">{m.quoteLabel}</span>}</a></td>
                         <td className="num"><b>{m.perf ? `${fmtNum(m.perf.last, decFor(m))}${m.unit === '%' ? '%' : ''}` : '—'}</b></td>
                         {['ytd', 'y1'].map((f) => <td key={f} className="num"><PctChg v={m.perf?.[f]} unit={m.perf?.chgUnit} /></td>)}
                         <td className="spark-col"><Spark data={m.spark} height={30} /></td>
@@ -701,6 +702,83 @@ function CountrySelect({ value, onChange, countries, other }) {
   );
 }
 
+// ---------- Comparar: cociente de índices y señales ----------
+function PairAnalysis({ A, B }) {
+  const [pair, setPair] = useState(null);
+  const [err, setErr] = useState(null);
+  const [range, setRange] = useState(() => { try { return localStorage.getItem('cmp.range') || '2A'; } catch { return '2A'; } });
+  useEffect(() => {
+    let off = false;
+    setPair(null); setErr(null);
+    const mock = new URLSearchParams(location.search).has('mock');
+    (mock ? import('../mock-data.json').then((m) => { const p = m.default.pair; if (p?.a === A.id && p?.b === B.id) return p; throw new Error('En modo de ejemplo solo está el par Brasil–México'); })
+      : fetch(`/api/country?c=pair&a=${A.id}&b=${B.id}`).then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j; }))
+      .then((p) => !off && setPair(p)).catch((e) => !off && setErr(e.message));
+    return () => { off = true; };
+  }, [A.id, B.id]);
+  const sig = pairSignals(A, B, pair);
+  const weeks = { '1A': 52, '2A': 104, '5A': 1e9 }[range];
+  const s = pair?.stats;
+  const pick = (v) => { setRange(v); try { localStorage.setItem('cmp.range', v); } catch { /* sin almacenamiento */ } };
+  return (
+    <>
+      <section className="card" id="cmp-ratio">
+        <h3>Cociente {A.name} / {B.name}: MSCI país en USD con dividendos (velas semanales)</h3>
+        {err ? <div className="empty">No se pudo calcular el cociente: {err}</div> : !pair ? <div className="empty">Cargando 5 años de precios…</div> : (
+          <>
+            <div className="ratio-head">
+              <div className="seg" role="group" aria-label="Período">
+                {['1A', '2A', '5A'].map((k) => <button key={k} className={range === k ? 'on' : ''} aria-pressed={range === k} onClick={() => pick(k)}>{k}</button>)}
+              </div>
+              <span className="ratio-stat"><b>{fmtNum(s.last, 3)}</b> último · media {fmtNum(s.mean, 3)} · z <b>{s.z > 0 ? '+' : ''}{fmtNum(s.z, 2)}</b> · percentil {fmtNum(s.pctile, 0)} · 13 semanas {s.chg13 > 0 ? '+' : ''}{fmtNum(s.chg13, 1)}%</span>
+            </div>
+            <CandleChart candles={pair.candles.slice(-weeks)} mean={s.mean} sd={s.sd} />
+            <div className="card-foot">
+              <span>
+                {pair.tickers.a} / {pair.tickers.b}, precios de Yahoo ajustados por dividendos (retorno total en USD). Sube = {A.name} rinde más que {B.name}.
+                Velas semanales armadas con los cierres diarios del cociente (el máximo y mínimo intradiario de un cociente no se puede reconstruir).
+                Media y desvíos de 5 años ({s.n} semanas, desde {fmtDate(pair.from)}): línea llena = media, rayas = ±1σ, puntos = ±2σ.
+              </span>
+              <Source source="Cálculo propio con Yahoo Finance" url={`https://finance.yahoo.com/quote/${pair.tickers.a}`} />
+            </div>
+          </>
+        )}
+      </section>
+      <section className="card verdict" id="cmp-verdict">
+        <h3>Conclusión: ¿{A.name} o {B.name}?</h3>
+        <div className={`verdict-box v-${sig.verdict.kind}`}>
+          <span className="verdict-text">{sig.verdict.fav && <Flag id={sig.verdict.fav.id} />}{sig.verdict.text}</span>
+          <span className="muted">Puntaje {sig.total > 0 ? '+' : ''}{fmtNum(sig.total * 100, 0)} de ±100 ({sig.total >= 0 ? `+ favorece a ${A.name}` : `− favorece a ${B.name}`}); {sig.agree} de {sig.factors.length} señales en el mismo sentido</span>
+        </div>
+        <div className="tbl-wrap"><table className="tbl sig-tbl">
+          <thead><tr><th>Señal</th><th>Lectura</th><th>Favorece a</th><th>Peso</th></tr></thead>
+          <tbody>
+            {sig.factors.map((x) => (
+              <tr key={x.key}>
+                <td className="name">{x.label}</td>
+                <td>{x.detail}</td>
+                <td><ScoreBadge score={x.score} A={A} B={B} /></td>
+                <td className="num">{x.w}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table></div>
+        <ul className="verdict-notes">
+          {sig.conflict && <li>Valuación y momentum apuntan en sentidos opuestos: el cociente está {sig.factors.find((x) => x.key === 'val').score > 0 ? `barato para ${A.name}` : `caro para ${A.name}`} frente a su historia, pero la tendencia de 13 semanas sigue en contra. Una entrada por reversión a la media conviene esperarla a que el momentum gire.</li>}
+          {sig.verdict.kind === 'strong' && <li>Señal contundente: la mayoría de las señales coincide y el puntaje supera ±45. Un par long/short neutraliza el factor común (mercado emergente, dólar global) y deja la apuesta relativa.</li>}
+          {sig.verdict.kind !== 'strong' && <li>Para recomendar long/short hace falta un puntaje de al menos ±45 con casi todas las señales en el mismo sentido; hoy no se cumple.</li>}
+          <li>Regla propia y simple sobre datos públicos, para ordenar la lectura; no es una recomendación de inversión. No incluye valuación por P/E (ver solapa Valuación), riesgo político ni liquidez.</li>
+        </ul>
+      </section>
+    </>
+  );
+}
+function ScoreBadge({ score, A, B }) {
+  if (Math.abs(score) < 0.15) return <span className="muted">Neutral</span>;
+  const p = score > 0 ? A : B;
+  return <span className={`sig-badge ${score > 0 ? 'sb-a' : 'sb-b'}`}><Flag id={p.id} />{p.name} {score > 0 ? '▲' : '▼'} {fmtNum(Math.abs(score) * 100, 0)}</span>;
+}
+
 export function ComparePanel({ countries, a, b, setA, setB }) {
   const A = countries.find((p) => p.id === a);
   const B = countries.find((p) => p.id === b);
@@ -720,7 +798,7 @@ export function ComparePanel({ countries, a, b, setA, setB }) {
     data: joinAB(base100(kA('fx')?.spark, fxInvert(A)), base100(kB('fx')?.spark, fxInvert(B))),
   });
   charts.push({
-    id: 'msci', title: 'MSCI país en USD (base 100)', unit: '', lines,
+    id: 'msci', title: 'MSCI país en USD, con dividendos (base 100)', unit: '', lines,
     data: joinAB(base100(A.equity?.msci?.series), base100(B.equity?.msci?.series)),
   });
   const nextCb = (p) => p.calendar?.find((e) => e.kind === 'cb');
@@ -766,7 +844,7 @@ export function ComparePanel({ countries, a, b, setA, setB }) {
                 );
               })}
               <tr>
-                <td className="name">MSCI país (USD), en el año</td>
+                <td className="name">MSCI país (USD, con dividendos), en el año</td>
                 <td className="num" colSpan={3}><Chg v={A.equity?.msci?.perf?.ytd} unit="%" /></td>
                 <td className="num" colSpan={3}><Chg v={B.equity?.msci?.perf?.ytd} unit="%" /></td>
                 <td className="num">{A.equity?.msci?.perf?.ytd != null && B.equity?.msci?.perf?.ytd != null ? <b>{fmtChg(A.equity.msci.perf.ytd - B.equity.msci.perf.ytd, '%').replace('%', ' pp')}</b> : '—'}</td>
@@ -782,6 +860,8 @@ export function ComparePanel({ countries, a, b, setA, setB }) {
         </div>
         <div className="card-foot"><span>Diferencia = {A.name} − {B.name}, en puntos básicos (solo tasas). Debajo de cada valor, la serie que usa cada país: no siempre son el mismo instrumento (ver nota en cada panel).</span></div>
       </section>
+
+      <PairAnalysis A={A} B={B} />
 
       <div className="grid">
         {charts.map((c) => (

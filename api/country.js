@@ -1,4 +1,4 @@
-// GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val|rank|news|cal
+// GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val|rank|news|cal|pair (pair: &a=<país>&b=<país>)
 // Devuelve un payload normalizado por país. Vercel cachea en el edge 30 min.
 import br from './_lib/sources/br.js';
 import us from './_lib/sources/us.js';
@@ -17,13 +17,14 @@ import val from './_lib/sources/val.js';
 import rank from './_lib/sources/rank.js';
 import news from './_lib/sources/news.js';
 import cal from './_lib/sources/cal.js';
+import pair from './_lib/sources/pair.js';
 import world from './_lib/sources/world.js';
 
 import { politicalEvents } from './_lib/calendar.js';
 import { upcoming } from './_lib/util.js';
 
 // cal: 3 min (Forex Factory pide no bajar su planilla más de un par de veces cada 5 minutos).
-const TTL = { world: 60, news: 60, cal: 180, usd: 900, sust: 21600, val: 3600, rank: 3600 };
+const TTL = { world: 60, news: 60, cal: 180, pair: 900, usd: 900, sust: 21600, val: 3600, rank: 3600 };
 
 /** Agrega a la agenda de cada país el calendario político (aparte del tope de 20 eventos económicos). */
 const withPolitics = (id, fn) => async () => {
@@ -42,10 +43,12 @@ export const ADAPTERS = {
   rank,
   news,
   cal,
+  pair,
 };
 
 export default async function handler(req, res) {
-  const c = String(req.query?.c || new URL(req.url, 'http://x').searchParams.get('c') || '').toLowerCase();
+  const qs = new URL(req.url, 'http://x').searchParams;
+  const c = String(req.query?.c || qs.get('c') || '').toLowerCase();
   const fn = ADAPTERS[c];
   if (!fn) {
     res.status(400).json({ error: `País desconocido. Usar c=${Object.keys(ADAPTERS).join('|')}` });
@@ -53,7 +56,7 @@ export default async function handler(req, res) {
   }
   try {
     const t0 = Date.now();
-    const payload = await fn();
+    const payload = await fn({ a: req.query?.a || qs.get('a'), b: req.query?.b || qs.get('b') });
     payload.updatedAt = new Date().toISOString();
     payload.ms = Date.now() - t0;
     // Caché del CDN según qué tan rápido cambia cada fuente (segundos). Precios: 1 minuto; paneles de país: 5 minutos;

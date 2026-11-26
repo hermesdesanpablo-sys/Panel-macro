@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.22.0 — 2026-11-26 (Cotizaciones verificadas, USDARS de A3, Comparar con cociente y conclusión)
+- **Mundo:** la variación del día de TODAS las cotizaciones usa el cierre anterior de Yahoo (`yahooPrevClose`). Además de las monedas, estaban
+  mal los futuros (Brent −3,04% vs +1,20%; oro, plata, cobre, soja) y los índices de Asia (Hang Seng, Shanghai, Nifty). Verificado contra
+  Yahoo: 59 de 59 coinciden.
+- **USDARS:** dólar UST$T de A3 Mercados (stream público de su portada, primer snapshot; `api/_lib/a3.js`). Sin operaciones en el día
+  (antes de la apertura) se muestra el A3500 del BCRA del mismo snapshot, rotulado. Historia, año y 12 meses: serie A3500 del BCRA.
+- **Índices ajustados por dividendos:** `yahooSeries` usa `adjclose` por defecto (ETF = retorno total). EWZ a 12 meses: −5,8% con dividendos
+  vs −9,9% de precio. En índices de precio, monedas y futuros no cambia nada.
+- **Comparar:**
+  - Cociente entre los ETF MSCI de los dos países (USD, con dividendos) en velas semanales, con media y ±1σ/±2σ de 5 años.
+    Endpoint `pair` (`api/_lib/sources/pair.js`).
+  - Conclusión con cinco señales (`src/signals.js`), cada una de −1 a +1: valuación relativa (z del cociente) 25%, momentum del cociente
+    (13 semanas) 20%, moneda contra el USD (3 meses) 20%, tendencia de la inflación 15% y tendencia de tasas (bono ~2 años) 20%.
+    "Long/short" solo con puntaje ≥ ±45 y casi todas las señales en el mismo sentido; si no, "sesgo a favor" o "sin ventaja clara".
+    Avisa cuando valuación y momentum se contradicen.
+- Verificado: `npm test` OK (cociente, velas, z, señales, A3, variaciones); `npm run build` OK; captura de Brasil vs México con datos reales.
+
 ## 0.21.1 — 2026-11-25 (Mundo: variación de monedas; calendario: Japón)
 - **Mundo, monedas.** La variación del día estaba mal: se calculaba contra la barra diaria anterior de Yahoo, que en monedas no es el cierre
   anterior que usa Yahoo. USDMXN mostraba +2,17% cuando Yahoo daba +0,95%; USDCLP +2,15% contra +0,52%. Ahora se usa `meta.previousClose`
