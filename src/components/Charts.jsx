@@ -196,7 +196,7 @@ export function YearChart({ data, lines, projFrom, unit = '%', height = 260, zer
  * P/E histórico con bandas de ±1 y ±2 desvíos alrededor del promedio de la ventana. Las bandas son áreas sombreadas
  * (no series): una sola línea de datos, un solo eje Y. Rótulos a la derecha para no depender del color.
  */
-export function PeBandChart({ data, stats, height = 300, title }) {
+export function PeBandChart({ data, stats, height = 300, title, decimals = 0 }) {
   if (!data?.length) return <div className="empty">Sin datos</div>;
   const vals = data.map((p) => p.pe).filter(Number.isFinite);
   const lo = stats ? Math.min(...vals, stats.avg - 2 * stats.sd) : Math.min(...vals);
@@ -217,7 +217,7 @@ export function PeBandChart({ data, stats, height = 300, title }) {
         {stats && tag(stats.avg - stats.sd, '−1σ')}
         {stats && tag(stats.avg - 2 * stats.sd, '−2σ')}
         <XAxis dataKey="d" tickFormatter={fmtMonth} minTickGap={40} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={{ stroke: 'var(--grid)' }} tickLine={false} />
-        <YAxis domain={[Math.max(0, lo - pad), hi + pad]} width={40} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v, 0)} />
+        <YAxis domain={[Math.max(0, lo - pad), hi + pad]} width={40} tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => fmtNum(v, decimals)} />
         <Tooltip content={<TipBox unit="" decimals={2} labelFmt={fmtMonth} />} cursor={{ stroke: 'var(--text-muted)', strokeDasharray: '3 3' }} />
         <Line type="monotone" dataKey="pe" name="P/E" stroke="var(--series-2)" strokeWidth={2} dot={false} isAnimationActive={false} />
       </ComposedChart>
@@ -296,7 +296,7 @@ export function CandleChart({ candles, mean, sd, height = 320, fmt = (v) => v.to
           </g>
         );
       })}
-      {ticks.map(([c, i]) => (
+      {ticks.filter(([, i], k) => k === ticks.length - 1 || x(ticks[k + 1][1]) - x(i) >= 44).map(([c, i]) => (
         <text key={c.d} x={Math.max(x(i), padL + 18)} y={H - 6} className="cd-tick" textAnchor={x(i) < padL + 18 ? 'start' : 'middle'}>{many ? c.d.slice(0, 4) : `${MES[+c.d.slice(5, 7) - 1]} ${c.d.slice(2, 4)}`}</text>
       ))}
     </svg>

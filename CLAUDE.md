@@ -23,7 +23,7 @@ Objetivo de cada panel:
 ```
 middleware.js               Acceso: exige sesión en todo el sitio (y 401 en /api); /login y /logout. Usuarios en AUTH_PASS_<USUARIO>
 api/_lib/auth.js            Login, hash PBKDF2, cookie de sesión firmada (Web Crypto)
-api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val|rank|news|cal|pair  (función serverless Vercel, cache edge 30 min)
+api/country.js              GET /api/country?c=ar|br|us|eu|mx|ca|co|cl|pe|jp|in|world|usd|sust|val|rank|news|cal|pair|pairs  (función serverless Vercel, cache edge 30 min)
 api/_lib/util.js            HTTP, fechas, series, kpi(), trend(), spreadSeries(), settle()
 api/_lib/yahoo.js           Yahoo Finance: precios, perf, futuros Fed funds (ZQ)
 api/_lib/calendar.js        Reuniones de bancos centrales + publicaciones de IPC/PIB con fecha oficial (estático; revisar cada semestre)
@@ -41,9 +41,10 @@ api/_lib/sources/news.js    Noticias: ~30 feeds RSS públicos + cuentas de Blues
 api/_lib/sources/cal.js     Calendario económico de la semana: consenso y anterior (Forex Factory) + dato real de EE.UU. (FRED) + licitaciones (TreasuryDirect)
 api/_lib/officialActuals.js Dato oficial fuera de EE.UU. para el calendario: StatCan (CA), ONS (UK), BCE y Eurostat (EZ), BoJ (JP)
 api/_lib/latamCal.js        Inflación de AR, BR, CL, CO y MX para el calendario (fecha oficial + encuesta del banco central + dato oficial)
-api/_lib/sources/pair.js    Comparar: cociente de ETF MSCI (con dividendos), velas semanales, media y desvíos de 5 años (?c=pair&a=&b=)
+api/_lib/sources/pair.js    Comparar: cociente de ETF MSCI (con dividendos, 10 años), velas semanales, z de 3/5/10 años, tendencia y P/E relativo (?c=pair&a=&b=); matriz de pares (?c=pairs)
+api/_lib/relval.js          Valuación relativa: z por ventana, calidad del P/E de worldperatio, P/E relativo y tendencia del cociente
 api/_lib/a3.js              A3 Mercados: dólar UST$T (stream SSE de la portada); sin operaciones, A3500 del BCRA
-src/signals.js              Señales y conclusión de Comparar (valuación relativa, momentum, FX, inflación, tasas)
+src/signals.js              Señales y conclusión de Comparar: P/E relativo 25, reversión del precio 10 (5 con tendencia), momentum 15, FX 20, inflación 15, tasas 15
 api/_lib/fedprobs.js        Probabilidades de la Fed por reunión: futuros ZQ (método FedWatch, cálculo propio) y Polymarket (API Gamma)
 api/_lib/treasury.js        Licitaciones del Tesoro: cronograma tentativo (PDF) + TreasuryDirect (anunciadas y resultados)
 api/_lib/sources/rank.js    Ranking de emisores (8 de LatAm): 5 pilares ponderados, solo datos 2025+, vs spread EMBI

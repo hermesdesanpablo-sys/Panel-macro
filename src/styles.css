@@ -455,3 +455,16 @@ a.src:hover { color: var(--accent); }
 .sig-tbl td { vertical-align: middle; }
 .verdict-notes { margin: 12px 0 0; padding-left: 18px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
 .w-src { margin-left: 6px; font-size: 10px; font-weight: 500; color: var(--text-muted); }
+.ratio-z { font-size: 12.5px; color: var(--text-secondary); margin: -2px 0 8px; font-variant-numeric: tabular-nums; }
+.warn-txt { color: var(--warn); font-weight: 600; }
+/* Matriz de valuación relativa */
+.zmx th, .zmx td { text-align: center; padding: 6px 4px; }
+.zmx td.name { text-align: left; }
+.zc button { width: 100%; min-width: 46px; border: 0; background: none; color: inherit; font: inherit; font-size: 12.5px; font-variant-numeric: tabular-nums; padding: 4px 2px; border-radius: 4px; cursor: pointer; }
+.zc button:hover { outline: 1px solid var(--border-strong); }
+.zc-self { background: var(--surface-2); }
+.zc-cheap button { background: rgba(57,135,229,.16); }
+.zc-cheap2 button { background: rgba(57,135,229,.36); color: var(--text-primary); font-weight: 650; }
+.zc-rich button { background: rgba(217,89,38,.16); }
+.zc-rich2 button { background: rgba(217,89,38,.36); color: var(--text-primary); font-weight: 650; }
+.zc-on button { outline: 2px solid var(--accent); }

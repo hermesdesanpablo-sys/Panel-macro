@@ -376,9 +376,9 @@ export async function mockFetch(input, init = {}) {
       const months = 'FGHJKMNQUVXZ'.indexOf(zq[1]) + Number(zq[2]) * 12 - ((new Date().getUTCFullYear() % 100) * 12 + new Date().getUTCMonth());
       const target = 100 - (3.64 - Math.min(months, 8) * 0.04);
       s = u.includes('range=1y') ? walk(target, 370, 0.0004).map((p, i, a) => ({ d: p.d, v: p.v + (a.length - i) * 0.0012 })) : [{ d: iso(Date.now() - DAY), v: target }];
-    } else if (YLEVEL[t]) s = walk(YLEVEL[t], u.includes('range=5y') ? 1830 : 370, 0.01);
+    } else if (YLEVEL[t]) s = walk(YLEVEL[t], u.includes('range=10y') ? 3660 : u.includes('range=5y') ? 1830 : 370, 0.01);
     else if (t === 'NOEXISTE') return new Response('{"chart":{"result":null}}', { status: 404 });
-    else s = walk(100, u.includes('range=5y') ? 1830 : 370, 0.01); // resto (y ETF a 5 años para Comparar): nivel genérico
+    else s = walk(100, u.includes('range=10y') ? 3660 : u.includes('range=5y') ? 1830 : 370, 0.01); // resto (y ETF a 5/10 años para Comparar): nivel genérico
     return json({ chart: { result: [{ meta: { regularMarketPrice: s[s.length - 1].v, regularMarketTime: Date.parse(s[s.length - 1].d) / 1000, ...(u.includes('range=1d') ? { previousClose: s[s.length - 1].v / 1.01 } : {}) }, timestamp: s.map((p) => Date.parse(p.d) / 1000), indicators: { quote: [{ close: s.map((p) => p.v) }] } }] } });
   }
   if (url.host === 'www.datos.gov.co') {

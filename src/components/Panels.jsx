@@ -706,7 +706,7 @@ function CountrySelect({ value, onChange, countries, other }) {
 function PairAnalysis({ A, B }) {
   const [pair, setPair] = useState(null);
   const [err, setErr] = useState(null);
-  const [range, setRange] = useState(() => { try { return localStorage.getItem('cmp.range') || '2A'; } catch { return '2A'; } });
+  const [range, setRange] = useState(() => { try { const r = localStorage.getItem('cmp.range2'); return ['3A', '5A', '10A'].includes(r) ? r : '5A'; } catch { return '5A'; } });
   useEffect(() => {
     let off = false;
     setPair(null); setErr(null);
@@ -717,33 +717,68 @@ function PairAnalysis({ A, B }) {
     return () => { off = true; };
   }, [A.id, B.id]);
   const sig = pairSignals(A, B, pair);
-  const weeks = { '1A': 52, '2A': 104, '5A': 1e9 }[range];
+  const years = { '3A': 3, '5A': 5, '10A': 10 }[range];
+  // La ventana elegida define el período del gráfico y la media/desvíos; si no hay historia para esa ventana, la de 5 años.
+  const w = pair?.win?.[`y${years}`] || pair?.win?.y5;
   const s = pair?.stats;
-  const pick = (v) => { setRange(v); try { localStorage.setItem('cmp.range', v); } catch { /* sin almacenamiento */ } };
+  const pick = (v) => { setRange(v); try { localStorage.setItem('cmp.range2', v); } catch { /* sin almacenamiento */ } };
+  const zTxt = (x) => (x == null ? '—' : `${x.z > 0 ? '+' : ''}${fmtNum(x.z, 2)}`);
+  const pe = pair?.pe;
+  const peW = pe && ([pe.win?.y10, pe.win?.y3].find((x) => x?.ok) || null);
+  const trend = pair?.trend;
   return (
     <>
       <section className="card" id="cmp-ratio">
-        <h3>Cociente {A.name} / {B.name}: MSCI país en USD con dividendos (velas semanales)</h3>
-        {err ? <div className="empty">No se pudo calcular el cociente: {err}</div> : !pair ? <div className="empty">Cargando 5 años de precios…</div> : (
+        <h3>Precio relativo {A.name} / {B.name}: MSCI país en USD con dividendos (velas semanales)</h3>
+        {err ? <div className="empty">No se pudo calcular el cociente: {err}</div> : !pair ? <div className="empty">Cargando 10 años de precios…</div> : (
           <>
             <div className="ratio-head">
-              <div className="seg" role="group" aria-label="Período">
-                {['1A', '2A', '5A'].map((k) => <button key={k} className={range === k ? 'on' : ''} aria-pressed={range === k} onClick={() => pick(k)}>{k}</button>)}
+              <div className="seg" role="group" aria-label="Período y ventana de la media">
+                {['3A', '5A', '10A'].map((k) => <button key={k} className={range === k ? 'on' : ''} aria-pressed={range === k} onClick={() => pick(k)} disabled={!pair.win?.[`y${parseInt(k, 10)}`]}>{k}</button>)}
               </div>
-              <span className="ratio-stat"><b>{fmtNum(s.last, 3)}</b> último · media {fmtNum(s.mean, 3)} · z <b>{s.z > 0 ? '+' : ''}{fmtNum(s.z, 2)}</b> · percentil {fmtNum(s.pctile, 0)} · 13 semanas {s.chg13 > 0 ? '+' : ''}{fmtNum(s.chg13, 1)}%</span>
+              <span className="ratio-stat"><b>{fmtNum(w.last, 3)}</b> último · media {fmtNum(w.mean, 3)} · z <b>{zTxt(w)}</b> · percentil {fmtNum(w.pctile, 0)} · 13 semanas {s.chg13 > 0 ? '+' : ''}{fmtNum(s.chg13, 1)}%</span>
             </div>
-            <CandleChart candles={pair.candles.slice(-weeks)} mean={s.mean} sd={s.sd} />
+            <div className="ratio-z">z por ventana: 3 años <b>{zTxt(pair.win.y3)}</b> · 5 años <b>{zTxt(pair.win.y5)}</b> · 10 años <b>{zTxt(pair.win.y10)}</b>
+              {trend && <> · tendencia de 10 años {trend.perYear > 0 ? '+' : ''}{fmtNum(trend.perYear, 1)}% anual (R² {fmtNum(trend.r2, 2)}){trend.trending && <b className="warn-txt"> · cociente con tendencia: la reversión a la media es dudosa</b>}</>}
+            </div>
+            <CandleChart candles={pair.candles.slice(-Math.round(years * 52.18))} mean={w.mean} sd={w.sd} />
             <div className="card-foot">
               <span>
                 {pair.tickers.a} / {pair.tickers.b}, precios de Yahoo ajustados por dividendos (retorno total en USD). Sube = {A.name} rinde más que {B.name}.
-                Velas semanales armadas con los cierres diarios del cociente (el máximo y mínimo intradiario de un cociente no se puede reconstruir).
-                Media y desvíos de 5 años ({s.n} semanas, desde {fmtDate(pair.from)}): línea llena = media, rayas = ±1σ, puntos = ±2σ.
+                Mide <b>desempeño</b> relativo, no valuación: un cociente bajo puede estar justificado si las ganancias de {A.name} cayeron más (ver el P/E relativo).
+                Velas semanales con los cierres diarios del cociente. Media y desvíos de la ventana elegida ({w.n} semanas): línea llena = media, rayas = ±1σ, puntos = ±2σ.
               </span>
               <Source source="Cálculo propio con Yahoo Finance" url={`https://finance.yahoo.com/quote/${pair.tickers.a}`} />
             </div>
           </>
         )}
       </section>
+      {pair && (
+        <section className="card" id="cmp-pe">
+          <h3>Valuación relativa: P/E {A.name} / P/E {B.name}</h3>
+          {!pe ? <div className="empty">Sin P/E de worldperatio para este par</div> : (
+            <>
+              <div className="ratio-head">
+                <span className="ratio-stat">P/E {A.name} <b>{fmtNum(pe.peA, 1)}</b> ({pe.etfA}) · P/E {B.name} <b>{fmtNum(pe.peB, 1)}</b> ({pe.etfB}) · relativo <b>{fmtNum(pe.last, 2)}</b></span>
+              </div>
+              <div className="ratio-z">
+                z 3 años <b>{zTxt(pe.win.y3)}</b>{pe.win.y3 && !pe.win.y3.ok && <span className="warn-txt"> (baja calidad)</span>} · z 10 años <b>{zTxt(pe.win.y10)}</b>{pe.win.y10 && !pe.win.y10.ok && <span className="warn-txt"> (baja calidad)</span>}
+                {peW ? <> · la conclusión usa {peW.years} años</> : <b className="warn-txt"> · ninguna ventana pasa el control de calidad: no entra en la conclusión</b>}
+              </div>
+              <PeBandChart data={pe.series.filter((p) => p.d >= `${Number(pe.series.at(-1).d.slice(0, 4)) - (peW?.years || 10)}${pe.series.at(-1).d.slice(4)}`).map((p) => ({ d: p.d, pe: p.v }))}
+                stats={peW ? { avg: peW.mean, sd: peW.sd } : null} height={240} title="P/E relativo" decimals={2} />
+              <div className="card-foot">
+                <span>
+                  P/E de worldperatio sobre el ETF de referencia de cada país (mensual; el último punto, diario). Cociente bajo su media = {A.name} cotiza a un múltiplo
+                  más bajo que lo habitual frente a {B.name}. Control de calidad igual que en Valuación: menos de 10% de meses repetidos y ventana posterior al lanzamiento
+                  de los dos ETF.{(A.id === 'eu' || B.id === 'eu') && ' Eurozona: worldperatio solo publica Europa (VGK).'}
+                </span>
+                <Source source="Cálculo propio con worldperatio" url="https://worldperatio.com/" />
+              </div>
+            </>
+          )}
+        </section>
+      )}
       <section className="card verdict" id="cmp-verdict">
         <h3>Conclusión: ¿{A.name} o {B.name}?</h3>
         <div className={`verdict-box v-${sig.verdict.kind}`}>
@@ -764,13 +799,69 @@ function PairAnalysis({ A, B }) {
           </tbody>
         </table></div>
         <ul className="verdict-notes">
-          {sig.conflict && <li>Valuación y momentum apuntan en sentidos opuestos: el cociente está {sig.factors.find((x) => x.key === 'val').score > 0 ? `barato para ${A.name}` : `caro para ${A.name}`} frente a su historia, pero la tendencia de 13 semanas sigue en contra. Una entrada por reversión a la media conviene esperarla a que el momentum gire.</li>}
+          {sig.earningsDriven && <li>El precio relativo está {sig.earningsDriven === 'a' ? `bajo para ${A.name}` : `alto para ${A.name}`}, pero el P/E relativo no: la caída del cociente se explica por las ganancias, no por un abaratamiento. No es una señal de valor.</li>}
+          {sig.conflict && <li>Valuación y momentum apuntan en sentidos opuestos. Una entrada por reversión a la media conviene esperarla a que el momentum gire.</li>}
+          {sig.trend?.trending && <li>El cociente de precios tiene una tendencia de 10 años marcada ({sig.trend.perYear > 0 ? '+' : ''}{fmtNum(sig.trend.perYear, 1)}% anual): su z puede quedar lejos de la media por años. Por eso la reversión del precio pesa la mitad.</li>}
           {sig.verdict.kind === 'strong' && <li>Señal contundente: la mayoría de las señales coincide y el puntaje supera ±45. Un par long/short neutraliza el factor común (mercado emergente, dólar global) y deja la apuesta relativa.</li>}
           {sig.verdict.kind !== 'strong' && <li>Para recomendar long/short hace falta un puntaje de al menos ±45 con casi todas las señales en el mismo sentido; hoy no se cumple.</li>}
-          <li>Regla propia y simple sobre datos públicos, para ordenar la lectura; no es una recomendación de inversión. No incluye valuación por P/E (ver solapa Valuación), riesgo político ni liquidez.</li>
+          <li>Regla propia y simple sobre datos públicos, para ordenar la lectura; no es una recomendación de inversión. No incluye riesgo político ni liquidez.</li>
         </ul>
       </section>
     </>
+  );
+}
+
+/** Matriz de valuación relativa: z de cada par (fila / columna). Clic = comparar ese par. */
+function PairsMatrix({ countries, onPick, a, b }) {
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState(null);
+  const [mode, setMode] = useState('pe');
+  useEffect(() => {
+    if (new URLSearchParams(location.search).has('mock')) { import('../mock-data.json').then((m) => setData(m.default.pairs)).catch(() => {}); return; }
+    fetch('/api/country?c=pairs').then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); setData(j); }).catch((e) => setErr(e.message));
+  }, []);
+  const name = (id) => countries.find((p) => p.id === id)?.name || id.toUpperCase();
+  const ids = (data?.countries || []).filter((id) => countries.some((p) => p.id === id));
+  const cell = (x, y) => data?.cells.find((c) => c.a === x && c.b === y);
+  const val = (c) => (c ? (mode === 'pe' ? c.zPe : c.zPrice) : null);
+  return (
+    <section className="card" id="cmp-matrix">
+      <h3>Matriz de valuación relativa (z de cada par: fila / columna)</h3>
+      <div className="ratio-head">
+        <div className="seg" role="group" aria-label="Medida">
+          {[['pe', 'P/E relativo'], ['price', 'Precio relativo (5 años)']].map(([k, l]) => <button key={k} className={mode === k ? 'on' : ''} aria-pressed={mode === k} onClick={() => setMode(k)}>{l}</button>)}
+        </div>
+        <span className="muted">Negativo = el país de la fila está barato frente al de la columna, respecto de su historia. Clic en una celda para compararlos.</span>
+      </div>
+      {err ? <div className="empty">No se pudo armar la matriz: {err}</div> : !data ? <div className="empty">Calculando 110 pares…</div> : (
+        <div className="tbl-wrap"><table className="tbl zmx">
+          <thead><tr><th />{ids.map((y) => <th key={y} title={name(y)}><Flag id={y} /></th>)}</tr></thead>
+          <tbody>
+            {ids.map((x) => (
+              <tr key={x}>
+                <td className="name"><span className="cell-flag"><Flag id={x} />{name(x)}</span></td>
+                {ids.map((y) => {
+                  if (x === y) return <td key={y} className="zc zc-self" />;
+                  const c = cell(x, y), v = val(c);
+                  const tone = v == null ? '' : v <= -1 ? 'zc-cheap2' : v <= -0.5 ? 'zc-cheap' : v >= 1 ? 'zc-rich2' : v >= 0.5 ? 'zc-rich' : '';
+                  const on = x === a && y === b;
+                  return (
+                    <td key={y} className={`zc ${tone} ${on ? 'zc-on' : ''}`}>
+                      <button onClick={() => onPick(x, y)} title={`${name(x)} / ${name(y)}: z ${v == null ? 'sin dato' : fmtNum(v, 2)}${mode === 'pe' && c?.peYears ? ` (${c.peYears} años)` : ''}`}>{v == null ? '—' : `${v > 0 ? '+' : ''}${fmtNum(v, 1)}`}</button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table></div>
+      )}
+      <div className="card-foot">
+        <span>P/E relativo: worldperatio, ventana de 10 años si pasa el control de calidad de las dos series; si no, 3 años. Precio relativo: ETF MSCI con dividendos, 5 años.
+          Color: azul = barato (z ≤ −0,5; más intenso ≤ −1), naranja = caro (≥ +0,5; más intenso ≥ +1). Cada par aparece dos veces con signo opuesto.</span>
+        <Source source="Cálculo propio con Yahoo Finance y worldperatio" url="https://worldperatio.com/" />
+      </div>
+    </section>
   );
 }
 function ScoreBadge({ score, A, B }) {
@@ -862,6 +953,7 @@ export function ComparePanel({ countries, a, b, setA, setB }) {
       </section>
 
       <PairAnalysis A={A} B={B} />
+      <PairsMatrix countries={countries} a={a} b={b} onPick={(x, y) => { setA(x); setB(y); document.getElementById('cmp-ratio')?.scrollIntoView({ behavior: 'smooth' }); }} />
 
       <div className="grid">
         {charts.map((c) => (
