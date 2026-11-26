@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.23.0 — 2026-11-26 (Comparar: valuación relativa por P/E, ventanas y matriz de pares)
+- **P/E relativo** (`api/_lib/relval.js`): cociente P/E_A / P/E_B de worldperatio con z de 3 y 10 años y control de calidad en las dos series
+  (≤10% de meses repetidos y ventana posterior al lanzamiento de los ETF). Mide valuación; el cociente de precios mide desempeño.
+  Brasil/México al 26-nov: precio z −1,79 (5 años) pero P/E relativo z +0,56 (10 años): la caída es por ganancias, no un abaratamiento.
+- **Precio relativo** con 10 años de historia: z de 3, 5 y 10 años; los botones 3A/5A/10A cambian el período y la ventana de la media y los desvíos.
+  Tendencia de 10 años (regresión del logaritmo): con R² ≥ 0,6 y ≥ 4% anual se avisa que la reversión a la media es dudosa.
+- **Conclusión:** nuevas ponderaciones. Valuación relativa por P/E 25, reversión del precio relativo 10 (5 con tendencia), momentum 15, moneda 20,
+  inflación 15, tasas 15. Avisa cuando el precio está bajo pero el P/E no (caída por ganancias).
+- **Matriz de los 110 pares** (endpoint `pairs`, caché 1 h): z del P/E relativo o del precio relativo, con colores y clic para comparar el par.
+- Verificado: `npm test` OK (z por ventana, calidad, P/E relativo, tendencia, caída por ganancias, matriz); `npm run build` OK; capturas con datos reales.
+
 ## 0.22.0 — 2026-11-26 (Cotizaciones verificadas, USDARS de A3, Comparar con cociente y conclusión)
 - **Mundo:** la variación del día de TODAS las cotizaciones usa el cierre anterior de Yahoo (`yahooPrevClose`). Además de las monedas, estaban
   mal los futuros (Brent −3,04% vs +1,20%; oro, plata, cobre, soja) y los índices de Asia (Hang Seng, Shanghai, Nifty). Verificado contra

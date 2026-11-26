@@ -58,7 +58,18 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
     fails += problems.length;
     continue;
   }
+  if (id === 'pairs') {
+    if (p.cells.length !== p.countries.length * (p.countries.length - 1)) problems.push(`matriz: ${p.cells.length} celdas`);
+    if (p.cells.some((c) => c.zPrice == null)) problems.push('matriz: falta el z de precio');
+    const ab = p.cells.find((c) => c.a === 'br' && c.b === 'mx'), ba = p.cells.find((c) => c.a === 'mx' && c.b === 'br');
+    if (ab?.zPe != null && Math.abs(ab.zPe + ba.zPe) > 0.5) problems.push('matriz: el par invertido debería tener z de signo opuesto');
+    console.log(`${problems.length ? '✗' : '✓'} pairs: ${p.cells.length} pares, con P/E ${p.cells.filter((c) => c.zPe != null).length}`);
+    problems.forEach((x) => console.log('    ' + x));
+    fails += problems.length;
+    continue;
+  }
   if (id === 'pair') {
+    if (!p.win?.y5 || !p.win?.y10 || !p.trend) problems.push('par: faltan ventanas de 5/10 años o la tendencia');
     if (p.candles.length < 200 || !(p.stats.sd > 0) || !Number.isFinite(p.stats.z)) problems.push(`par: ${p.candles.length} velas, desvío ${p.stats.sd}`);
     if (p.candles.some((c) => c.h < Math.max(c.o, c.c) || c.l > Math.min(c.o, c.c))) problems.push('par: velas con máximo/mínimo incoherentes');
     console.log(`${problems.length ? '✗' : '✓'} pair: ${p.tickers.a}/${p.tickers.b}, ${p.candles.length} velas, z ${p.stats.z.toFixed(2)}`);
@@ -418,6 +429,29 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
     assert.ok(neu.verdict.kind !== 'strong', 'con valuación y momentum en contra no es contundente');
   }
   console.log('✓ Comparar: cociente, velas y señales');
+}
+// Valuación relativa: z por ventana, calidad del P/E, P/E relativo, tendencia y "caída por ganancias".
+{
+  const { zStats, windowQuality, relativePe, trendOf } = await import('../api/_lib/relval.js');
+  const mon = (n, f) => Array.from({ length: n }, (_, i) => { const d = new Date(Date.UTC(2016, 11 + i, 1)); return { d: d.toISOString().slice(0, 10), v: f(i) }; });
+  const st = zStats(mon(121, (i) => (i < 120 ? 1 + (i % 2) * 0.2 : 0.8)), 10);
+  assert.ok(st && st.z < -1.5 && st.years === 10, 'z de 10 años');
+  assert.equal(zStats(mon(40, () => 1), 10), null, 'sin historia suficiente no hay z');
+  const W = (etf, f) => ({ etf, pe: f(240), date: '2026-11-25', history: mon(241, f) });
+  assert.ok(windowQuality(W('EWZ', (i) => 10 + Math.sin(i)), 10).ok, 'serie sin repeticiones pasa');
+  assert.ok(!windowQuality(W('EWZ', (i) => 10 + Math.floor(i / 3)), 10).ok, 'serie con meses repetidos no pasa');
+  assert.ok(!windowQuality(W('INDA', (i) => 10 + Math.sin(i)), 20).ok, 'ventana anterior al lanzamiento no pasa');
+  const pe = relativePe(W('EWZ', (i) => 8 + Math.sin(i / 5)), W('EWW', (i) => 14 + Math.cos(i / 7)));
+  assert.ok(pe.win.y10?.ok && pe.win.y3?.ok && Math.abs(pe.last - pe.peA / pe.peB) < 1e-12, 'P/E relativo con el P/E diario al final');
+  const up = trendOf(Array.from({ length: 520 }, (_, i) => ({ d: new Date(Date.UTC(2016, 10, 28) + i * 7 * 864e5).toISOString().slice(0, 10), v: Math.exp(0.1 * i / 52) })), 10);
+  assert.ok(up.trending && Math.abs(up.perYear - 10.5) < 0.2, `tendencia de 10% anual (${up.perYear})`);
+  const { pairSignals } = await import('../src/signals.js');
+  const K = () => ({ kpis: [] });
+  const sig = pairSignals({ id: 'br', name: 'Brasil', ...K() }, { id: 'mx', name: 'México', ...K() },
+    { win: { y5: { z: -1.9 } }, stats: { z: -1.9, chg13: -10, aboveMa26: false }, pe: { last: 0.84, win: { y10: { ok: true, z: 0.5, mean: 0.75, pctile: 70, years: 10 } } } });
+  assert.equal(sig.earningsDriven, 'a', 'precio barato pero P/E no: caída por ganancias');
+  assert.ok(sig.factors.find((x) => x.key === 'val').score < 0, 'la valuación relativa usa el P/E');
+  console.log('✓ valuación relativa: z, calidad, P/E relativo, tendencia y caída por ganancias');
 }
 fs.writeFileSync(new URL('../src/mock-data.json', import.meta.url), JSON.stringify(out));
 if (fails) process.exit(1);
