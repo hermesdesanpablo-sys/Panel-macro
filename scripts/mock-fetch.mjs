@@ -109,16 +109,23 @@ const VALET = {
 const YLEVEL = { EWZ: 30, '^BVSP': 150000, EUSA: 110, '^GSPC': 6700, EZU: 58, '^STOXX50E': 5600, EWW: 64, '^MXX': 62000, EWC: 48, '^GSPTSE': 30000, ACWI: 140, URTH: 180, EEM: 52, ILF: 30, '^N225': 48000, '^VIX': 17, '^TNX': 4.2, '^IRX': 3.6, 'DX-Y.NYB': 99, 'EURUSD=X': 1.15, 'BRL=X': 5.4, 'MXN=X': 18.4, 'CAD=X': 1.39, 'BZ=F': 64, 'GC=F': 4000, 'HG=F': 5, 'ZS=F': 1100, COLO: 27, 'ICOLCAP.CL': 15000, 'COP=X': 3900, EWJ: 80, 'JPY=X': 150, ECH: 30, ARGT: 70 };
 
 /** XLSX mínimo (ZIP sin compresión) con una hoja y textos compartidos, para imitar planillas reales. */
-/** xlsx mínimo (sin compresión). Acepta varias hojas: mockXlsx(hoja1, hoja2, …), cada una un array de filas. */
-function mockXlsx(...sheets) {
+/** xlsx mínimo (sin compresión). Acepta varias hojas: mockXlsx(hoja1, hoja2, …), cada una un array de filas, o { name, rows }
+ *  para hojas con nombre (agrega workbook.xml y sus relaciones, como las planillas reales). */
+function mockXlsx(...input) {
+  const named = input.every((x) => x && !Array.isArray(x) && x.rows);
+  const sheets = input.map((x) => (Array.isArray(x) ? x : x.rows));
   const strings = [];
   const si = (t) => { let k = strings.indexOf(t); if (k < 0) { strings.push(t); k = strings.length - 1; } return k; };
-  const col = (i) => String.fromCharCode(65 + i);
+  const col = (i) => (i >= 26 ? String.fromCharCode(64 + Math.floor(i / 26)) : '') + String.fromCharCode(65 + (i % 26));
   const sheetXml = (rows) => '<worksheet><sheetData>' + rows.map((r, ri) => `<row r="${ri + 1}">` + r.map((v, ci) =>
     /^-?\d+(\.\d+)?$/.test(v) ? `<c r="${col(ci)}${ri + 1}"><v>${v}</v></c>` : `<c r="${col(ci)}${ri + 1}" t="s"><v>${si(v)}</v></c>`).join('') + '</row>').join('') + '</sheetData></worksheet>';
   const xmls = sheets.map(sheetXml);
   const sst = '<sst>' + strings.map((t) => `<si><t>${t}</t></si>`).join('') + '</sst>';
-  const files = [...xmls.map((x, i) => [`xl/worksheets/sheet${i + 1}.xml`, x]), ['xl/sharedStrings.xml', sst]].map(([n, c]) => [Buffer.from(n), Buffer.from(c)]);
+  const book = named ? [
+    ['xl/workbook.xml', '<workbook><sheets>' + input.map((x, i) => `<sheet name="${x.name}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') + '</sheets></workbook>'],
+    ['xl/_rels/workbook.xml.rels', '<Relationships>' + input.map((x, i) => `<Relationship Id="rId${i + 1}" Type="worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('') + '</Relationships>'],
+  ] : [];
+  const files = [...xmls.map((x, i) => [`xl/worksheets/sheet${i + 1}.xml`, x]), ['xl/sharedStrings.xml', sst], ...book].map(([n, c]) => [Buffer.from(n), Buffer.from(c)]);
   const parts = [], central = [];
   let off = 0;
   for (const [name, data] of files) {
@@ -173,19 +180,56 @@ export async function mockFetch(input, init = {}) {
     };
     return rss(...(ITEMS[k] || []));
   }
-  // BanRep Suameca: curva cero cupón de TES (1, 5 y 10 años), diaria; fechas en epoch ms de la medianoche de Bogotá.
+  // BanRep Suameca: series por id (fechas en epoch ms de la medianoche de Bogotá), catálogo de encuestas y la planilla histórica de la EME.
   if (url.host === 'suameca.banrep.gov.co') {
-    const id = Number(url.searchParams.get('idSerie'));
-    const base = { 15272: 9.5, 15273: 11, 15274: 12 }[id];
-    if (!base) return json([]);
-    const data = [];
-    for (let i = 900; i >= 7; i--) {
-      const t = new Date(Date.now() - i * 864e5);
-      if ([0, 6].includes(t.getUTCDay())) continue;
-      const mid = Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()) + 5 * 3600e3; // 00:00 en Bogotá
-      data.push([mid, +(base + Math.sin(i / 40)).toFixed(2)]);
+    const bogota = (t) => Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()) + 5 * 3600e3; // 00:00 en Bogotá
+    if (u.includes('consultaMenuXopcion') && url.searchParams.get('opcion') === 'ENCUESTAS') {
+      return json([{ id: 10001, nombre: '1. Encuestas sobre expectativas económicas', menuHijos: [{ id: 100011, nombre: '1.1. Encuesta mensual de expectativas de analistas económicos (EME) <br><span>Periodicidad: Mensual</span>',
+        listaDocumento: [{ id: 1132, idSerie: 17000, tipo: 'DATOS', descripcion: 'Serie histórica (disponible desde 2001)', nombreAdjunto: 'https://suameca.banrep.gov.co/archivos/encuestas/encuesta_mensual_analistas_economicos/series_historicas.xlsx' }] }] }]);
     }
-    return json([{ id, nombre: `Tasa de interés Cero Cupón, TES, pesos - ${id}`, fechaUltimoCargue: '17 de noviembre de 2026', data }]);
+    if (u.endsWith('/series_historicas.xlsx')) {
+      // Una encuesta por mes (día 18), últimos 60 meses; valores en decimal, como la planilla real.
+      const dates = Array.from({ length: 60 }, (_, k) => { const t = new Date(); return new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() - 59 + k, 18)); }).filter((t) => t <= new Date());
+      const serial = (t) => String(Math.round((t - Date.UTC(1899, 11, 30)) / DAY));
+      const trio = (v) => [String(v), '0.002', String(v)]; // promedio, desvío, mediana
+      const infl = [['Expectativa de inflación total'], ['Resultados históricos de la encuesta mensual de expectativas económicas'],
+        ['', 'EXPECTATIVAS DE INFLACION MENSUAL', '', '', 'EXPECTATIVAS DE INFLACIÓN PARA DICIEMBRE PRESENTE AÑO', '', '', 'EXPECTATIVAS DE INFLACIÓN A DOCE MESES ', '', '', 'EXPECTATIVAS DE INFLACIÓN PARA DICIEMBRE DEL SIGUIENTE AÑO', '', '', 'EXPECTATIVAS DE INFLACIÓN A VEINTICUATRO MESES', '', ''],
+        ['FECHA ENCUESTA', ...Array(5).fill(['PROMEDIO', 'DESVIACIÓN ESTÁNDAR', 'MEDIANA']).flat()],
+        ...dates.map((t, i) => [serial(t), ...trio(0.0029), ...trio(0.0679), ...trio(+(0.06 - i * 0.0001).toFixed(4)), ...trio(0.0526), ...trio(0.0402)])];
+      const trm = [['Expectativa de la tasa representativa del mercado (TRM), pesos por dólar'], ['Resultados históricos'], ['Nota 1: …'],
+        ['', 'Fin de mes', '', '', 'Fin de año', '', '', ' + 12  meses*', '', '', 'Fin del siguiente año', '', '', '+ 24 meses', '', ''],
+        ['FECHA ENCUESTA', ...Array(5).fill(['Media', 'Desv. Estandar', 'Mediana']).flat()],
+        ...dates.map((t) => [serial(t), ...trio(3290), ...trio(3300), ...trio(3415.5), ...trio(3445), ...trio(3500)])];
+      const tpm = [['Expectativa de la tasa de política monetaria'], ['Resultados históricos'], ['Nota 1: t hace referencia al mes en el que se hace la encuesta'],
+        ['', ...Array.from({ length: 25 }, (_, k) => [k === 0 ? 't' : `t+${k} ${k === 1 ? 'mes' : 'meses'}`, '', '']).flat()],
+        ['FECHA ENCUESTA', ...Array(25).fill(['Media', 'Desv. Estandar', 'Mediana']).flat()],
+        ...dates.map((t) => [serial(t), ...Array.from({ length: 25 }, (_, k) => trio(+(0.1225 - k * 0.0013).toFixed(4))).flat()])];
+      const buf = mockXlsx({ name: 'INFLACION_TOTAL', rows: infl }, { name: 'INFLACION_SIN_ALIMENTOS', rows: [['(no se usa)']] }, { name: 'TRM', rows: trm }, { name: 'TASA DE INTERVENCION BR', rows: tpm });
+      return new Response(buf, { status: 200, headers: { 'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' } });
+    }
+    const id = Number(url.searchParams.get('idSerie'));
+    // [nombre, nivel, frecuencia]: D diaria (hábiles), M fin de mes, A 31-dic. 59 = tasa de política (escalón), 850 = UVR (crece 0,5% por mes).
+    const S = { 59: ['Tasa de política monetaria', 12.25, 'D'], 241: ['IBR overnight, nominal', 11.42, 'D'], 243: ['IBR a 3 meses, nominal', 11.67, 'D'],
+      15270: ['Inflación total anual', 6.3, 'M'], 853: ['Meta de inflación', 3, 'A'], 850: ['Unidad de Valor Real (UVR)', 400, 'U'], 1: ['Tasa Representativa del Mercado (TRM)', 3630, 'D'],
+      15272: ['Cero Cupón TES pesos - 1 año', 9.5, 'T'], 15273: ['Cero Cupón TES pesos - 5 años', 11, 'T'], 15274: ['Cero Cupón TES pesos - 10 años', 12, 'T'],
+      15275: ['Cero Cupón TES UVR - 1 año', 5, 'T'], 15276: ['Cero Cupón TES UVR - 5 años', 6.9, 'T'], 15277: ['Cero Cupón TES UVR - 10 años', 7, 'T'] }[id];
+    if (!S) return json([]);
+    const [nombre, base, f] = S;
+    const data = [];
+    if (f === 'M' || f === 'A') {
+      for (let k = 72; k >= 1; k--) { const t = new Date(); const e = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() - k + 1, 0)); if (f === 'M' || e.getUTCMonth() === 11) data.push([bogota(e), +(base + (f === 'M' ? Math.sin(k / 9) : 0)).toFixed(2)]); }
+      if (f === 'A') data.push([bogota(new Date(Date.UTC(new Date().getUTCFullYear(), 11, 31))), base]); // la meta del año viene fechada el 31-dic
+    } else {
+      // T: curva cero cupón (hasta hace una semana); U: UVR diaria con ~1 mes de adelanto; D: hasta hoy (+2 días en la tasa de política, como la API).
+      const [ini, fin] = f === 'T' ? [900, 7] : f === 'U' ? [1200, -30] : [900, id === 59 ? -2 : 0];
+      for (let i = ini; i >= fin; i--) {
+        const t = new Date(Date.now() - i * 864e5);
+        if (f !== 'U' && id !== 59 && [0, 6].includes(t.getUTCDay())) continue;
+        const v = f === 'U' ? base * 1.005 ** ((1200 - i) / 30.4) : id === 59 ? (i > 200 ? 9.25 : base) : base + Math.sin(i / 40);
+        data.push([bogota(t), +v.toFixed(f === 'U' ? 4 : 3)]);
+      }
+    }
+    return json([{ id, nombre, fechaUltimoCargue: '17 de noviembre de 2026', data }]);
   }
   // Tesoro de EE.UU.: cronograma tentativo (PDF), licitaciones anunciadas y resultados (TreasuryDirect).
   if (url.host === 'home.treasury.gov' && u.includes('Tentative-Auction-Schedule')) {
@@ -383,33 +427,6 @@ export async function mockFetch(input, init = {}) {
   }
   if (url.host === 'www.datos.gov.co') {
     return json(walk(3900, 400, 0.005).map((p) => ({ valor: p.v.toFixed(2), vigenciadesde: p.d + 'T00:00:00.000' })));
-  }
-  if (url.host === 'totoro.banrep.gov.co') {
-    if (u.includes('/dataflow/')) {
-      return text(`<mes:Structure><mes:Structures><str:Dataflows>
-        <str:Dataflow id="DF_TRM_DAILY_HIST" agencyID="ESTAT" version="1.0"><com:Name xml:lang="es">Tasa Representativa del Mercado (TRM) histórico</com:Name></str:Dataflow>
-        <str:Dataflow id="DF_CBR_DAILY_HIST" agencyID="ESTAT" version="1.0"><com:Name xml:lang="es">Tasa de política monetaria histórico</com:Name></str:Dataflow>
-      </str:Dataflows></mes:Structures></mes:Structure>`);
-    }
-    const ser = (key, rows, fmt = (d) => d.replace(/-/g, '')) =>
-      `<generic:Series><generic:SeriesKey>${key.split('.').map((v, i) => `<generic:Value id="D${i}" value="${v}"/>`).join('')}</generic:SeriesKey>` +
-      rows.map((p) => `<generic:Obs><generic:ObsDimension value="${fmt(p.d)}"/><generic:ObsValue value="${p.v.toFixed(4)}"/></generic:Obs>`).join('') + '</generic:Series>';
-    let body = '';
-    // Claves con el formato real de BanRep: CO.<SUBJECT>._Z._Z._Z.<UNIDAD>.<FREQ>
-    const k = (subj, unit, f = 'D') => `CO.${subj}._Z._Z._Z.${unit}.${f}`;
-    if (u.includes('DF_IBR')) {
-      body = ['00', '01', '03', '06'].map((m, i) => ser(k(`IRIBRM${m}`, 'ER'), walk(12.2 + i * 0.05, 400, 0.002)) + ser(k(`IRIBRM${m}`, 'NR'), walk(11.4 + i * 0.05, 400, 0.002))).join('');
-    } else if (u.includes('DF_CBR')) body = ser(k('IRCBRM01', 'PA'), steps([9.25, 10.25, 11.25, 12.0, 12.25], 1100));
-    else if (u.includes('DF_UVR')) {
-      // UVR diaria (incluye fechas futuras, como la real) creciendo ~0,45% mensual.
-      const uvr = [];
-      for (let t = Date.now() - 1500 * DAY, v = 350; t < Date.now() + 40 * DAY; t += DAY) uvr.push({ d: iso(t), v: (v *= 1 + 0.00015 * (1 + rnd() * 0.2)) });
-      body = ser(k('RVU', 'APC'), uvr.map((p) => ({ d: p.d, v: 5.5 }))) + ser(k('RVU', 'CRVU'), uvr);
-    } else if (u.includes('DF_TES')) {
-      body = ['10', '01', '05'].map((y) => ser(k(`IRGBRY${y}`, 'PT', 'M'), walk(0.12 + Number(y) / 1000, 24, 0.02, 'M'), (d) => d.replace(/-/g, ''))).join('');
-    }
-    else if (u.includes('DF_TRM')) body = ser('TRM', walk(3900, 400, 0.005));
-    return text(`<message:GenericData><message:DataSet>${body}</message:DataSet></message:GenericData>`);
   }
   if (url.host === 'api.bcra.gob.ar') {
     // API de estadísticas v4 del BCRA: results[0].detalle = [{fecha, valor}] (de la más nueva a la más vieja).

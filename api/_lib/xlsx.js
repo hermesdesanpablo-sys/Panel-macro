@@ -2,8 +2,9 @@
 // Alcanza para planillas "planas" (valores y textos compartidos); no evalúa fórmulas (usa el valor cacheado <v>).
 import zlib from 'node:zlib';
 
-/** Entradas del ZIP: { nombre: Buffer descomprimido }. Lee el directorio central (soporta stored y deflate). */
-export function unzip(buf) {
+/** Entradas del ZIP: { nombre: Buffer descomprimido }. Lee el directorio central (soporta stored y deflate).
+ *  `want(nombre)` opcional: descomprime solo esas entradas (útil en planillas con hojas enormes que no se usan). */
+export function unzip(buf, want = null) {
   const out = {};
   let eocd = buf.length - 22;
   while (eocd >= 0 && buf.readUInt32LE(eocd) !== 0x06054b50) eocd--;
@@ -19,7 +20,7 @@ export function unzip(buf) {
     const name = buf.toString('utf8', p + 46, p + 46 + nlen);
     const lnlen = buf.readUInt16LE(local + 26), lelen = buf.readUInt16LE(local + 28);
     const data = buf.subarray(local + 30 + lnlen + lelen, local + 30 + lnlen + lelen + csize);
-    out[name] = method === 0 ? data : zlib.inflateRawSync(data);
+    if (!want || want(name)) out[name] = method === 0 ? data : zlib.inflateRawSync(data);
     p += 46 + nlen + elen + clen;
   }
   return out;
@@ -33,12 +34,37 @@ export const readFirstSheet = (buf) => readSheet(buf, 1);
 
 /** Hoja número `n` (1 = primera, según el nombre de archivo sheetN.xml) como array de filas. */
 export function readSheet(buf, n = 1) {
-  const files = unzip(buf);
+  const files = unzip(buf, (f) => !/^xl\/worksheets\/sheet\d+\.xml$/.test(f) || n === 1 || f === `xl/worksheets/sheet${n}.xml`);
+  return sheetRows(files, n === 1
+    ? Object.keys(files).filter((f) => /^xl\/worksheets\/sheet\d+\.xml$/.test(f)).sort()[0]
+    : `xl/worksheets/sheet${n}.xml`, n);
+}
+
+/** Hojas por nombre: { 'INFLACION_TOTAL': 'xl/worksheets/sheet1.xml', ... } (workbook.xml + sus relaciones). */
+function sheetFiles(files) {
+  const rels = files['xl/_rels/workbook.xml.rels']?.toString('utf8') || '';
+  const target = Object.fromEntries([...rels.matchAll(/<Relationship\b[^>]*>/g)].map((m) => [m[0].match(/\bId="([^"]+)"/)?.[1], m[0].match(/\bTarget="([^"]+)"/)?.[1]]));
+  const wb = files['xl/workbook.xml']?.toString('utf8') || '';
+  return Object.fromEntries([...wb.matchAll(/<sheet\b[^>]*>/g)].map((m) => {
+    const t = target[m[0].match(/\br:id="([^"]+)"/)?.[1]] || '';
+    return [decode(m[0].match(/\bname="([^"]*)"/)?.[1] || ''), t.startsWith('/') ? t.slice(1) : `xl/${t.replace(/^\.\//, '')}`];
+  }));
+}
+
+/** Varias hojas por nombre exacto → { nombre: filas }. Solo descomprime esas hojas. Falla con un error claro si falta alguna. */
+export function readSheetsByName(buf, names) {
+  const meta = unzip(buf, (f) => /^xl\/(workbook\.xml|_rels\/workbook\.xml\.rels)$/.test(f));
+  const map = sheetFiles(meta);
+  const missing = names.filter((n) => !map[n]);
+  if (missing.length) throw new Error(`xlsx: faltan las hojas ${missing.join(', ')} (hay: ${Object.keys(map).join(', ')})`);
+  const wanted = new Set(names.map((n) => map[n]));
+  const files = unzip(buf, (f) => f === 'xl/sharedStrings.xml' || wanted.has(f));
+  return Object.fromEntries(names.map((n) => [n, sheetRows(files, map[n], n)]));
+}
+
+function sheetRows(files, sheetName, n) {
   const sharedXml = files['xl/sharedStrings.xml']?.toString('utf8') || '';
   const shared = [...sharedXml.matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => decode(m[1].replace(/<[^>]+>/g, '')));
-  const sheetName = n === 1
-    ? Object.keys(files).filter((f) => /^xl\/worksheets\/sheet\d+\.xml$/.test(f)).sort()[0]
-    : `xl/worksheets/sheet${n}.xml`;
   if (!sheetName || !files[sheetName]) throw new Error(`xlsx: no existe la hoja ${n}`);
   const xml = files[sheetName].toString('utf8');
   const rows = [];

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.24.0 — 2026-11-27 (Colombia: todo desde Suameca + Encuesta de expectativas del BanRep)
+- **Tasa de política, IBR e inflación de vuelta:** el SDMX del BanRep (totoro) responde "Sitio en Mantenimiento" y el panel había quedado
+  sin esos datos. Ahora todo sale de Suameca: tasa de política (serie 59, 12,25%), IPC a/a (15270, 6,30% oct-26), meta (853), IBR overnight
+  nominal (241) y 3M convertida a efectiva anual (243), TRM de respaldo (1).
+- **Expectativas (EME del BanRep)**, desde la serie histórica de Suameca: inflación esperada a 12 meses y a dic. del año próximo, tasa de
+  política esperada en 12 meses, TRM esperada, tabla de medianas por horizonte y trayectoria de la tasa mes a mes (t … t+24).
+  Encuesta del 18-nov-26: inflación 12m 5,38%, tasa en 12 meses 11,25%, TRM 12m 3.415,5.
+- **Curvas de TES:** gráficos de la curva cero cupón en pesos y en UVR (1, 5 y 10 años), TES UVR 10Y e inflación implícita 10Y (5,70%).
+- **Calendario económico:** IPC de Colombia con consenso (mediana EME de la inflación mensual) y dato a/a oficial (15270).
+- `xlsx.js`: `readSheetsByName` (hojas por nombre, descomprime solo las pedidas).
+- Verificado: adaptador contra las fuentes reales sin errores; `npm test` OK (Suameca, EME, horizontes, implícita, sin fechas futuras);
+  `npm run build` OK; captura del panel con datos reales.
+
 ## 0.23.0 — 2026-11-26 (Comparar: valuación relativa por P/E, ventanas y matriz de pares)
 - **P/E relativo** (`api/_lib/relval.js`): cociente P/E_A / P/E_B de worldperatio con z de 3 y 10 años y control de calidad en las dos series
   (≤10% de meses repetidos y ventana posterior al lanzamiento de los ETF). Mide valuación; el cociente de precios mide desempeño.

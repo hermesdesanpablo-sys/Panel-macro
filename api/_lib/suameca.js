@@ -48,26 +48,44 @@ let caList;
 const extra = () => { try { return process.env.NODE_EXTRA_CA_CERTS ? [fs.readFileSync(process.env.NODE_EXTRA_CA_CERTS, 'utf8')] : []; } catch { return []; } };
 const ca = () => (caList ||= [...tls.rootCertificates, GEOTRUST_EV_RSA_CA_G2, ...extra()]);
 
-function getWithChain(url, timeout) {
+function getWithChain(url, timeout, binary = false) {
   return new Promise((resolve, reject) => {
     const req = https.get(url, { ca: ca(), headers: { 'User-Agent': 'Mozilla/5.0 (macro-dashboard)' }, timeout }, (r) => {
       if (r.statusCode !== 200) { r.resume(); return reject(new Error(`HTTP ${r.statusCode} en suameca.banrep.gov.co`)); }
-      let s = '';
-      r.setEncoding('utf8').on('data', (c) => { s += c; }).on('end', () => resolve(s));
+      const chunks = [];
+      r.on('data', (c) => chunks.push(c)).on('end', () => { const b = Buffer.concat(chunks); resolve(binary ? b : b.toString('utf8')); });
     });
     req.on('timeout', () => req.destroy(new Error('Suameca: tiempo agotado')));
     req.on('error', reject);
   });
 }
 
-/** Serie de Suameca → { name, series: [{d, v}], lastLoad }. Primero fetch (por si el servidor corrige la cadena); si falla, https con el intermedio. */
-export async function suameca(id, { timeout = 20000 } = {}) {
-  const url = `${SUAMECA_BASE}/consultaInformacionSerie?idSerie=${id}`;
+/** GET a un método del servicio REST de Suameca (JSON). Primero fetch (por si el servidor corrige la cadena); si falla, https con el intermedio. */
+export async function suamecaGet(method, { timeout = 20000 } = {}) {
+  const url = `${SUAMECA_BASE}/${method}`;
   let txt;
   try { txt = await getText(url, { timeout }); } catch { txt = await getWithChain(url, timeout); }
-  const s = JSON.parse(txt)?.[0];
+  if (!txt?.trim()) throw new Error(`Suameca: respuesta vacía en ${method.split('?')[0]}`);
+  return JSON.parse(txt);
+}
+
+/** Serie de Suameca → { name, series: [{d, v}], lastLoad }. */
+export async function suameca(id, { timeout = 20000 } = {}) {
+  const s = (await suamecaGet(`consultaInformacionSerie?idSerie=${id}`, { timeout }))?.[0];
   if (!s?.data?.length) throw new Error(`Suameca: serie ${id} vacía`);
   // Las fechas vienen como medianoche de Bogotá (UTC−5): se suman 5 h antes de tomar el día.
   const series = clean(s.data.map(([t, v]) => ({ d: new Date(t + 5 * 3600e3).toISOString().slice(0, 10), v })));
   return { name: s.nombre, series, lastLoad: s.fechaUltimoCargue || null };
+}
+
+/** Archivo de Suameca (p.ej. las planillas de las encuestas en /archivos/encuestas/...) → Buffer. */
+export async function suamecaFile(url, { timeout = 30000 } = {}) {
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (macro-dashboard)' }, signal: AbortSignal.timeout(timeout) });
+    if (!r.ok) throw new Error(`HTTP ${r.status} en suameca.banrep.gov.co`);
+    return Buffer.from(await r.arrayBuffer());
+  } catch (e) {
+    if (/HTTP \d/.test(e.message)) throw e;
+    return getWithChain(url, timeout, true);
+  }
 }

@@ -288,6 +288,26 @@ for (const [id, fn] of Object.entries(ADAPTERS)) {
   assert.ok(![0, 6].includes(new Date(co.date + 'T12:00:00Z').getUTCDay()), 'TES 10Y: la fecha no debe caer en fin de semana');
   console.log('✓ Colombia TES 10Y diario (Suameca)');
 }
+// Colombia: todo desde Suameca (política, IPC, IBR, TES UVR) y expectativas de la EME (planilla histórica con hojas por nombre).
+{
+  const p = out.co, K = Object.fromEntries(p.kpis.map((k) => [k.key, k]));
+  for (const k of ['policy', 'ibr_on', 'cpi', 'exp_cpi', 'exp_rate', 'exp_fx', 'be10', 'ibr3', 'y2', 'y10', 'r10', 'fx']) assert.ok(K[k]?.value != null, `Colombia: falta ${k}`);
+  assert.equal(K.policy.value, 12.25);
+  assert.ok(K.policy.date <= new Date().toISOString().slice(0, 10), 'Colombia: la tasa de política no debe tener fechas futuras');
+  assert.ok(K.ibr3.value > 11.67 && K.ibr3.value < 12.3, `IBR 3M efectiva: ${K.ibr3.value}`);
+  assert.ok(Math.abs(K.be10.value - ((1 + K.y10.value / 100) / (1 + K.r10.value / 100) - 1) * 100) < 0.01, 'implícita 10Y = (1+pesos)/(1+UVR)−1');
+  assert.equal(K.exp_fx.value, 3415.5);
+  assert.ok(p.path?.kind === 'survey' && p.path.path.length === 25 && p.path.path[0].rate === 12.25 && /^\d{4}-\d{2}$/.test(p.path.path[0].label), 'EME: trayectoria t…t+24');
+  const e = p.expectations[0];
+  assert.ok(e && e.rows.length === 3 && e.rows[0][1] === 0.29 && e.rows[2][3] === 3415.5, 'EME: tabla de medianas');
+  const m = Number(e.asOf.slice(5, 7));
+  assert.equal(e.rows[1][2], +((0.1225 - (12 - m) * 0.0013) * 100).toFixed(2), 'EME: tasa a diciembre = t+(12−m)');
+  assert.equal(p.errors.length, 0, `Colombia sin errores: ${JSON.stringify(p.errors)}`);
+  const { readSheetsByName } = await import('../api/_lib/xlsx.js');
+  const emeBuf = Buffer.from(await (await mockFetch('https://suameca.banrep.gov.co/archivos/encuestas/x/series_historicas.xlsx')).arrayBuffer());
+  assert.throws(() => readSheetsByName(emeBuf, ['NO EXISTE']), /faltan las hojas NO EXISTE/);
+  console.log('✓ Colombia: Suameca + EME');
+}
 // Fed: método FedWatch con una tira sintética (+25 pb en la 1.ª reunión, ~50% de +25 en la 2.ª) y el payload de EE.UU.
 {
   const { fedWatch } = await import('../api/_lib/fedprobs.js');
