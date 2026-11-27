@@ -80,7 +80,9 @@ export async function argentinaInflation(from, to) {
 // ---------- México, Chile y Colombia ----------
 import { sie } from './sources/mx.js';
 import { bdeApi } from './sources/cl.js';
-import { banrep, BANREP_FLOWS, SERIES_PICK, pick, ipcFromUvr } from './sources/co.js';
+import { SUA, ipcFromUvr } from './sources/co.js';
+import { suameca } from './suameca.js';
+import { emeHistory } from './eme.js';
 
 const monthRef = (ev, date) => {
   const mes = MESES.indexOf((/de (\w+)/.exec(ev)?.[1] || '').toLowerCase());
@@ -133,20 +135,27 @@ export async function chileInflation(from, to) {
   });
 }
 
-/** Colombia: IPC (DANE). Dato: derivado de la UVR del BanRep (coincide con el DANE); se muestra recién después de la publicación. Sin consenso público. */
+/** Colombia: IPC (DANE). a/a: serie oficial del BanRep (Suameca 15270); m/m: derivado de la UVR (coincide con el DANE). Ambos se muestran
+ *  recién después de la publicación. Consenso: mediana de la EME del BanRep para la inflación mensual del mes de la encuesta. */
 export async function colombiaInflation(from, to) {
   const items = (DATA_RELEASES.co?.items || []).filter(([d, ev]) => d >= from && d <= to && /IPC de \w+/.test(ev));
   if (!items.length) return [];
-  const uvr = pick(await banrep(BANREP_FLOWS.uvr, new Date().getUTCFullYear() - 2), SERIES_PICK.uvr, 'UVR').series;
-  const yoy = ipcFromUvr(uvr);
+  const since = new Date(Date.now() - 3 * 365 * 864e5).toISOString().slice(0, 10);
+  const [uvrR, yoyR, eme] = await Promise.all([suameca(SUA.uvr), suameca(SUA.cpi).catch(() => null), emeHistory().catch(() => null)]);
+  const uvr = uvrR.series.filter((p) => p.d >= since);
+  const fromUvr = ipcFromUvr(uvr);
+  const yoy = yoyR?.series?.length ? yoyR.series : fromUvr;
   // m/m de M = UVR(15 de M+2) / UVR(15 de M+1) − 1 (la UVR traslada el IPC del mes anterior entre el 16 y el 15).
   const um = new Map(uvr.map((p) => [p.d, p.v]));
   const d15 = (y, m) => new Date(Date.UTC(y, m, 15)).toISOString().slice(0, 10);
-  const mom = yoy.map((p) => { const [y, m] = p.d.split('-').map(Number); const a = um.get(d15(y, m + 1)), b = um.get(d15(y, m)); return a && b ? { d: p.d, v: Math.round((a / b - 1) * 10000) / 100 } : null; }).filter(Boolean);
+  const mom = fromUvr.map((p) => { const [y, m] = p.d.split('-').map(Number); const a = um.get(d15(y, m + 1)), b = um.get(d15(y, m)); return a && b ? { d: p.d, v: Math.round((a / b - 1) * 10000) / 100 } : null; }).filter(Boolean);
   return items.flatMap(([date, ev]) => {
     const r = monthRef(ev, date);
     // DANE publica el IPC a las 18:00 de Bogotá.
-    return r ? cpiRows({ id: 'co-ipc', ccy: 'COP', flag: 'co', date, timeLocal: '18:00:00-05:00', ...r, mom, yoy, dec: 2,
-      forecastNote: 'Sin consenso público (la encuesta del BanRep tiene captcha)', src: 'Cálculo propio con la UVR (BanRep), igual al DANE', url: DATA_RELEASES.co.src }) : [];
+    if (!r) return [];
+    const f = eme?.infl.mom.filter((p) => p.d.startsWith(r.ref) && p.d < date).at(-1);
+    return cpiRows({ id: 'co-ipc', ccy: 'COP', flag: 'co', date, timeLocal: '18:00:00-05:00', ...r, mom, yoy, dec: 2,
+      forecast: f?.v ?? null, forecastNote: f ? `Mediana EME (BanRep) del ${f.d}` : 'Sin EME de ese mes',
+      src: 'BanRep Suameca (DANE); m/m calculado con la UVR', url: DATA_RELEASES.co.src });
   });
 }

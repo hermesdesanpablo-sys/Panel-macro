@@ -43,6 +43,7 @@ api/_lib/officialActuals.js Dato oficial fuera de EE.UU. para el calendario: Sta
 api/_lib/latamCal.js        Inflación de AR, BR, CL, CO y MX para el calendario (fecha oficial + encuesta del banco central + dato oficial)
 api/_lib/sources/pair.js    Comparar: cociente de ETF MSCI (con dividendos, 10 años), velas semanales, z de 3/5/10 años, tendencia y P/E relativo (?c=pair&a=&b=); matriz de pares (?c=pairs)
 api/_lib/relval.js          Valuación relativa: z por ventana, calidad del P/E de worldperatio, P/E relativo y tendencia del cociente
+api/_lib/eme.js             Colombia: Encuesta mensual de expectativas de analistas (EME) del BanRep (planilla histórica de Suameca)
 api/_lib/a3.js              A3 Mercados: dólar UST$T (stream SSE de la portada); sin operaciones, A3500 del BCRA
 src/signals.js              Señales y conclusión de Comparar: P/E relativo 25, reversión del precio 10 (5 con tendencia), momentum 15, FX 20, inflación 15, tasas 15
 api/_lib/fedprobs.js        Probabilidades de la Fed por reunión: futuros ZQ (método FedWatch, cálculo propio) y Polymarket (API Gamma)
@@ -165,7 +166,7 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 | 🇪🇺 | ✔ DFR | ✔ HICP (dataset `HICP`, proveedor `4D0`) | ✔ forwards AAA `IF_*`; ✔ SPF LT | ✔ AAA 2Y/10Y | ✔ | ✔ EZU/^STOXX50E | ✅ BCE |
 | 🇲🇽 | ✔ SF61745 | ✔ SP30578 | ✔ Encuesta Banxico (trayectoria de tasa, infl. 12m, tabla) | ✔ Cetes/TIIE; ✔ Bono M 3Y/10Y (subasta) | ✔ FIX | ✔ EWW/^MXX | ✔ dic-2026; ❌ 2027 (no publicado) |
 | 🇨🇦 | ✔ V39079 | ✔ V41690973; ✔ CPI-trim/median | proxy 2Y − overnight; ✔ breakeven LP (LONG − RRB) | ✔ GoC 2Y/10Y | ✔ | ✔ EWC/^GSPTSE | ✅ BoC |
-| 🇨🇴 | ✔ DF_CBR_DAILY_HIST | ✔ IPC derivado de la UVR (DF_UVR_DAILY_HIST); fallback FRED OCDE | proxy IBR 6M − política; ❌ Encuesta BanRep (captcha) | ✔ IBR ON/6M (efectiva); ✔ TES 2Y (interp. 1Y–5Y) y 10Y diarios (curva cero cupón, Suameca; respaldo: promedio mensual SDMX) | ✔ datos.gov.co 32sa-8pi3; fallback BanRep | ✔ COLO / ICOLCAP.CL | ✔ dic-2026; ❌ 2027 (no publicado) |
+| 🇨🇴 | ✔ Suameca 59 | ✔ Suameca 15270 (DANE) y meta 853 | ✔ EME (inflación, tasa por mes t…t+24, TRM); ✔ implícita 10Y (TES pesos − UVR) | ✔ IBR ON (nominal) y 3M (efectiva); ✔ TES 2Y (interp. 1Y–5Y), 10Y y UVR 10Y (curvas cero cupón, Suameca) | ✔ datos.gov.co 32sa-8pi3; respaldo Suameca 1 | ✔ COLO / ICOLCAP.CL | ✔ dic-2026; ❌ 2027 (no publicado) |
 
 | 🇦🇷 | ✔ TAMAR (BCRA 44; sin tasa de política desde jul-25) y pases 1d (150) | ✔ INDEC vía BCRA (27 m/m, 28 a/a) | ✔ REM: 12m (BCRA 29, con historia) + planilla completa (inflación, TAMAR, TC, PIB, fiscal) | ✔ BADLAR; EMBI (BCRD); ❌ curva en pesos | ✔ A3500 + bandas | ✔ ARGT | ✔ IPC INDEC 15-dic-2026 |
 | 🇨🇱 | ✔ BDE F022.TPM | ✔ BDE IPC var. 12m | ✔ EEE (inflación 11/23m, TPM por plazo, PIB) y EOF (TPM e inflación 12m); ✔ BCP−BCU 10Y | ✔ BCP 2Y/10Y, BCU 10Y | ✔ dólar observado | ✔ ECH; IPSA mensual (BDE) | ✔ dic-2026; ❌ 2027 (publicado, no accesible) |
@@ -255,21 +256,27 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
 - CSV público del Tesouro Transparente (~15 MB), ordenado de la fecha más nueva a la más vieja: se lee en streaming y se corta en 13 meses.
 - 2Y: LTN interpolada; 10Y: NTN-F interpolada; real 10Y: NTN-B (con y sin cupón). No se extrapola fuera de los vencimientos.
 
-### Notas de Colombia (BanRep SDMX)
+### Notas de Colombia (BanRep Suameca)
 
-- Endpoint: `https://totoro.banrep.gov.co/nsi-jax-ws/rest/data/ESTAT,<FLOW>,1.0/all/ALL/?startPeriod=<AAAA>`
-  con `Accept: application/vnd.sdmx.genericdata+xml;version=2.1`. **Solo XML** (JSON/CSV → 406, según reportes de terceros).
-- Catálogo (`/dataflow/ESTAT/all/latest`, 33 flujos): CBR (tasa de política), IBR, IR, DTF, TRM, UVR, TES, COLCAP,
-  FTD (CDT), MONAGG. **No hay IPC**: se deriva de la UVR (`ipcFromUvr` en `co.js`; IPC a/a de M = UVR(15/M+2)/UVR(15/M−10) − 1,
-  coincide con el DANE). La UVR se publica con ~1 mes de adelanto, así que el IPC sale apenas lo publica el DANE.
-- Claves: `CO.<SUBJECT>._Z._Z._Z.<UNIDAD>.<FREQ>`. IBR: `IRIBRM{00,01,03,06}` × `ER` (efectiva anual) / `NR` (nominal).
-  Se usa ER porque la tasa de política está en efectiva anual. TES: `IRGBRY{01,05,10}`, mensual, en decimal.
-- TES diario: Suameca (`api/_lib/suameca.js`), API REST pública del BanRep: `.../estadisticaEconomicaRestService/consultaInformacionSerie?idSerie=<id>`.
-  Curva cero cupón en pesos 15272 (1Y), 15273 (5Y), 15274 (10Y); UVR 15275–15277. Se carga una vez por semana (~1 semana de atraso).
-  El servidor no manda el certificado intermedio (GeoTrust EV RSA CA G2): se agrega ese intermedio público en el código (vence 2-jul-2030).
+- Todo sale de Suameca (`api/_lib/suameca.js`), la API REST pública del BanRep, sin clave:
+  `https://suameca.banrep.gov.co/estadisticas-economicas-back/rest/estadisticaEconomicaRestService/consultaInformacionSerie?idSerie=<id>`
+  (una serie con toda la historia; fechas en epoch ms de la medianoche de Bogotá). Ids en `SUA` (co.js), confirmados el 27-nov-2026:
+  59 tasa de política (diaria, efectiva anual; la API la repite hacia fechas futuras → se corta en hoy), 241/242/243 IBR overnight/1M/3M
+  **nominal** (se convierte a efectiva anual con `ibrEffective`: (1 + n·p/360)^(360/p) − 1), 15270 inflación total anual (DANE), 853 meta,
+  850 UVR, 1 TRM, 15272–15274 cero cupón TES pesos 1/5/10Y y 15275–15277 TES UVR (tasa real). Ojo: el id de la página
+  (`informacionSerie/640001/...`) es el del menú, no el de la serie.
+- Catálogos: `consultaMenuXopcion?opcion=CATALOGO_DATOS` (menú de estadísticas) y `?opcion=ENCUESTAS` (encuestas, con sus archivos en
+  `listaDocumento`). `consultaMenuXId?idMenu=` responde vacío a consultas automáticas: no se usa.
+- El servidor no manda el certificado intermedio (GeoTrust EV RSA CA G2): se agrega ese intermedio público en el código (vence 2-jul-2030).
   En un entorno con proxy, probar con `NODE_USE_ENV_PROXY=1`.
-- Variables opcionales para sobreescribir: `BANREP_FLOW_POLICY`, `BANREP_IBR_ON`, `BANREP_IBR_6M`.
-- `startPeriod` solo respeta el año; el filtro fino de fechas se hace del lado del cliente.
+- EME (`api/_lib/eme.js`): Encuesta mensual de expectativas de analistas económicos. Se lee la "Serie histórica" (`series_historicas.xlsx`,
+  ~2 MB, URL tomada del catálogo de encuestas) por nombre de hoja: INFLACION_TOTAL, TRM y TASA DE INTERVENCION BR (t … t+24 meses).
+  Valores en decimal; se usa la mediana. En memoria 6 h. La hoja INFLACION_SIN_ALIMENTOS pesa 8,7 MB descomprimida: no se lee
+  (`readSheetsByName` solo descomprime las hojas pedidas). También usa la EME el calendario económico (consenso del IPC m/m).
+- IPC a/a: serie oficial 15270. `ipcFromUvr` (IPC a/a de M = UVR(15/M+2)/UVR(15/M−10) − 1, coincide con el DANE) queda para el m/m del
+  calendario: la UVR se publica con ~1 mes de adelanto, por eso el dato se muestra recién después de la hora de publicación.
+- Inflación implícita 10Y = (1 + TES pesos 10Y) / (1 + TES UVR 10Y) − 1, con las curvas cero cupón.
+- El SDMX (`totoro.banrep.gov.co`) responde "Sitio en Mantenimiento" desde nov-2026: se dejó de usar.
 
 ### Notas de la Fed y el Tesoro
 - FedWatch (`fedWatch`): la tasa previa a cada reunión sale del contrato del mes anterior si ese mes no tiene reunión (si no, de la posterior
@@ -355,7 +362,7 @@ Leyenda: ✔ = verificado contra la API real. Al 18-nov-2026 se verificaron con 
    https://www.banxico.org.mx/publicaciones-y-prensa/calendario-de-publicaciones.html ·
    https://www.banrep.gov.co/es/calendario-junta-directiva (la JDBR decide al final de ene, mar, abr, jun, jul, sep, oct y dic).
 3. México: Bono M de mercado secundario diario (hoy: subasta primaria).
-4. Colombia: Encuesta mensual de expectativas de BanRep (la página tiene captcha → carga manual o LSEG). TES de mercado intradiario (hoy: curva cero cupón diaria del BanRep, con ~1 semana de atraso).
+4. Colombia: TES de mercado intradiario (hoy: curva cero cupón diaria del BanRep, con ~1 semana de atraso).
    Argentina: Merval sin historia en Yahoo/Stooq (solo ARGT en Mundo).
 5. Valuación: flujos de ARGT/COLO (Global X responde 429); historia del P/E forward (solo LSEG/Datastream).
 6. Persistir snapshots diarios (p.ej. Vercel KV / Postgres + cron) para tener historia propia de variables

@@ -1,16 +1,36 @@
-// Colombia: Banco de la República (SDMX, sin clave) + datos.gov.co (TRM) + FRED (IPC fallback) + Yahoo.
+// Colombia: Banco de la República (Suameca, sin clave) + datos.gov.co (TRM) + Yahoo.
 //
-// BanRep expone SDMX 2.1 en totoro.banrep.gov.co, SOLO en XML (JSON/CSV devuelven 406).
-// Flujos verificados contra la API (18-nov-2026): DF_CBR_DAILY_HIST (tasa de política), DF_IBR_DAILY_HIST,
-// DF_TRM_DAILY_HIST, DF_UVR_DAILY_HIST, DF_TES_MONTHLY_HIST. El catálogo NO tiene IPC: se deriva de la UVR
-// (ver ipcFromUvr). La tasa de política se puede fijar con env BANREP_FLOW_POLICY.
-import { getText, getJson, clean, iso, daysAgo, settle, kpi, merge, thin, last, upcoming, yoyFromIndex, spreadSeries } from '../util.js';
+// Suameca (API REST pública del BanRep, ver suameca.js) trae cada serie con toda la historia por id (consultaInformacionSerie).
+// Ids confirmados contra la API (27-nov-2026) en SUA. El SDMX de totoro.banrep.gov.co ("Sitio en Mantenimiento" desde nov-2026)
+// ya no se usa. Expectativas: Encuesta mensual de analistas económicos (EME, eme.js).
+import { getText, getJson, clean, iso, daysAgo, settle, kpi, merge, thin, last, upcoming } from '../util.js';
 import { equityBlock } from '../yahoo.js';
 import { agendaEvents } from '../calendar.js';
-import { fred } from './us.js';
 import { suameca, SUAMECA_PAGE } from '../suameca.js';
+import { emeHistory, EME_PAGE } from '../eme.js';
 
-const SDMX = 'https://totoro.banrep.gov.co/nsi-jax-ws/rest';
+/** Series de Suameca (consultaInformacionSerie?idSerie=). */
+export const SUA = {
+  policy: 59, // Tasa de política monetaria (diaria, efectiva anual)
+  ibrOn: 241, // IBR overnight, nominal
+  ibr3m: 243, // IBR a 3 meses, nominal
+  cpi: 15270, // Inflación total anual (DANE), mensual
+  target: 853, // Meta de inflación
+  uvr: 850, // Unidad de Valor Real (diaria, publicada con ~1 mes de adelanto)
+  trm: 1, // TRM
+  tesPesos: [15272, 15273, 15274], // cero cupón TES en pesos 1, 5 y 10 años (Nelson-Siegel, diaria, carga semanal)
+  tesUvr: [15275, 15276, 15277], // cero cupón TES UVR (tasa real) 1, 5 y 10 años
+};
+const PAGE = {
+  policy: SUAMECA_PAGE(59, 'tasas_interes_politica_monetaria'),
+  ibr: SUAMECA_PAGE(241, 'tasas_interes_indicador_bancario_referencia_ibr'),
+  cpi: SUAMECA_PAGE(100001, 'inflacion_y_meta'),
+  tes: SUAMECA_PAGE(640001, 'deuda_publica_tasas_cero_cupon_tes'),
+  trm: SUAMECA_PAGE(1, 'tasa_cambio_peso_colombiano_trm_dolar_usd'),
+};
+
+/** IBR nominal (base 360, vencida) → efectiva anual, para compararla con la tasa de política. `days`: 1 (overnight), 30, 90. */
+export const ibrEffective = (s, days) => s.map((p) => ({ d: p.d, v: Math.round(((1 + (p.v / 100) * days / 360) ** (360 / days) - 1) * 1e5) / 1e3 }));
 
 // Calendario del DANE (vista mensual en HTML, sin API). Cada publicación es un link
 // ".../icalrepeat.detail/AAAA/MM/DD/<id>/-/<slug>"><strong> Título</strong>. Se toman IPC, PIB e ISE.
@@ -41,30 +61,6 @@ async function daneCalendar(months = 4) {
   if (!ok.length) throw new Error(pages[0]?.reason?.message || 'DANE calendario sin respuesta');
   return ok.flatMap((p) => parseDaneMonth(p.value));
 }
-const XML_DATA = 'application/vnd.sdmx.genericdata+xml;version=2.1';
-const XML_STRUCT = 'application/vnd.sdmx.structure+xml;version=2.1';
-const BANREP_URL = 'https://suameca.banrep.gov.co/estadisticas-economicas/';
-
-export const BANREP_FLOWS = {
-  trm: 'DF_TRM_DAILY_HIST',
-  ibr: 'DF_IBR_DAILY_HIST',
-  uvr: 'DF_UVR_DAILY_HIST',
-  tes: 'DF_TES_MONTHLY_HIST',
-  policy: process.env.BANREP_FLOW_POLICY || 'DF_CBR_DAILY_HIST',
-};
-
-// Cómo elegir la serie dentro de un flujo que trae varias (la clave SDMX concatenada con '.').
-// Claves reales: CO.IRIBRM{00,01,03,06}._Z._Z._Z.{ER,NR}.D (plazo en meses; ER = efectiva anual, NR = nominal).
-// Se usa ER porque la tasa de política de BanRep se expresa en efectiva anual (IBR ON ER ≈ tasa de política).
-export const SERIES_PICK = {
-  ibrOvernight: process.env.BANREP_IBR_ON || /(^|\.)IRIBRM00\..*\.ER(\.|$)/,
-  ibr6m: process.env.BANREP_IBR_6M || /(^|\.)IRIBRM06\..*\.ER(\.|$)/,
-  tes10: /(^|\.)IRGBRY10\./, // TES tasa fija 10 años, promedio mensual (viene en decimal)
-  tes1: /(^|\.)IRGBRY01\./,
-  tes5: /(^|\.)IRGBRY05\./,
-  uvr: /\.CRVU\./, // nivel de la UVR (la otra serie, APC, es su variación)
-};
-
 /**
  * IPC a/a desde la UVR. Por fórmula (Ley 546/1999), la UVR entre el día 16 del mes t y el 15 del mes t+1
  * crece a la variación mensual del IPC del mes t-1. Entonces el IPC a/a del mes M es
@@ -85,64 +81,6 @@ export function ipcFromUvr(uvr) {
   return clean(out);
 }
 
-// ---------- parser SDMX genericdata (XML) sin dependencias ----------
-const attr = (tag, name) => tag.match(new RegExp(`\\b${name}="([^"]*)"`))?.[1];
-
-function normPeriod(p) {
-  if (/^\d{8}$/.test(p)) return `${p.slice(0, 4)}-${p.slice(4, 6)}-${p.slice(6, 8)}`;
-  if (/^\d{4}-\d{2}$/.test(p)) return `${p}-01`;
-  return p.slice(0, 10);
-}
-
-/** Devuelve [{ key: 'A.B.C', dims: {id: value}, series: [{d,v}] }] */
-export function parseSdmxGeneric(xml) {
-  const out = [];
-  const seriesRe = /<(?:\w+:)?Series\b[^>]*>([\s\S]*?)<\/(?:\w+:)?Series>/g;
-  let m;
-  while ((m = seriesRe.exec(xml))) {
-    const body = m[1];
-    const keyBlock = body.match(/<(?:\w+:)?SeriesKey>([\s\S]*?)<\/(?:\w+:)?SeriesKey>/)?.[1] || '';
-    const dims = {};
-    for (const t of keyBlock.match(/<(?:\w+:)?Value\b[^>]*\/?>/g) || []) dims[attr(t, 'id')] = attr(t, 'value');
-    const obs = [];
-    for (const o of body.match(/<(?:\w+:)?Obs>[\s\S]*?<\/(?:\w+:)?Obs>/g) || []) {
-      const dimTag = o.match(/<(?:\w+:)?ObsDimension\b[^>]*>/)?.[0];
-      const valTag = o.match(/<(?:\w+:)?ObsValue\b[^>]*>/)?.[0];
-      if (dimTag && valTag) obs.push({ d: normPeriod(attr(dimTag, 'value')), v: parseFloat(attr(valTag, 'value')) });
-    }
-    out.push({ key: Object.values(dims).join('.'), dims, series: clean(obs) });
-  }
-  return out;
-}
-
-/** Catálogo de dataflows: [{id, name}] */
-export function parseDataflows(xml) {
-  const out = [];
-  const re = /<(?:\w+:)?Dataflow\b([^>]*)>([\s\S]*?)<\/(?:\w+:)?Dataflow>/g;
-  let m;
-  while ((m = re.exec(xml))) {
-    const names = [...m[2].matchAll(/<(?:\w+:)?Name\b[^>]*>([^<]*)<\/(?:\w+:)?Name>/g)].map((x) => x[1]);
-    out.push({ id: attr(m[1], 'id'), name: names.join(' | ') });
-  }
-  return out;
-}
-
-export async function banrep(flow, fromYear) {
-  const xml = await getText(`${SDMX}/data/ESTAT,${flow},1.0/all/ALL/?startPeriod=${fromYear}`, { headers: { Accept: XML_DATA }, timeout: 25000 });
-  const all = parseSdmxGeneric(xml);
-  if (!all.length) throw new Error(`BanRep ${flow}: respuesta sin series`);
-  return all;
-}
-
-/** Elige una serie de un flujo: por regex sobre la clave, o la única/la más larga. */
-export function pick(all, re, label) {
-  if (all.length === 1) return all[0];
-  const rx = typeof re === 'string' ? new RegExp(re) : re;
-  const hit = rx && all.find((s) => rx.test(s.key));
-  if (hit) return hit;
-  throw new Error(`${label}: ${all.length} series y ninguna coincide con ${rx}. Claves: ${all.map((s) => s.key).join(', ')}`);
-}
-
 // ---------- TRM (datos.gov.co, Socrata) ----------
 async function trmSocrata(from) {
   const q = `$select=valor,vigenciadesde&$where=vigenciadesde>='${iso(from)}T00:00:00'&$order=vigenciadesde ASC&$limit=5000`;
@@ -152,91 +90,90 @@ async function trmSocrata(from) {
 
 export default async function colombia() {
   const errors = [];
-  const year = new Date().getUTCFullYear();
   const from = daysAgo(400);
+  const since = (yrs) => iso(daysAgo(Math.round(365.25 * yrs)));
+  // Suameca repite la tasa de política hacia adelante (fechas futuras): se corta en hoy.
+  const sua = (id, yrs, upTo = iso(new Date())) => suameca(id).then((r) => r.series.filter((p) => p.d >= since(yrs) && p.d <= upTo));
   const d = await settle(
     {
       'datos.gov.co TRM': () => trmSocrata(from),
       'DANE calendario': () => daneCalendar(),
-      'BanRep IBR': () => banrep(BANREP_FLOWS.ibr, year - 1),
-      'BanRep tasa de política': async () => {
-        const flow = BANREP_FLOWS.policy;
-        const all = await banrep(flow, year - 3);
-        return { flow, s: all.sort((a, b) => b.series.length - a.series.length)[0].series };
+      'BanRep tasa de política (Suameca)': () => sua(SUA.policy, 6),
+      'BanRep IBR (Suameca)': async () => { const [on, m3] = await Promise.all([sua(SUA.ibrOn, 1.2), sua(SUA.ibr3m, 1.2)]); return { on, m3 }; },
+      'BanRep inflación anual (Suameca)': () => sua(SUA.cpi, 6),
+      'BanRep meta de inflación (Suameca)': () => sua(SUA.target, 6, '9999'), // la meta del año viene fechada el 31-dic
+      // Curva cero cupón de TES (Nelson-Siegel sobre operaciones del SEN y el MEC), diaria. El BanRep la carga una vez por semana (~1 semana de atraso).
+      'BanRep TES cero cupón (Suameca)': async () => {
+        const [p1, p5, p10, u1, u5, u10] = await Promise.all([...SUA.tesPesos, ...SUA.tesUvr].map((id) => sua(id, 3)));
+        return { p1, p5, p10, u1, u5, u10 };
       },
-      'BanRep IPC (vía UVR)': async () => ipcFromUvr(pick(await banrep(BANREP_FLOWS.uvr, year - 4), SERIES_PICK.uvr, 'UVR').series),
-      'BanRep TES': async () => {
-        const all = await banrep(BANREP_FLOWS.tes, year - 2);
-        const pct = (re, label) => pick(all, re, label).series.map((p) => ({ d: p.d, v: p.v < 1 ? p.v * 100 : p.v })); // decimal → %
-        return { y1: pct(SERIES_PICK.tes1, 'TES 1Y'), y5: pct(SERIES_PICK.tes5, 'TES 5Y'), y10: pct(SERIES_PICK.tes10, 'TES 10Y') };
-      },
-      // Curva cero cupón de TES (Nelson-Siegel sobre operaciones del SEN y el MEC), diaria. BanRep la carga una vez por semana
-      // (~1 semana de atraso), pero es mejor que el promedio mensual del SDMX, que queda de respaldo.
-      'BanRep TES diario (Suameca)': async () => {
-        const [y1, y5, y10] = await Promise.all([15272, 15273, 15274].map((id) => suameca(id)));
-        const from = iso(daysAgo(800));
-        const cut = (r) => r.series.filter((p) => p.d >= from);
-        return { y1: cut(y1), y5: cut(y5), y10: cut(y10) };
-      },
+      'BanRep EME (encuesta de analistas)': () => emeHistory(),
       // GXG pasó a llamarse COLO. ICOLCAP.CL es la cotización en la BVC (Yahoo usa el sufijo .CL para Colombia).
       'Yahoo COLO/COLCAP': () => equityBlock('COLO', 'Global X MSCI Colombia (COLO, USD)', 'ICOLCAP.CL', 'iShares MSCI COLCAP (ICOLCAP)'),
     },
     errors
   );
 
-  // TRM: datos.gov.co; si falla, BanRep SDMX.
+  // TRM: datos.gov.co; si falla, Suameca.
   let trm = d['datos.gov.co TRM'] || [];
   let trmSrc = { source: 'datos.gov.co 32sa-8pi3 (TRM)', url: 'https://www.datos.gov.co/Econom-a-y-Finanzas/Tasa-de-Cambio-Representativa-del-Mercado-TRM/32sa-8pi3' };
   if (!trm.length) {
     try {
-      trm = pick(await banrep(BANREP_FLOWS.trm, year - 1), null, 'TRM').series.filter((p) => p.d >= iso(from));
-      trmSrc = { source: `BanRep SDMX ${BANREP_FLOWS.trm}`, url: BANREP_URL };
+      trm = (await suameca(SUA.trm)).series.filter((p) => p.d >= iso(from));
+      trmSrc = { source: `BanRep Suameca (serie ${SUA.trm}, TRM)`, url: PAGE.trm };
     } catch (e) {
-      errors.push({ source: 'BanRep TRM (fallback)', message: e.message });
+      errors.push({ source: 'BanRep TRM (respaldo)', message: e.message });
     }
   }
 
-  const pol = d['BanRep tasa de política'];
-  const policy = pol?.s || [];
-  const cpiB = d['BanRep IPC (vía UVR)'] || [];
-  let cpiF = [];
-  if (!cpiB.length) {
-    try {
-      cpiF = yoyFromIndex(await fred('COLCPIALLMINMEI', daysAgo(1500)));
-    } catch (e) {
-      errors.push({ source: 'FRED IPC Colombia (fallback)', message: e.message });
-    }
-  }
-  // UVR (BanRep) es la fuente preferida; FRED/OCDE sólo si falla (viene con más rezago).
-  const cpi = cpiB.length ? cpiB : cpiF;
-  const cpiSrc = cpiB.length
-    ? { source: `Cálculo propio (BanRep ${BANREP_FLOWS.uvr})`, url: BANREP_URL, note: 'IPC a/a derivado de la UVR (coincide con DANE)' }
-    : { source: 'FRED COLCPIALLMINMEI (OCDE, calc. a/a)', url: 'https://fred.stlouisfed.org/series/COLCPIALLMINMEI' };
+  const policy = d['BanRep tasa de política (Suameca)'] || [];
+  const cpi = d['BanRep inflación anual (Suameca)'] || [];
+  const target = d['BanRep meta de inflación (Suameca)'] || [];
+  const ibr = d['BanRep IBR (Suameca)'] || { on: [], m3: [] };
+  const ibr3 = ibrEffective(ibr.m3, 90);
+  const tes = d['BanRep TES cero cupón (Suameca)'] || { p1: [], p5: [], p10: [], u1: [], u5: [], u10: [] };
+  // TES 2Y: interpolación lineal entre el 1Y y el 5Y (la curva del BanRep no publica el nodo de 2 años).
+  const m5 = new Map(tes.p5.map((p) => [p.d, p.v]));
+  const tes2 = tes.p1.filter((p) => m5.has(p.d)).map((p) => ({ d: p.d, v: Math.round((p.v + (m5.get(p.d) - p.v) / 4) * 1000) / 1000 }));
+  // Compensación inflacionaria 10Y: (1 + pesos) / (1 + UVR) − 1.
+  const mu = new Map(tes.u10.map((p) => [p.d, p.v]));
+  const be10 = tes.p10.filter((p) => mu.has(p.d)).map((p) => ({ d: p.d, v: Math.round(((1 + p.v / 100) / (1 + mu.get(p.d) / 100) - 1) * 1e5) / 1e3 }));
+  const eme = d['BanRep EME (encuesta de analistas)'];
+  const ss = (id) => ({ source: `BanRep Suameca (serie ${id})`, url: PAGE.policy });
+  const tesSrc = { source: 'BanRep Suameca, curva cero cupón TES', url: PAGE.tes };
+  const tesNote = 'Curva cero cupón diaria del BanRep; se carga una vez por semana (~1 semana de atraso)';
+  const emeSrc = { source: 'BanRep – Encuesta mensual de expectativas de analistas (EME)', url: EME_PAGE };
+  const cut = (s, yrs) => s.filter((p) => p.d >= since(yrs));
 
-  let ibrOn = [], ibr6 = [];
-  const ibrAll = d['BanRep IBR'];
-  if (ibrAll) {
-    for (const [k, re, label] of [['on', SERIES_PICK.ibrOvernight, 'IBR overnight'], ['m6', SERIES_PICK.ibr6m, 'IBR 6M']]) {
-      try {
-        const s = pick(ibrAll, re, label).series.filter((p) => p.d >= iso(from));
-        if (k === 'on') ibrOn = s;
-        else ibr6 = s;
-      } catch (e) {
-        errors.push({ source: `BanRep ${label}`, message: e.message });
-      }
-    }
+  // Trayectoria esperada de la tasa (mediana EME, t … t+24 meses; t = mes de la encuesta).
+  let path = null;
+  if (eme) {
+    const t0 = new Date(`${eme.asOf.slice(0, 7)}-01T00:00:00Z`);
+    const pts = eme.tpm.map((s, k) => {
+      const p = s?.find((x) => x.d === eme.asOf);
+      if (!p) return null;
+      const m = new Date(Date.UTC(t0.getUTCFullYear(), t0.getUTCMonth() + k, 1));
+      return { label: iso(m).slice(0, 7), rate: p.v };
+    }).filter(Boolean);
+    if (pts.length) path = { title: 'Tasa de política esperada por mes (EME)', kind: 'survey', asOf: eme.asOf, current: last(policy)?.v, currentLabel: 'Tasa actual', path: pts, ...emeSrc,
+      note: 'Mediana de los analistas: tasa que esperan al final de cada mes, desde el mes de la encuesta.' };
   }
-  const slope = spreadSeries(ibr6, policy);
-  // TES 2Y: interpolación lineal entre el 1Y y el 5Y (BanRep no publica el nodo de 2 años).
-  const daily = d['BanRep TES diario (Suameca)'];
-  const tes = daily?.y10?.length ? daily : d['BanRep TES'] || { y1: [], y5: [], y10: [] };
-  const tesTag = daily?.y10?.length ? 'cero cupón' : 'prom. mensual';
-  const tes2 = tes.y1.map((p) => {
-    const q = tes.y5.find((x) => x.d === p.d);
-    return q ? { d: p.d, v: p.v + (q.v - p.v) / 4 } : null;
-  }).filter(Boolean);
-  const bsrc = (flow) => ({ source: `BanRep SDMX ${flow}`, url: BANREP_URL });
-  const tesSrc = daily?.y10?.length ? { source: 'BanRep Suameca, curva cero cupón TES (series 15272–15274)', url: SUAMECA_PAGE(640001, 'deuda_publica_tasas_cero_cupon_tes') } : bsrc(BANREP_FLOWS.tes);
+  const surveyMonth = eme ? Number(eme.asOf.slice(5, 7)) : 12;
+  const lastOf = (s) => s?.find((p) => p.d === eme?.asOf)?.v ?? null;
+  const expectations = eme
+    ? [{
+        title: 'Encuesta mensual de expectativas (EME) – mediana',
+        columns: ['Variable', 'Mes en curso', 'Dic. este año', '12 meses', 'Dic. año próximo', '24 meses'],
+        rows: [
+          ['Inflación total (%)', lastOf(eme.infl.mom), lastOf(eme.infl.decCur), lastOf(eme.infl.m12), lastOf(eme.infl.decNext), lastOf(eme.infl.m24)],
+          // t = mes de la encuesta (m): diciembre de este año es t+(12−m) y el del próximo, t+(24−m).
+          ['Tasa de política (%)', lastOf(eme.tpm[0]), lastOf(eme.tpm[12 - surveyMonth]), lastOf(eme.tpm[12]), lastOf(eme.tpm[24 - surveyMonth]), lastOf(eme.tpm[24])],
+          ['TRM fin de período (USDCOP)', lastOf(eme.trm.eom), lastOf(eme.trm.decCur), lastOf(eme.trm.m12), lastOf(eme.trm.decNext), lastOf(eme.trm.m24)],
+        ],
+        asOf: eme.asOf,
+        ...emeSrc,
+      }]
+    : [];
 
   return {
     id: 'co',
@@ -244,44 +181,84 @@ export default async function colombia() {
     flag: '🇨🇴',
     currency: 'COP',
     kpis: [
-      kpi({ key: 'policy', group: 'policy', label: 'Tasa de política (BanRep)', series: policy, changeDays: 365, ...bsrc(pol?.flow || 'tasa de política') }),
-      kpi({ key: 'ibr_on', group: 'policy', label: 'IBR overnight', series: ibrOn, decimals: 3, ...bsrc(BANREP_FLOWS.ibr) }),
-      kpi({ key: 'cpi', group: 'inflation', label: 'IPC a/a', series: cpi, changeDays: 365, ...cpiSrc }),
-      kpi({ key: 'exp_rate', group: 'expectations', label: 'IBR 6M − tasa de política', series: slope, note: 'Proxy de mercado: >0 descuenta subas; <0, bajas', source: 'Cálculo propio (BanRep IBR)', url: BANREP_URL }),
-      // Encuesta mensual de BanRep (EME): sin fuente automatizable (la página tiene captcha). Ver CLAUDE.md.
-      kpi({ key: 'ibr6', group: 'market', label: 'IBR 6M', series: ibr6, decimals: 3, ...bsrc(BANREP_FLOWS.ibr) }),
-      kpi({ key: 'y2', group: 'market', label: `TES 2Y (${tesTag})`, series: tes2, changeDays: 365, note: 'Interpolado entre TES 1Y y 5Y', source: `Cálculo propio (${tesSrc.source})`, url: tesSrc.url }),
-      kpi({ key: 'y10', group: 'market', label: `TES 10Y (${tesTag})`, series: tes.y10, changeDays: 365, ...tesSrc,
-        note: daily?.y10?.length ? 'Curva cero cupón diaria del BanRep; se carga una vez por semana (~1 semana de atraso)' : 'Promedio mensual (respaldo: Suameca no respondió)' }),
+      kpi({ key: 'policy', group: 'policy', label: 'Tasa de política (BanRep)', series: policy, changeDays: 365, ...ss(SUA.policy) }),
+      kpi({ key: 'ibr_on', group: 'policy', label: 'IBR overnight (nominal)', series: ibr.on, decimals: 3, source: `BanRep Suameca (serie ${SUA.ibrOn})`, url: PAGE.ibr }),
+      kpi({ key: 'cpi', group: 'inflation', label: 'IPC a/a', series: cpi, changeDays: 365, source: `BanRep Suameca (serie ${SUA.cpi}, DANE)`, url: PAGE.cpi }),
+      kpi({ key: 'target', group: 'inflation', label: 'Meta de inflación', series: target, source: `BanRep Suameca (serie ${SUA.target})`, url: PAGE.cpi }),
+      kpi({ key: 'exp_cpi', group: 'expectations', label: 'Inflación esperada a 12 meses (EME)', series: eme?.infl.m12 || [], ...emeSrc, note: 'Mediana de los analistas' }),
+      kpi({ key: 'exp_cpi_dec', group: 'expectations', label: 'Inflación esperada a dic. del año próximo (EME)', series: eme?.infl.decNext || [], ...emeSrc }),
+      kpi({ key: 'exp_rate', group: 'expectations', label: 'Tasa de política esperada en 12 meses (EME)', series: eme?.tpm[12] || [], ...emeSrc, note: 'Mediana de los analistas' }),
+      kpi({ key: 'exp_fx', group: 'expectations', label: 'TRM esperada en 12 meses (EME)', series: eme?.trm.m12 || [], unit: '', decimals: 0, ...emeSrc }),
+      kpi({ key: 'be10', group: 'expectations', label: 'Inflación implícita 10Y (TES pesos − UVR)', series: be10, note: 'Compensación inflacionaria: (1 + TES pesos) / (1 + TES UVR) − 1, curvas cero cupón', source: `Cálculo propio (${tesSrc.source})`, url: tesSrc.url }),
+      kpi({ key: 'ibr3', group: 'market', label: 'IBR 3M (efectiva anual)', series: ibr3, decimals: 3, note: 'Convertida de la nominal publicada a efectiva anual, como la tasa de política', source: `Cálculo propio (BanRep Suameca, serie ${SUA.ibr3m})`, url: PAGE.ibr }),
+      kpi({ key: 'y2', group: 'market', label: 'TES 2Y (cero cupón)', series: tes2, changeDays: 365, note: 'Interpolado entre TES 1Y y 5Y', source: `Cálculo propio (${tesSrc.source})`, url: tesSrc.url }),
+      kpi({ key: 'y10', group: 'market', label: 'TES 10Y (cero cupón)', series: tes.p10, changeDays: 365, ...tesSrc, note: tesNote }),
+      kpi({ key: 'r10', group: 'market', label: 'TES UVR 10Y (tasa real)', series: tes.u10, changeDays: 365, ...tesSrc, note: tesNote }),
       kpi({ key: 'fx', group: 'fx', label: 'USDCOP (TRM)', series: trm, unit: '', decimals: 2, changeDays: 365, ...trmSrc }),
     ],
     equity: d['Yahoo COLO/COLCAP'],
     charts: [
       {
         id: 'policy-vs-cpi',
-        title: 'Tasa de política vs IPC a/a',
+        title: 'Tasa de política, IPC a/a y meta',
         unit: '%',
         lines: [
           { key: 'pol', label: 'Tasa de política', step: true },
           { key: 'cpi', label: 'IPC a/a' },
+          { key: 'meta', label: 'Meta', step: true },
         ],
-        data: merge({ pol: thin(policy.filter((p) => p.d >= (cpi[0]?.d || ''))), cpi }),
+        data: merge({ pol: thin(policy.filter((p) => p.d >= (cpi[0]?.d || ''))), cpi, meta: target.filter((p) => p.d >= (cpi[0]?.d || '') && p.d <= iso(new Date())) }),
       },
       { id: 'fx', title: 'USDCOP – TRM', unit: '', lines: [{ key: 'v', label: 'TRM' }], data: merge({ v: trm }) },
       {
+        id: 'tes-pesos',
+        title: 'TES cero cupón en pesos (1, 5 y 10 años)',
+        unit: '%',
+        lines: [{ key: 'y1', label: '1 año' }, { key: 'y5', label: '5 años' }, { key: 'y10', label: '10 años' }],
+        data: merge({ y1: thin(tes.p1), y5: thin(tes.p5), y10: thin(tes.p10) }),
+      },
+      {
+        id: 'tes-uvr',
+        title: 'TES UVR cero cupón, tasa real (1, 5 y 10 años)',
+        unit: '%',
+        lines: [{ key: 'y1', label: '1 año' }, { key: 'y5', label: '5 años' }, { key: 'y10', label: '10 años' }],
+        data: merge({ y1: thin(tes.u1), y5: thin(tes.u5), y10: thin(tes.u10) }),
+      },
+      {
+        id: 'exp-cpi',
+        group: 'exp',
+        title: 'Inflación observada y esperada (EME, mediana)',
+        unit: '%',
+        lines: [{ key: 'cpi', label: 'IPC a/a' }, { key: 'm12', label: 'Esperada a 12 meses' }, { key: 'm24', label: 'Esperada a 24 meses' }],
+        data: merge({ cpi: cut(cpi, 4), m12: cut(eme?.infl.m12 || [], 4), m24: cut(eme?.infl.m24 || [], 4) }),
+      },
+      {
         id: 'exp-rate',
         group: 'exp',
-        title: 'Tasa de política vs IBR 6M (lo que descuenta el mercado)',
+        title: 'Tasa de política: actual y esperada en 12 meses (EME)',
         unit: '%',
-        lines: [
-          { key: 'pol', label: 'Tasa de política', step: true },
-          { key: 'ibr6', label: 'IBR 6M' },
-        ],
-        data: merge({ pol: policy.filter((p) => p.d >= iso(from)), ibr6 }),
+        lines: [{ key: 'pol', label: 'Tasa de política', step: true }, { key: 'e12', label: 'Esperada en 12 meses' }],
+        data: merge({ pol: thin(cut(policy, 4)), e12: cut(eme?.tpm[12] || [], 4) }),
+      },
+      {
+        id: 'exp-be',
+        group: 'exp',
+        title: 'Inflación implícita 10Y (TES pesos vs UVR)',
+        unit: '%',
+        lines: [{ key: 'be', label: 'Implícita 10Y' }],
+        data: merge({ be: thin(be10) }),
+      },
+      {
+        id: 'exp-ibr',
+        group: 'exp',
+        title: 'Tasa de política vs IBR 3M (lo que descuenta el mercado)',
+        unit: '%',
+        lines: [{ key: 'pol', label: 'Tasa de política', step: true }, { key: 'ibr3', label: 'IBR 3M (efectiva)' }],
+        data: merge({ pol: policy.filter((p) => p.d >= (ibr3[0]?.d || '')), ibr3 }),
       },
     ],
-    expectations: [],
-    path: null,
+    expectations,
+    path,
     calendar: upcoming(
       [...agendaEvents('co'), ...(d['DANE calendario'] || [])].filter((e, i, a) => a.findIndex((x) => x.date === e.date && x.event.startsWith(e.event.split(' de ')[0])) === i),
       20
